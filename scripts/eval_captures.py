@@ -5,8 +5,11 @@ Usage: uv run python scripts/eval_captures.py <folder>
 
 Runs the real OCR name read and database lookup on every PNG in the folder
 (for example the capture library written with CAPTURE_LIBRARY=true) and
-prints one row per file: file, read text, tier vote and confidence, and the
-resolved catalog name. With a labels.csv in the folder (columns
+prints one row per file: file, located card, read text, tier vote and
+confidence, and the resolved catalog name. Each image is read the way the
+scanner reads it: the card is located with the cursor assumed at the image
+centre and the name passes run on its crop. With no card the whole image is
+read, as for an old fixed-box capture. With a labels.csv in the folder (columns
 file,expected) it also prints the accuracy of the read text, of the
 resolver without the vote, and of the resolver with the vote.
 
@@ -23,6 +26,8 @@ from PIL import Image
 from arc_helper.database import Database
 from arc_helper.database import _match_key
 from arc_helper.ocr import OCREngine
+from arc_helper.ocr import crop_card
+from arc_helper.tooltip_layout import Point
 
 
 def _load_labels(folder: Path) -> dict[str, str]:
@@ -63,19 +68,29 @@ def main() -> int:
     files = sorted(folder.glob("*.png"))
     width = max((len(f.name) for f in files), default=4)
 
-    print(f"{'file':<{width}}  {'read':<24}  {'vote':<9}  resolved")
+    print(f"{'file':<{width}}  {'card':<21}  {'read':<24}  {'vote':<9}  resolved")
     hits = {"read": 0, "no_vote": 0, "vote": 0}
     labeled = 0
     for path in files:
         with Image.open(path) as image:
-            processed = engine.preprocess_tooltip(image.convert("RGB"))
+            rgb = image.convert("RGB")
+        # The search window is centred on the cursor
+        found = crop_card(rgb, Point(rgb.width // 2, rgb.height // 2))
+        card_text = "-"
+        if found is not None:
+            rgb, card = found
+            card_text = f"{card.left},{card.top} {card.width}x{card.height}"
+        processed = engine.preprocess_tooltip(rgb)
         read = engine._read_item_name(processed)
         vote = engine.last_tier_vote
         with_vote = db.lookup(read, tier_vote=vote) if read else None
 
         vote_text = f"{vote.tier} {vote.confidence:.2f}" if vote and vote.tier else "-"
         resolved = with_vote.name if with_vote else "-"
-        print(f"{path.name:<{width}}  {read or '-':<24}  {vote_text:<9}  {resolved}")
+        print(
+            f"{path.name:<{width}}  {card_text:<21}  {read or '-':<24}  "
+            f"{vote_text:<9}  {resolved}"
+        )
 
         if path.name in labels:
             expected = labels[path.name]

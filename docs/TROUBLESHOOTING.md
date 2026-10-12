@@ -28,7 +28,7 @@ When a weapon shows the wrong tier (I, II, III, IV, V), collect captures so the 
 1. Set `CAPTURE_LIBRARY=true` in `.env` (and optionally `CAPTURE_LIBRARY_DIR`, default `debug/captures`)
 2. Hover the tiered items that come out wrong. Each scan saves the raw capture as `<timestamp>_<read name>.png`, at most one per name every 2 seconds
 3. Optionally add a `labels.csv` to the folder with the columns `file,expected` (the catalog name, for example `Anvil II`)
-4. Run `uv run python scripts/eval_captures.py debug/captures` to see the read text, the stroke-count vote and the resolved item for every capture, plus accuracy when labels are present
+4. Run `uv run python scripts/eval_captures.py debug/captures` to see the read text, the stroke-count vote and the resolved item for every capture, plus accuracy when labels are present. It reads each file the way the scanner does: it locates the item card with the cursor assumed at the image centre, prints its rectangle in the `card` column (a dash when there is none) and reads the name from the card crop, or from the whole image when no card is found
 5. Set `CAPTURE_LIBRARY=false` again when done, the folder grows while it is on
 
 ### "Application won't start"
