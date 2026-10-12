@@ -9,6 +9,8 @@ import pytest
 import requests
 
 import update_db
+from arc_helper.database import Database
+from arc_helper.database import RecycleOutput
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -401,3 +403,59 @@ def test_update_writes_sorted_needs_csv(monkeypatch, tmp_path, entry):
     assert rows == sorted(
         rows, key=lambda r: (r[0], r[1].lower(), int(r[2] or -1), r[3].lower())
     )
+
+
+OLD_HEADER = "name,action,recycle_for,keep_for,sell_price,stack_size\n"
+NEW_HEADER = OLD_HEADER.rstrip("\n") + ",rarity,category\n"
+
+
+def test_merge_refreshes_rarity_and_category(monkeypatch, tmp_path):
+    payload = FakeResponse(_fixture("arctracker_items.json"))
+    # the existing items.csv is the old format, without the two columns
+    rows, _ = _run_main(monkeypatch, tmp_path, payload)
+    assert rows["Power Bank"]["rarity"] == "Rare"
+    assert rows["Power Bank"]["category"] == "Recyclable"
+    assert rows["Power Bank"]["action"] == "Keep"  # merged fields stay
+
+
+def test_load_csv_reads_old_and_new_format(tmp_path):
+    db = Database(db_path=tmp_path / "items.db")
+    old_csv = tmp_path / "old.csv"
+    old_csv.write_text(OLD_HEADER + "Battery,Sell,,,250,15\n", encoding="utf-8")
+    db.load_csv(old_csv)
+    battery = db.lookup("Battery")
+    assert (battery.rarity, battery.category) == (None, None)
+
+    new_csv = tmp_path / "new.csv"
+    new_csv.write_text(
+        NEW_HEADER + "Battery,Sell,,,250,15,Common,Recyclable\n", encoding="utf-8"
+    )
+    db.load_csv(new_csv)
+    battery = db.lookup("Battery")
+    assert (battery.rarity, battery.category) == ("Common", "Recyclable")
+
+
+def test_rebuild_database_fills_columns_and_loads_csvs(tmp_path):
+    items_csv = tmp_path / "items.csv"
+    items_csv.write_text(
+        NEW_HEADER + "Power Bank,Recycle,2x Battery,,1000,3,Rare,Recyclable\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "recycle_outputs.csv").write_text(
+        "item,component,quantity,location\n"
+        "Power Bank,Battery,2,home\nPower Bank,Wires,2,home\n"
+        "Power Bank,Battery,2,field\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "needs.csv").write_text(
+        "item,source_kind,source_name,tier,quantity,starts,ends\n"
+        "Power Bank,workshop,Gunsmith,4,3,,\n",
+        encoding="utf-8",
+    )
+
+    assert update_db.rebuild_database(items_csv, tmp_path / "items.db") == 1
+
+    db = Database(db_path=tmp_path / "items.db")
+    assert db.lookup("Power Bank").rarity == "Rare"
+    assert db.home_only_outputs("Power Bank") == [RecycleOutput("Wires", 2, "home")]
+    assert [n.quantity for n in db.needs_for("Power Bank")] == [3]

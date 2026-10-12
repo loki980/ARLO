@@ -252,6 +252,16 @@ class Settings(BaseSettings):
     # Database in app directory
     database_path: Path = Field(default_factory=lambda: APP_DIR / "items.db")
 
+    @property
+    def recycle_outputs_csv_path(self) -> Path:
+        """recycle_outputs.csv, next to the database and items.csv."""
+        return self.database_path.parent / "recycle_outputs.csv"
+
+    @property
+    def needs_csv_path(self) -> Path:
+        """needs.csv, next to the database and items.csv."""
+        return self.database_path.parent / "needs.csv"
+
     # Screen capture backend: auto | x11 | wayland (Linux only)
     screen_backend: str = Field(
         default="auto", description="Screen backend: auto, x11 or wayland"

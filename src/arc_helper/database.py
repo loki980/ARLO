@@ -24,6 +24,10 @@ from .tiers import tier_key
 
 HOME = "home"
 FIELD = "field"
+LOCATIONS = (HOME, FIELD)
+NEED_KINDS = ("quest", "project", "workshop")
+RECYCLE_OUTPUTS_CSV_NAME = "recycle_outputs.csv"
+NEEDS_CSV_NAME = "needs.csv"
 
 # "2x Metal Parts", "2 X Metal Parts", "2xMetal Parts"
 _COUNTED_ENTRY = re.compile(r"(\d+)\s*[xX]\s*(.*)")
@@ -54,6 +58,8 @@ class Item(BaseModel):
     keep_for: str | None = Field(default=None, max_length=500)
     sell_price: int | None = Field(default=None)
     stack_size: int | None = Field(default=None)
+    rarity: str | None = Field(default=None)
+    category: str | None = Field(default=None)
 
 
 class RecycleOutput(NamedTuple):
@@ -62,6 +68,103 @@ class RecycleOutput(NamedTuple):
     component: str
     quantity: int
     location: str
+
+
+class Need(NamedTuple):
+    """One quest, project or workshop level that needs an item."""
+
+    item: str
+    source_kind: str
+    source_name: str
+    tier: int | None
+    quantity: int
+    starts: str | None
+    ends: str | None
+
+
+def _optional_int(text: str | None) -> int | None:
+    """Parse a CSV cell into an int, or None when empty."""
+    text = (text or "").strip()
+    return int(text) if text else None
+
+
+def _optional_text(text: str | None) -> str | None:
+    """Strip a CSV cell, or None when empty."""
+    return (text or "").strip() or None
+
+
+def read_recycle_outputs_csv(path: Path) -> list[tuple[str, str, int, str]]:
+    """Parse recycle_outputs.csv into (item, component, quantity, location) rows.
+
+    Malformed rows and repeats of a key already seen (matched with the same
+    ASCII case folding as the table's NOCASE key) are skipped with a debug log.
+    """
+    rows: list[tuple[str, str, int, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    with Path(path).open(encoding="utf-8", newline="") as f:
+        for raw in csv.DictReader(f):
+            item = (raw.get("item") or "").strip()
+            component = (raw.get("component") or "").strip()
+            location = (raw.get("location") or "").strip()
+            try:
+                quantity = int((raw.get("quantity") or "").strip())
+            except ValueError:
+                quantity = 0
+            key = (item.translate(_NOCASE), component.translate(_NOCASE), location)
+            if (
+                not item
+                or not component
+                or quantity <= 0
+                or location not in LOCATIONS
+                or key in seen
+            ):
+                logger.debug(f"Skipping recycle_outputs.csv row: {raw!r}")
+                continue
+            seen.add(key)
+            rows.append((item, component, quantity, location))
+    return rows
+
+
+def read_needs_csv(path: Path) -> list[Need]:
+    """Parse needs.csv into Need rows.
+
+    Malformed rows and repeats of a key already seen are skipped with a
+    debug log.
+    """
+    rows: list[Need] = []
+    seen: set[tuple] = set()
+    with Path(path).open(encoding="utf-8", newline="") as f:
+        for raw in csv.DictReader(f):
+            try:
+                need = Need(
+                    item=(raw.get("item") or "").strip(),
+                    source_kind=(raw.get("source_kind") or "").strip(),
+                    source_name=(raw.get("source_name") or "").strip(),
+                    tier=_optional_int(raw.get("tier")),
+                    quantity=int((raw.get("quantity") or "").strip()),
+                    starts=_optional_text(raw.get("starts")),
+                    ends=_optional_text(raw.get("ends")),
+                )
+            except ValueError:
+                logger.debug(f"Skipping needs.csv row: {raw!r}")
+                continue
+            key = (
+                need.item.translate(_NOCASE),
+                need.source_kind,
+                need.source_name,
+                need.tier,
+            )
+            if (
+                not need.item
+                or not need.source_name
+                or need.source_kind not in NEED_KINDS
+                or key in seen
+            ):
+                logger.debug(f"Skipping needs.csv row: {raw!r}")
+                continue
+            seen.add(key)
+            rows.append(need)
+    return rows
 
 
 def parse_recycle_for(text: str | None) -> list[tuple[str, int]]:
@@ -96,11 +199,29 @@ def parse_recycle_for(text: str | None) -> list[tuple[str, int]]:
 class Database:
     """SQLite database handler for items."""
 
-    def __init__(self, db_path: Path | None = None):
-        """Initialize database connection."""
+    def __init__(
+        self,
+        db_path: Path | None = None,
+        *,
+        recycle_outputs_csv: Path | None = None,
+        needs_csv: Path | None = None,
+    ):
+        """Initialize database connection.
+
+        The two CSV paths default to the configured ones when db_path is not
+        given, and to the files next to db_path otherwise.
+        """
         if db_path is None:
-            db_path = get_settings().database_path
+            settings = get_settings()
+            db_path = settings.database_path
+            default_outputs = settings.recycle_outputs_csv_path
+            default_needs = settings.needs_csv_path
+        else:
+            default_outputs = Path(db_path).parent / RECYCLE_OUTPUTS_CSV_NAME
+            default_needs = Path(db_path).parent / NEEDS_CSV_NAME
         self.db_path = db_path
+        self.recycle_outputs_csv = Path(recycle_outputs_csv or default_outputs)
+        self.needs_csv = Path(needs_csv or default_needs)
         self._tier_index: dict[str, dict[str, str]] = {}
         self._init_db()
         self._build_tier_index()
@@ -121,7 +242,9 @@ class Database:
                     recycle_for TEXT,
                     keep_for TEXT,
                     sell_price INTEGER,
-                    stack_size INTEGER
+                    stack_size INTEGER,
+                    rarity TEXT,
+                    category TEXT
                 )
             """)
             conn.execute("""
@@ -137,11 +260,16 @@ class Database:
                 conn.execute("ALTER TABLE items ADD COLUMN sell_price INTEGER")
             if "stack_size" not in existing_cols:
                 conn.execute("ALTER TABLE items ADD COLUMN stack_size INTEGER")
+            if "rarity" not in existing_cols:
+                conn.execute("ALTER TABLE items ADD COLUMN rarity TEXT")
+            if "category" not in existing_cols:
+                conn.execute("ALTER TABLE items ADD COLUMN category TEXT")
 
-            # Structured recycle outputs. Home rows are derived from
-            # items.recycle_for, field rows come from elsewhere and are kept.
-            # Home rows are rebuilt on every open because update_db writes
-            # items directly and never calls load_csv.
+            # Structured recycle outputs. When recycle_outputs.csv exists,
+            # sync_from_csvs loads every row from it. Otherwise home rows are
+            # derived from items.recycle_for on every open, because update_db
+            # writes items directly and never calls load_csv, and field rows
+            # come from elsewhere and are kept.
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS recycle_outputs (
                     item TEXT COLLATE NOCASE,
@@ -151,9 +279,34 @@ class Database:
                     PRIMARY KEY (item, component, location)
                 )
             """)
-            self._rebuild_home_outputs(conn)
+            self._refresh_home_outputs(conn)
+
+            # What each quest, project and workshop level needs, from needs.csv
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS needs (
+                    item TEXT COLLATE NOCASE,
+                    source_kind TEXT CHECK (
+                        source_kind IN ('quest', 'project', 'workshop')
+                    ),
+                    source_name TEXT,
+                    tier INTEGER NULL,
+                    quantity INTEGER,
+                    starts TEXT NULL,
+                    ends TEXT NULL,
+                    PRIMARY KEY (item, source_kind, source_name, tier)
+                )
+            """)
 
             conn.commit()
+
+    def _refresh_home_outputs(self, conn: sqlite3.Connection) -> None:
+        """Derive the home rows from items.recycle_for unless the CSV exists.
+
+        recycle_outputs.csv is authoritative when present and sync_from_csvs
+        loads it, so the derivation does not run then.
+        """
+        if not self.recycle_outputs_csv.exists():
+            self._rebuild_home_outputs(conn)
 
     @staticmethod
     def _derived_home_outputs(conn: sqlite3.Connection) -> list[tuple[str, str, int]]:
@@ -201,6 +354,79 @@ class Database:
                 for item, component, quantity in derived
             ],
         )
+
+    def load_recycle_outputs_csv(self, path: Path | str) -> bool:
+        """Replace all recycle_outputs rows, home and field, with the CSV rows.
+
+        Writes nothing when the stored rows already match. Returns True when
+        the table changed.
+        """
+        rows = read_recycle_outputs_csv(Path(path))
+        with self._get_connection() as conn:
+            stored = [
+                tuple(row)
+                for row in conn.execute(
+                    "SELECT item, component, quantity, location "
+                    "FROM recycle_outputs ORDER BY rowid"
+                )
+            ]
+            if stored == rows:
+                return False
+            conn.execute("DELETE FROM recycle_outputs")
+            conn.executemany(
+                "INSERT INTO recycle_outputs (item, component, quantity, location) "
+                "VALUES (?, ?, ?, ?)",
+                rows,
+            )
+            conn.commit()
+        return True
+
+    def load_needs_csv(self, path: Path | str) -> bool:
+        """Replace all needs rows with the CSV rows.
+
+        Writes nothing when the stored rows already match. Returns True when
+        the table changed.
+        """
+        rows = read_needs_csv(Path(path))
+        with self._get_connection() as conn:
+            stored = [
+                Need._make(row)
+                for row in conn.execute(
+                    "SELECT item, source_kind, source_name, tier, quantity, "
+                    "starts, ends FROM needs ORDER BY rowid"
+                )
+            ]
+            if stored == rows:
+                return False
+            conn.execute("DELETE FROM needs")
+            conn.executemany(
+                "INSERT INTO needs (item, source_kind, source_name, tier, "
+                "quantity, starts, ends) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+            conn.commit()
+        return True
+
+    def sync_from_csvs(self) -> None:
+        """Load recycle_outputs.csv and needs.csv, whichever of them exist."""
+        if self.recycle_outputs_csv.exists():
+            self.load_recycle_outputs_csv(self.recycle_outputs_csv)
+        if self.needs_csv.exists():
+            self.load_needs_csv(self.needs_csv)
+
+    def needs_for(self, name: str) -> list[Need]:
+        """Every quest, project and workshop row that needs an item."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT item, source_kind, source_name, tier, quantity, starts, ends
+                FROM needs
+                WHERE item = ? COLLATE NOCASE
+                ORDER BY source_kind, source_name, tier
+                """,
+                (name.strip(),),
+            ).fetchall()
+        return [Need._make(row) for row in rows]
 
     def _build_tier_index(self) -> None:
         """Map each tiered base, in tier_key form, to {tier: catalog name}."""
@@ -368,7 +594,7 @@ class Database:
         Load items from a CSV file into the database.
 
         CSV must have columns: name, action, recycle_for, keep_for
-        Optional columns: sell_price, stack_size
+        Optional columns: sell_price, stack_size, rarity, category
 
         Args:
             csv_path: Path to the CSV file
@@ -401,26 +627,39 @@ class Database:
                     stack_size_str = row.get("stack_size", "").strip()
                     sell_price = int(sell_price_str) if sell_price_str else None
                     stack_size = int(stack_size_str) if stack_size_str else None
+                    rarity = _optional_text(row.get("rarity"))
+                    category = _optional_text(row.get("category"))
 
                     if not name or not action:
                         continue
 
                     conn.execute(
                         """
-                        INSERT INTO items (name, action, recycle_for, keep_for, sell_price, stack_size)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO items (name, action, recycle_for, keep_for, sell_price, stack_size, rarity, category)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(name) DO UPDATE SET
                             action = excluded.action,
                             recycle_for = excluded.recycle_for,
                             keep_for = excluded.keep_for,
                             sell_price = excluded.sell_price,
-                            stack_size = excluded.stack_size
+                            stack_size = excluded.stack_size,
+                            rarity = excluded.rarity,
+                            category = excluded.category
                         """,
-                        (name, action, recycle_for, keep_for, sell_price, stack_size),
+                        (
+                            name,
+                            action,
+                            recycle_for,
+                            keep_for,
+                            sell_price,
+                            stack_size,
+                            rarity,
+                            category,
+                        ),
                     )
                     count += 1
 
-            self._rebuild_home_outputs(conn)
+            self._refresh_home_outputs(conn)
             conn.commit()
 
         self._build_tier_index()
@@ -451,6 +690,8 @@ class Database:
             keep_for=row["keep_for"],
             sell_price=row["sell_price"] if "sell_price" in row.keys() else None,
             stack_size=row["stack_size"] if "stack_size" in row.keys() else None,
+            rarity=row["rarity"],
+            category=row["category"],
         )
 
     def get_all_items(self) -> list[Item]:
@@ -458,7 +699,8 @@ class Database:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
-                "SELECT name, action, recycle_for, keep_for, sell_price, stack_size FROM items ORDER BY name"
+                "SELECT name, action, recycle_for, keep_for, sell_price, stack_size, "
+                "rarity, category FROM items ORDER BY name"
             )
             return [
                 Item(
@@ -468,6 +710,8 @@ class Database:
                     keep_for=row["keep_for"],
                     sell_price=row["sell_price"],
                     stack_size=row["stack_size"],
+                    rarity=row["rarity"],
+                    category=row["category"],
                 )
                 for row in cursor.fetchall()
             ]

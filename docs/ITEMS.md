@@ -1,6 +1,11 @@
 ## Item Database
 
-Items are stored in `items.db` (SQLite database) with the following columns: `name`, `action`, `recycle_for`, `keep_for`, `sell_price`, and `stack_size`. The database updates automatically from the [MetaForge API](https://metaforge.app/arc-raiders) on every app launch, with the [Arc Raiders Wiki](https://arcraiders.wiki/wiki/Loot) as a fallback.
+Items are stored in `items.db` (SQLite database) with the following columns: `name`, `action`, `recycle_for`, `keep_for`, `sell_price`, `stack_size`, `rarity` and `category`. The database also has two tables loaded from the CSVs next to `items.csv`:
+
+- `recycle_outputs` (`item`, `component`, `quantity`, `location`) is loaded from `recycle_outputs.csv`, home and field rows alike. When that file is missing, the home rows are derived from `items.recycle_for` instead.
+- `needs` (`item`, `source_kind`, `source_name`, `tier`, `quantity`, `starts`, `ends`) is loaded from `needs.csv`.
+
+The app loads both files on every launch, after the auto-update, and the updater loads them when it rebuilds `items.db`. A load writes nothing when the table already matches the file. The database updates automatically from the [MetaForge API](https://metaforge.app/arc-raiders) on every app launch, with the [Arc Raiders Wiki](https://arcraiders.wiki/wiki/Loot) as a fallback.
 
 ### Automatic Updates on Launch
 
@@ -88,14 +93,14 @@ In merge mode the updater will:
 - **Preserve** your existing `action`, `recycle_for`, and `keep_for` for items already in your CSV
 - **Add** any new items with auto-generated recommendations
 - **Fill in** empty `recycle_for` / `keep_for` fields from API data
-- **Always update** `sell_price` and `stack_size` to the latest values
+- **Always update** `sell_price`, `stack_size`, `rarity` and `category` to the latest values
 
 ### GitHub Actions (Optional)
 
 If you fork this repo, the included GitHub Actions workflow at `.github/workflows/update-db.yml` can sync the database on a schedule:
 
 - Runs weekly on Mondays at 6:00 UTC in merge mode
-- Auto-commits updated `items.csv` and `items.db` if changes are detected
+- Auto-commits updated `items.csv`, `items.db`, `recycle_outputs.csv` and `needs.csv` if changes are detected
 - Can be triggered manually from the **Actions** tab on GitHub
 
 No secrets or configuration needed - just push the workflow file and it works.
@@ -107,11 +112,11 @@ No secrets or configuration needed - just push the workflow file and it works.
 You can also edit `items.csv` directly. The CSV has the following columns:
 
 ```csv
-name,action,recycle_for,keep_for,sell_price,stack_size
-Advanced Arc Powercell,Keep,2x ARC Powercell,Medical Lab: Surge Shield Recharger,640,5
-ARC Alloy,Keep,2x Metal Parts,Workshop Explosives Station 1 (6x),200,15
-Air Freshener,Sell,,,,2000,5
-Alarm Clock,Recycle,"1x Processor, 6x Plastic Parts",,1000,3
+name,action,recycle_for,keep_for,sell_price,stack_size,rarity,category
+Advanced Arc Powercell,Keep,2x ARC Powercell,Medical Lab: Surge Shield Recharger,640,5,Rare,Refined Material
+ARC Alloy,Keep,2x Metal Parts,Workshop Explosives Station 1 (6x),200,15,Uncommon,Topside Material
+Air Freshener,Sell,,,2000,5,Uncommon,Trinket
+Alarm Clock,Recycle,"1x Processor, 6x Plastic Parts",,1000,3,Rare,Recyclable
 ```
 
 | Column | Description |
@@ -122,8 +127,10 @@ Alarm Clock,Recycle,"1x Processor, 6x Plastic Parts",,1000,3
 | `keep_for` | Why to keep it (shown when action is KEEP or USE) |
 | `sell_price` | Sell value in credits (shown on overlay) |
 | `stack_size` | Maximum stack size (shown on overlay) |
+| `rarity` | Item rarity from MetaForge, for example `Common` or `Rare` |
+| `category` | Item category from MetaForge, for example `Recyclable` or `Trinket` |
 
-The `sell_price` and `stack_size` columns are optional for backwards compatibility. If missing, the overlay just won't show that info for those items.
+The `sell_price`, `stack_size`, `rarity` and `category` columns are optional for backwards compatibility. If missing, the overlay just won't show that info for those items.
 
 ### Managing the Database via Calibration Tool
 

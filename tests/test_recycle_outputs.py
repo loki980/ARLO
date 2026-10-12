@@ -136,3 +136,56 @@ def test_reopening_unchanged_database_leaves_file_untouched(tmp_path):
     Database(db_path=path)
 
     assert path.read_bytes() == before
+
+
+OUTPUTS_HEADER = "item,component,quantity,location\n"
+
+
+def test_load_csv_replaces_home_and_field_rows(tmp_path):
+    db = _db_with_items(tmp_path, [("Battery", "9x Old Parts")])
+    _add_field(db, [("Battery", "Old Parts", 1)])
+    csv_path = tmp_path / "outputs.csv"
+    csv_path.write_text(
+        OUTPUTS_HEADER + "Battery,Wires,2,home\nBattery,Metal Parts,1,field\n"
+    )
+
+    assert db.load_recycle_outputs_csv(csv_path)
+
+    assert db.recycle_outputs("Battery") == [
+        RecycleOutput("Wires", 2, "home"),
+        RecycleOutput("Metal Parts", 1, "field"),
+    ]
+
+
+def test_second_load_of_same_csv_leaves_file_untouched(tmp_path):
+    db = Database(db_path=tmp_path / "items.db")
+    csv_path = tmp_path / "outputs.csv"
+    csv_path.write_text(OUTPUTS_HEADER + "Battery,Wires,2,home\n")
+    db.load_recycle_outputs_csv(csv_path)
+    before = (tmp_path / "items.db").read_bytes()
+
+    assert not db.load_recycle_outputs_csv(csv_path)
+
+    assert (tmp_path / "items.db").read_bytes() == before
+
+
+def test_csv_present_skips_derived_home_rows(tmp_path):
+    _db_with_items(tmp_path, [("Battery", "2x Metal Parts")])
+    (tmp_path / "recycle_outputs.csv").write_text(
+        OUTPUTS_HEADER + "Battery,Wires,3,home\n"
+    )
+
+    db = Database(db_path=tmp_path / "items.db")
+    assert db.recycle_outputs("Battery") == []  # no derivation from recycle_for
+    db.sync_from_csvs()
+
+    assert db.recycle_outputs("Battery") == [RecycleOutput("Wires", 3, "home")]
+
+
+def test_csv_absent_derives_home_rows(tmp_path):
+    _db_with_items(tmp_path, [("Battery", "2x Metal Parts")])
+
+    db = Database(db_path=tmp_path / "items.db")
+    db.sync_from_csvs()
+
+    assert db.recycle_outputs("Battery") == [RecycleOutput("Metal Parts", 2, "home")]

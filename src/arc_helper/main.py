@@ -607,6 +607,12 @@ def main() -> None:
         except Exception as e:  # noqa: BLE001
             logger.debug(f"Wiki auto-update unavailable: {e}")
 
+        # Load recycle_outputs.csv and needs.csv into the database
+        try:
+            Database().sync_from_csvs()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not load the recycle and needs CSVs: {e}")
+
         settings = get_settings()
         logger.info(
             f"Settings loaded for resolution, trigger at ({settings.trigger_region.x}, {settings.trigger_region.y})"

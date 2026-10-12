@@ -77,6 +77,17 @@ NEEDS_FIELDS = [
     "ends",
 ]
 
+ITEMS_FIELDS = [
+    "name",
+    "action",
+    "recycle_for",
+    "keep_for",
+    "sell_price",
+    "stack_size",
+    "rarity",
+    "category",
+]
+
 USER_AGENT = "ARLO/1.0 (Arc Raiders Loot Overlay - https://github.com/Soygen/ARLO)"
 
 QUICK_USE_CATEGORIES = {"Quick Use", "Shield", "Augment", "Mods", "Ammunition", "Key"}
@@ -1155,6 +1166,8 @@ def build_csv_rows(
                     "keep_for": old["keep_for"] or keep_for,
                     "sell_price": sell_price,
                     "stack_size": stack_size,
+                    "rarity": item.rarity,
+                    "category": item.category,
                 }
             )
             stats.items_preserved += 1
@@ -1167,6 +1180,8 @@ def build_csv_rows(
                     "keep_for": keep_for,
                     "sell_price": sell_price,
                     "stack_size": stack_size,
+                    "rarity": item.rarity,
+                    "category": item.category,
                 }
             )
             if existing and key not in (existing or {}):
@@ -1179,22 +1194,39 @@ def build_csv_rows(
 
 def write_csv(rows: list[dict[str, str]], csv_path: Path) -> None:
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "name",
-                "action",
-                "recycle_for",
-                "keep_for",
-                "sell_price",
-                "stack_size",
-            ],
-        )
+        writer = csv.DictWriter(f, fieldnames=ITEMS_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
 
 
+def _sync_csv_tables(csv_dir: Path, db_path: Path) -> None:
+    """Load recycle_outputs.csv and needs.csv from csv_dir into the database.
+
+    Needs the arc_helper package. Without it (a bare python with only the
+    updater's dependencies) the tables are left for the app to load on launch.
+    """
+    src_dir = str(SCRIPT_DIR / "src")
+    if src_dir not in sys.path:
+        sys.path.append(src_dir)
+    try:
+        from arc_helper.database import Database
+    except ImportError as e:
+        print(f"  Skipped loading the recycle and needs CSVs ({e})")
+        return
+    Database(
+        db_path,
+        recycle_outputs_csv=csv_dir / RECYCLE_OUTPUTS_CSV.name,
+        needs_csv=csv_dir / NEEDS_CSV.name,
+    ).sync_from_csvs()
+
+
 def rebuild_database(csv_path: Path, db_path: Path) -> int:
+    count = _rebuild_items_table(csv_path, db_path)
+    _sync_csv_tables(csv_path.parent, db_path)
+    return count
+
+
+def _rebuild_items_table(csv_path: Path, db_path: Path) -> int:
     conn = sqlite3.connect(db_path)
     try:
         conn.execute("DROP TABLE IF EXISTS items")
@@ -1205,7 +1237,9 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
                 recycle_for TEXT,
                 keep_for TEXT,
                 sell_price INTEGER,
-                stack_size INTEGER
+                stack_size INTEGER,
+                rarity TEXT,
+                category TEXT
             )
         """)
         conn.execute(
@@ -1225,10 +1259,11 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
                 ss = row.get("stack_size", "").strip()
 
                 conn.execute(
-                    "INSERT INTO items (name, action, recycle_for, keep_for, sell_price, stack_size) "
-                    "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET "
+                    "INSERT INTO items (name, action, recycle_for, keep_for, sell_price, stack_size, rarity, category) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET "
                     "action=excluded.action, recycle_for=excluded.recycle_for, "
-                    "keep_for=excluded.keep_for, sell_price=excluded.sell_price, stack_size=excluded.stack_size",
+                    "keep_for=excluded.keep_for, sell_price=excluded.sell_price, stack_size=excluded.stack_size, "
+                    "rarity=excluded.rarity, category=excluded.category",
                     (
                         name,
                         action,
@@ -1236,6 +1271,8 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
                         keep_for,
                         int(sp) if sp else None,
                         int(ss) if ss else None,
+                        (row.get("rarity") or "").strip() or None,
+                        (row.get("category") or "").strip() or None,
                     ),
                 )
                 count += 1
