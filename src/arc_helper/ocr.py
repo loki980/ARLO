@@ -19,6 +19,12 @@ from .config import logger
 from .screen import Point
 from .screen import ScreenCaptureUnavailable
 from .screen import get_backend
+from .tooltip_layout import Point as LayoutPoint
+from .tooltip_layout import TooltipLayout
+from .tooltip_layout import Word
+from .tooltip_layout import find_cream_rect
+from .tooltip_layout import find_label_rows
+from .tooltip_layout import to_screen
 
 
 def grab_screen(bbox: tuple[int, int, int, int]) -> Image.Image:
@@ -69,6 +75,11 @@ class OCREngine:
         self.tooltip_height = settings.tooltip_capture.height
         self.tooltip_offset_x = settings.tooltip_capture.offset_x
         self.tooltip_offset_y = settings.tooltip_capture.offset_y
+
+        # Last cursor capture and its top-left screen origin, kept so
+        # layout_from_last_capture can locate the tooltip without a new grab
+        self._last_capture: Image.Image | None = None
+        self._last_origin: LayoutPoint | None = None
 
         if self.debug_mode:
             self.debug_dir.mkdir(parents=True, exist_ok=True)
@@ -131,6 +142,8 @@ class OCREngine:
                 f"Capture region clamped significantly: cursor=({cursor.x}, {cursor.y}), bbox=({left}, {top}, {right}, {bottom})"
             )
 
+        self._last_capture = None
+        self._last_origin = None
         try:
             image = grab_screen((left, top, right, bottom))
         except ScreenCaptureUnavailable:
@@ -142,7 +155,65 @@ class OCREngine:
             # Return a dummy image to avoid crashing
             return Image.new("RGB", (100, 100), color="black"), cursor
 
+        self._last_capture = image
+        self._last_origin = LayoutPoint(left, top)
         return image, cursor
+
+    def layout_from_last_capture(self) -> TooltipLayout | None:
+        """Locate the tooltip and its label rows in the last cursor capture.
+
+        Runs a word-box OCR pass on the cream region upscaled 2x. Returns the
+        tooltip and label rectangles in physical screen pixels, or None when
+        there is no capture or no cream region. Costs one extra Tesseract
+        pass, so callers run it once per shown item, not every scan.
+        """
+        image, origin = self._last_capture, self._last_origin
+        if image is None or origin is None:
+            return None
+
+        cream = find_cream_rect(np.array(image.convert("RGB")))
+        if cream is None:
+            return None
+
+        scale = 2
+        crop = image.crop((cream.left, cream.top, cream.right, cream.bottom))
+        crop = crop.convert("L").resize(
+            (crop.width * scale, crop.height * scale), Image.Resampling.BILINEAR
+        )
+
+        try:
+            data = pytesseract.image_to_data(
+                crop, config="--psm 6", output_type=pytesseract.Output.DICT
+            )
+        except pytesseract.TesseractError as e:
+            logger.error(f"OCR Error: {e}")
+            data = {"text": []}
+
+        # Tesseract numbers lines per block and paragraph, so the three
+        # together identify one line
+        line_ids: dict[tuple[int, int, int], int] = {}
+        words = [
+            Word(
+                text=data["text"][i],
+                left=data["left"][i],
+                top=data["top"][i],
+                width=data["width"][i],
+                height=data["height"][i],
+                line=line_ids.setdefault(
+                    (data["block_num"][i], data["par_num"][i], data["line_num"][i]),
+                    len(line_ids),
+                ),
+            )
+            for i in range(len(data["text"]))
+            if data["text"][i].strip()
+        ]
+
+        crop_origin = LayoutPoint(origin.x + cream.left, origin.y + cream.top)
+        labels = {
+            name: to_screen(rect, crop_origin)
+            for name, rect in find_label_rows(words, scale).items()
+        }
+        return TooltipLayout(tooltip=to_screen(cream, origin), labels=labels)
 
     def check_trigger_any(self, regions: list[RegionMixin]) -> bool:
         """
