@@ -39,6 +39,47 @@ from .tooltip_layout import to_screen
 CARD_CROP_MARGIN = 8
 
 
+def clamp_bbox(
+    left: int, top: int, width: int, height: int
+) -> tuple[int, int, int, int]:
+    """Clamp a capture box to the primary screen as (left, top, right, bottom)."""
+    screen_width, screen_height = get_screen_resolution()
+    right = left + width
+    bottom = top + height
+    left = max(0, min(left, screen_width - 1))
+    top = max(0, min(top, screen_height - 1))
+    right = max(left + 1, min(right, screen_width))
+    bottom = max(top + 1, min(bottom, screen_height))
+    return left, top, right, bottom
+
+
+def search_window_bbox(
+    cursor: Point, width: int, height: int
+) -> tuple[int, int, int, int]:
+    """The card search window centred on the cursor, clamped to the screen."""
+    return clamp_bbox(cursor.x - width // 2, cursor.y - height // 2, width, height)
+
+
+def crop_card(rgb: Image.Image, cursor: LayoutPoint) -> tuple[Image.Image, Rect] | None:
+    """Locate the item card in an RGB image and return its OCR crop and rect.
+
+    The cursor is in image coordinates. The crop includes CARD_CROP_MARGIN
+    px around the card, clamped to the image. None when there is no card.
+    """
+    card = find_tooltip_card(np.array(rgb), cursor)
+    if card is None:
+        return None
+    crop = rgb.crop(
+        (
+            max(0, card.left - CARD_CROP_MARGIN),
+            max(0, card.top - CARD_CROP_MARGIN),
+            min(rgb.width, card.right + CARD_CROP_MARGIN),
+            min(rgb.height, card.bottom + CARD_CROP_MARGIN),
+        )
+    )
+    return crop, card
+
+
 def grab_screen(bbox: tuple[int, int, int, int]) -> Image.Image:
     """Capture a screen region via the active screen backend."""
     return get_backend().grab(bbox)
@@ -161,8 +202,9 @@ class OCREngine:
         the captured image and the cursor position.
         """
         cursor = get_cursor_position()
-        left = cursor.x - self.search_width // 2
-        top = cursor.y - self.search_height // 2
+        left, top, _, _ = search_window_bbox(
+            cursor, self.search_width, self.search_height
+        )
         image = self._grab_clamped(
             cursor, left, top, self.search_width, self.search_height
         )
@@ -176,16 +218,9 @@ class OCREngine:
         Clears the last capture and located card first. When the grab fails
         a small black image is returned and no last capture is kept.
         """
-        screen_width, screen_height = get_screen_resolution()
-        right = left + width
-        bottom = top + height
-
         # Clamp to valid screen coordinates (handle multi-monitor)
         # Note: We clamp to primary monitor bounds for simplicity
-        left = max(0, min(left, screen_width - 1))
-        top = max(0, min(top, screen_height - 1))
-        right = max(left + 1, min(right, screen_width))
-        bottom = max(top + 1, min(bottom, screen_height))
+        left, top, right, bottom = clamp_bbox(left, top, width, height)
 
         # Log if we had to clamp significantly
         if right - left < width // 2 or bottom - top < height // 2:
@@ -222,21 +257,14 @@ class OCREngine:
         image, origin = self._last_capture, self._last_origin
         if image is None or origin is None:
             return None
-        rgb = image.convert("RGB")
-        card = find_tooltip_card(
-            np.array(rgb), LayoutPoint(cursor.x - origin.x, cursor.y - origin.y)
+        found = crop_card(
+            image.convert("RGB"),
+            LayoutPoint(cursor.x - origin.x, cursor.y - origin.y),
         )
-        if card is None:
+        if found is None:
             return None
-        self._last_card = card
-        return rgb.crop(
-            (
-                max(0, card.left - CARD_CROP_MARGIN),
-                max(0, card.top - CARD_CROP_MARGIN),
-                min(image.width, card.right + CARD_CROP_MARGIN),
-                min(image.height, card.bottom + CARD_CROP_MARGIN),
-            )
-        )
+        crop, self._last_card = found
+        return crop
 
     def layout_from_last_capture(self) -> TooltipLayout | None:
         """Locate the tooltip and its label rows in the last cursor capture.

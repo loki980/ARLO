@@ -7,6 +7,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from arc_helper.ocr import CARD_CROP_MARGIN
+from arc_helper.ocr import crop_card
 from arc_helper.tooltip_layout import FOUND_IN
 from arc_helper.tooltip_layout import PRICE_CHIP
 from arc_helper.tooltip_layout import RECYCLE_CHIP
@@ -81,6 +83,23 @@ def test_card_found_in_real_loadout_capture():
 
 def test_no_card_in_real_loadout_capture():
     assert find_tooltip_card(_fixture_rgb(NO_CARD_FIXTURE), Point(300, 700)) is None
+
+
+def test_crop_card_adds_margin_and_clamps_to_image():
+    with Image.open(ANVIL_FIXTURE) as image:
+        rgb = image.convert("RGB")
+    # Cursor at the image centre, as eval_captures assumes
+    found = crop_card(rgb, Point(rgb.width // 2, rgb.height // 2))
+    assert found is not None
+    crop, card = found
+    # The card is cut off on the right and bottom, so the margin only
+    # applies on the left and top
+    assert crop.size == (
+        rgb.width - card.left + CARD_CROP_MARGIN,
+        rgb.height - card.top + CARD_CROP_MARGIN,
+    )
+    with Image.open(NO_CARD_FIXTURE) as image:
+        assert crop_card(image.convert("RGB"), Point(515, 587)) is None
 
 
 def test_card_nearest_cursor_wins():
