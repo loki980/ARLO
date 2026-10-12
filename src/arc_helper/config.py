@@ -201,6 +201,12 @@ class OverlaySettings(BaseSettings):
         default=4.0, description="How long overlay stays visible"
     )
     cooldown: float = Field(default=2.0, description="Minimum time between same item")
+    # Read from TOOLTIP_CHIPS, not OVERLAY_TOOLTIP_CHIPS (an alias skips the prefix)
+    tooltip_chips: bool = Field(
+        default=True,
+        validation_alias="TOOLTIP_CHIPS",
+        description="Show price and recycle chips beside the game tooltip",
+    )
 
 
 class ScanSettings(BaseSettings):
@@ -295,6 +301,7 @@ class Settings(BaseSettings):
             f"OVERLAY_Y={self.overlay.y}",
             f"OVERLAY_DISPLAY_TIME={self.overlay.display_time}",
             f"OVERLAY_COOLDOWN={self.overlay.cooldown}",
+            f"TOOLTIP_CHIPS={str(self.overlay.tooltip_chips).lower()}",
             "",
             "# Scan intervals",
             f"TRIGGER_SCAN_INTERVAL={self.scan.trigger_scan_interval}",

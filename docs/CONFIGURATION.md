@@ -39,6 +39,7 @@ OVERLAY_X=100                    # Overlay X position on screen
 OVERLAY_Y=100                    # Overlay Y position on screen
 OVERLAY_DISPLAY_TIME=4.0         # How long the overlay stays visible (seconds)
 OVERLAY_COOLDOWN=2.0             # Minimum time between showing same item (seconds)
+TOOLTIP_CHIPS=true               # Show sell price and home recycle chips beside the game tooltip
 
 # =============================================================================
 # SCANNING SETTINGS - How often the app scans the screen
