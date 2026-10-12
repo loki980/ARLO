@@ -17,6 +17,7 @@ dependencies = [
     "pynput>=1.7.0",
     "evdev>=1.6; sys_platform == 'linux'",
     "python-xlib>=0.17; sys_platform == 'linux'",
+    "opencv-python-headless>=4.11.0.86",
 ]
 
 [project.optional-dependencies]
