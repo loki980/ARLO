@@ -40,6 +40,10 @@ def _fixture(name):
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
+def _wiki_blueprints():
+    return (FIXTURES / "wiki_blueprints.wikitext").read_text(encoding="utf-8")
+
+
 class FakeResponse:
     def __init__(self, payload=None, *, status=200, text=""):
         self._payload = payload
@@ -93,6 +97,8 @@ def _fake_get(arctracker_response, *, metaforge_fails=False, needs=None, failure
             return arctracker_response
         if url == update_db.WIKI_URL:
             return FakeResponse(text=WIKI_HTML)
+        if url == update_db.WIKI_BLUEPRINTS_URL:
+            return FakeResponse(text=_wiki_blueprints())
         if "/items?" in url:
             data = METAFORGE_ITEMS["data"] + needs["metaforge_items"]
             return FakeResponse({**METAFORGE_ITEMS, "data": data})
@@ -120,6 +126,10 @@ def _run_main(
     monkeypatch.setattr(update_db, "LAST_UPDATE_FILE", tmp_path / ".last_update")
     monkeypatch.setattr(update_db, "RECYCLE_OUTPUTS_CSV", outputs_csv)
     monkeypatch.setattr(update_db, "NEEDS_CSV", tmp_path / "needs.csv")
+    monkeypatch.setattr(update_db, "BLUEPRINTS_CSV", tmp_path / "blueprints.csv")
+    monkeypatch.setattr(
+        update_db, "BLUEPRINT_GRID_CSV", tmp_path / "blueprint_grid.csv"
+    )
     fake_get = _fake_get(arctracker_response, metaforge_fails=metaforge_fails)
     monkeypatch.setattr(update_db.requests, "get", fake_get)
     monkeypatch.setattr(sys, "argv", ["update_db.py", "--merge", "--csv-only"])
@@ -459,3 +469,127 @@ def test_rebuild_database_fills_columns_and_loads_csvs(tmp_path):
     assert db.lookup("Power Bank").rarity == "Rare"
     assert db.home_only_outputs("Power Bank") == [RecycleOutput("Wires", 2, "home")]
     assert [n.quantity for n in db.needs_for("Power Bank")] == [3]
+
+
+# blueprints.csv and blueprint_grid.csv
+
+
+def _blueprint_payload():
+    payload = _fixture("arctracker_items.json")
+    payload["items"] += _fixture("arctracker_blueprints.json")["items"]
+    return payload
+
+
+def _read_csv(path):
+    with path.open(encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return reader.fieldnames, list(reader)
+
+
+@pytest.mark.parametrize("entry", ["main", "auto_update"])
+def test_update_writes_blueprint_csvs(monkeypatch, tmp_path, entry):
+    _run_main(monkeypatch, tmp_path, FakeResponse(_blueprint_payload()), entry=entry)
+
+    fields, rows = _read_csv(tmp_path / "blueprints.csv")
+    assert fields == update_db.BLUEPRINTS_FIELDS
+    assert len(rows) == 91
+    assert [r["name"] for r in rows] == sorted((r["name"] for r in rows), key=str.lower)
+    by_name = {r["name"]: r for r in rows}
+    assert "Purification System Blueprint" not in by_name  # a Trinket
+    assert by_name["Anvil Blueprint"] == {
+        "name": "Anvil Blueprint", "item_id": "anvil_blueprint", "unlocks": "Anvil",
+        "icon_url": "https://cdn.arctracker.io/items/v2/anvil_blueprint.png",
+        "map": "All", "map_condition": "Any", "scavengable": "Yes",
+        "containers": "Raider Containers", "quest_reward": "No", "trials_reward": "Yes",
+    }  # fmt: skip
+    grip = by_name["Angled Grip III Blueprint"]
+    assert grip["unlocks"] == "Angled Grip III"
+    assert grip["map_condition"] == "Electromagnetic Storm, Locked Gate, Night Raid"
+    assert by_name["Bobcat Blueprint"]["map_condition"] == "Locked Gate, Hurricane"
+    assert by_name["Emperor Gateway Conduit Blueprint"]["containers"] == "?"
+    nade = by_name["Trigger Nade Blueprint"]
+    assert nade["unlocks"] == "Trigger 'Nade"
+    assert nade["quest_reward"] == "Yes, Sparks Fly"
+    banjo = by_name["Banjo Blueprint"]
+    assert [banjo[c] for c in update_db.WIKI_COLUMNS] == [""] * 6
+
+    fields, grid = _read_csv(tmp_path / "blueprint_grid.csv")
+    assert fields == ["grid_index", "name"]
+    assert [r["grid_index"] for r in grid] == [str(i) for i in range(1, 92)]
+    names = {int(r["grid_index"]): r["name"] for r in grid}
+    assert [i for i, name in names.items() if not name] == [26, 40, 56]
+    assert names[42] == "Anvil Blueprint"
+    assert names[18] == "Tactical Mk. 3 (Smoke) Blueprint"
+    assert names[79] == "Trigger Nade Blueprint"
+    placed = set(names.values()) - {""}
+    assert set(by_name) - placed == {
+        "Banjo Blueprint", "Stiletto Blueprint", "Tether Launcher Blueprint",
+    }  # fmt: skip
+
+
+def test_unmatched_grid_name_is_logged_and_left_empty(monkeypatch, tmp_path, capsys):
+    wiki = _wiki_blueprints().replace("| Snap Hook", "| Snap Hok")
+    wiki = wiki.replace("| Anvil\n", "| anvil blueprint\n")
+    assert "| anvil blueprint\n" in wiki
+    monkeypatch.setattr(
+        update_db.requests, "get", _fake_get(FakeResponse({}), failures={
+            update_db.WIKI_BLUEPRINTS_URL: FakeResponse(text=wiki),
+        })
+    )  # fmt: skip
+    arc = update_db.parse_arctracker_items(_blueprint_payload())
+    grid_csv = tmp_path / "blueprint_grid.csv"
+
+    assert update_db.update_blueprint_csvs(arc, tmp_path / "bp.csv", grid_csv)
+
+    out = capsys.readouterr().out
+    assert out.count("WARNING") == 1
+    assert "'Snap Hok'" in out
+    names = {int(r["grid_index"]): r["name"] for r in _read_csv(grid_csv)[1]}
+    assert not names[91]
+    assert names[42] == "Anvil Blueprint"
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        requests.ConnectionError("connection refused"),
+        FakeResponse(status=503),
+        FakeResponse(text="== Grid ==\nno template here\n"),
+    ],
+    ids=["connection-error", "non-200", "no-grid"],
+)
+def test_wiki_blueprints_failure_keeps_existing_csvs(
+    monkeypatch, tmp_path, capsys, failure
+):
+    blueprints_csv = tmp_path / "blueprints.csv"
+    grid_csv = tmp_path / "blueprint_grid.csv"
+    blueprints_csv.write_text("old,catalog\n", encoding="utf-8")
+    grid_csv.write_text("old,grid\n", encoding="utf-8")
+    fake_get = _fake_get(
+        FakeResponse({}), failures={update_db.WIKI_BLUEPRINTS_URL: failure}
+    )
+    monkeypatch.setattr(update_db.requests, "get", fake_get)
+    arc = update_db.parse_arctracker_items(_blueprint_payload())
+
+    assert not update_db.update_blueprint_csvs(arc, blueprints_csv, grid_csv)
+
+    assert capsys.readouterr().out.count("WARNING") == 1
+    assert blueprints_csv.read_text(encoding="utf-8") == "old,catalog\n"
+    assert grid_csv.read_text(encoding="utf-8") == "old,grid\n"
+
+
+@pytest.mark.parametrize("entry", ["main", "auto_update"])
+def test_arctracker_failure_keeps_existing_blueprint_csvs(
+    monkeypatch, tmp_path, capsys, entry
+):
+    (tmp_path / "blueprints.csv").write_text("old,catalog\n", encoding="utf-8")
+    (tmp_path / "blueprint_grid.csv").write_text("old,grid\n", encoding="utf-8")
+    failure = requests.ConnectionError("connection refused")
+
+    _run_main(monkeypatch, tmp_path, failure, entry=entry)
+
+    assert capsys.readouterr().out.count("WARNING") == 1
+    old_catalog = (tmp_path / "blueprints.csv").read_text(encoding="utf-8")
+    assert old_catalog == "old,catalog\n"
+    old_grid = (tmp_path / "blueprint_grid.csv").read_text(encoding="utf-8")
+    assert old_grid == "old,grid\n"

@@ -1,0 +1,756 @@
+{
+"items": [
+{
+"id": "advanced_camera_blueprint",
+"name": {
+"en": "Advanced Camera Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/advanced_camera_blueprint.png"
+},
+{
+"id": "angled_grip_ii_blueprint",
+"name": {
+"en": "Angled Grip II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/angled_grip_ii_blueprint.png"
+},
+{
+"id": "angled_grip_iii",
+"name": {
+"en": "Angled Grip III"
+},
+"type": "Modification",
+"imageFilename": "https://cdn.arctracker.io/items/v2/angled_grip_iii.png"
+},
+{
+"id": "angled_grip_iii_blueprint",
+"name": {
+"en": "Angled Grip III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/angled_grip_iii_blueprint.png"
+},
+{
+"id": "anvil_blueprint",
+"name": {
+"en": "Anvil Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/anvil_blueprint.png"
+},
+{
+"id": "aphelion_blueprint",
+"name": {
+"en": "Aphelion Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/aphelion_blueprint.png"
+},
+{
+"id": "banjo_blueprint",
+"name": {
+"en": "Banjo Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/banjo_blueprint.png"
+},
+{
+"id": "bantam_blueprint",
+"name": {
+"en": "Bantam Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/bantam_blueprint.png"
+},
+{
+"id": "barricade_kit_blueprint",
+"name": {
+"en": "Barricade Kit Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/barricade_kit_blueprint.png"
+},
+{
+"id": "bettina_blueprint",
+"name": {
+"en": "Bettina Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/bettina_blueprint.png"
+},
+{
+"id": "blaze_grenade_blueprint",
+"name": {
+"en": "Blaze Grenade Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/blaze_grenade_blueprint.png"
+},
+{
+"id": "blue_light_stick_blueprint",
+"name": {
+"en": "Blue Light Stick Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/blue_light_stick_blueprint.png"
+},
+{
+"id": "bobcat_blueprint",
+"name": {
+"en": "Bobcat Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/bobcat_blueprint.png"
+},
+{
+"id": "burletta_blueprint",
+"name": {
+"en": "Burletta Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/burletta_blueprint.png"
+},
+{
+"id": "canto_blueprint",
+"name": {
+"en": "Canto Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/canto_blueprint.png"
+},
+{
+"id": "combat_mk3_aggressive_blueprint",
+"name": {
+"en": "Combat Mk. 3 (Aggressive) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/combat_mk3_aggressive_blueprint.png"
+},
+{
+"id": "combat_mk3_flanking_blueprint",
+"name": {
+"en": "Combat Mk. 3 (Flanking) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/combat_mk3_flanking_blueprint.png"
+},
+{
+"id": "compensator_ii_blueprint",
+"name": {
+"en": "Compensator II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/compensator_ii_blueprint.png"
+},
+{
+"id": "compensator_iii_blueprint",
+"name": {
+"en": "Compensator III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/compensator_iii_blueprint.png"
+},
+{
+"id": "complex_gun_parts_blueprint",
+"name": {
+"en": "Complex Gun Parts Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/complex_gun_parts_blueprint.png"
+},
+{
+"id": "crash_mat_blueprint",
+"name": {
+"en": "Crash Mat Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/crash_mat_blueprint.png"
+},
+{
+"id": "deadline_blueprint",
+"name": {
+"en": "Deadline Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/deadline_blueprint.png"
+},
+{
+"id": "defibrillator_blueprint",
+"name": {
+"en": "Defibrillator Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/defibrillator_blueprint.png"
+},
+{
+"id": "dolabra_blueprint",
+"name": {
+"en": "Dolabra Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/dolabra_blueprint.png"
+},
+{
+"id": "emperor_gateway_conduit_blueprint",
+"name": {
+"en": "Emperor Gateway Conduit Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/emperor_gateway_conduit_blueprint.png"
+},
+{
+"id": "equalizer_blueprint",
+"name": {
+"en": "Equalizer Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/equalizer_blueprint.png"
+},
+{
+"id": "explosive_mine_blueprint",
+"name": {
+"en": "Explosive Mine Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/explosive_mine_blueprint.png"
+},
+{
+"id": "extended_barrel_ii_blueprint",
+"name": {
+"en": "Extended Barrel II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_barrel_ii_blueprint.png"
+},
+{
+"id": "extended_barrel_iii_blueprint",
+"name": {
+"en": "Extended Barrel III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_barrel_iii_blueprint.png"
+},
+{
+"id": "extended_light_mag_ii_blueprint",
+"name": {
+"en": "Extended Light Mag II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_light_mag_ii_blueprint.png"
+},
+{
+"id": "extended_light_mag_iii_blueprint",
+"name": {
+"en": "Extended Light Mag III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_light_mag_iii_blueprint.png"
+},
+{
+"id": "extended_medium_mag_ii_blueprint",
+"name": {
+"en": "Extended Medium Mag II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_medium_mag_ii_blueprint.png"
+},
+{
+"id": "extended_medium_mag_iii_blueprint",
+"name": {
+"en": "Extended Medium Mag III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_medium_mag_iii_blueprint.png"
+},
+{
+"id": "extended_shotgun_mag_ii_blueprint",
+"name": {
+"en": "Extended Shotgun Mag II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_shotgun_mag_ii_blueprint.png"
+},
+{
+"id": "extended_shotgun_mag_iii_blueprint",
+"name": {
+"en": "Extended Shotgun Mag III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/extended_shotgun_mag_iii_blueprint.png"
+},
+{
+"id": "fireworks_box_blueprint",
+"name": {
+"en": "Fireworks Box Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/fireworks_box_blueprint.png"
+},
+{
+"id": "gas_mine_blueprint",
+"name": {
+"en": "Gas Mine Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/gas_mine_blueprint.png"
+},
+{
+"id": "grappling_hook_blueprint",
+"name": {
+"en": "Grappling Hook Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/grappling_hook_blueprint.png"
+},
+{
+"id": "green_light_stick_blueprint",
+"name": {
+"en": "Green Light Stick Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/green_light_stick_blueprint.png"
+},
+{
+"id": "heavy_gun_parts_blueprint",
+"name": {
+"en": "Heavy Gun Parts Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/heavy_gun_parts_blueprint.png"
+},
+{
+"id": "hullcracker_blueprint",
+"name": {
+"en": "Hullcracker Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/hullcracker_blueprint.png"
+},
+{
+"id": "il_toro_blueprint",
+"name": {
+"en": "Il Toro Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/il_toro_blueprint.png"
+},
+{
+"id": "jolt_mine_blueprint",
+"name": {
+"en": "Jolt Mine Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/jolt_mine_blueprint.png"
+},
+{
+"id": "jupiter_blueprint",
+"name": {
+"en": "Jupiter Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/jupiter_blueprint.png"
+},
+{
+"id": "light_gun_parts_blueprint",
+"name": {
+"en": "Light Gun Parts Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/light_gun_parts_blueprint.png"
+},
+{
+"id": "lightweight_stock_blueprint",
+"name": {
+"en": "Lightweight Stock Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/lightweight_stock_blueprint.png"
+},
+{
+"id": "looting_mk3_safekeeper_blueprint",
+"name": {
+"en": "Looting Mk. 3 (Safekeeper) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/looting_mk3_safekeeper_blueprint.png"
+},
+{
+"id": "looting_mk3_survivor_blueprint",
+"name": {
+"en": "Looting Mk. 3 (Survivor) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/looting_mk3_survivor_blueprint.png"
+},
+{
+"id": "lure_grenade_blueprint",
+"name": {
+"en": "Lure Grenade Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/lure_grenade_blueprint.png"
+},
+{
+"id": "medium_gun_parts_blueprint",
+"name": {
+"en": "Medium Gun Parts Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/medium_gun_parts_blueprint.png"
+},
+{
+"id": "muzzle_brake_ii_blueprint",
+"name": {
+"en": "Muzzle Brake II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/muzzle_brake_ii_blueprint.png"
+},
+{
+"id": "muzzle_brake_iii_blueprint",
+"name": {
+"en": "Muzzle Brake III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/muzzle_brake_iii_blueprint.png"
+},
+{
+"id": "osprey_blueprint",
+"name": {
+"en": "Osprey Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/osprey_blueprint.png"
+},
+{
+"id": "padded_stock_blueprint",
+"name": {
+"en": "Padded Stock Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/padded_stock_blueprint.png"
+},
+{
+"id": "powered_descender_blueprint",
+"name": {
+"en": "Powered Descender Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/powered_descender_blueprint.png"
+},
+{
+"id": "pulse_mine_blueprint",
+"name": {
+"en": "Pulse Mine Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/pulse_mine_blueprint.png"
+},
+{
+"id": "purification_system_blueprint",
+"name": {
+"en": "Purification System Blueprint"
+},
+"type": "Trinket",
+"imageFilename": "https://cdn.arctracker.io/items/v2/purification_system_blueprint.png"
+},
+{
+"id": "rascal_blueprint",
+"name": {
+"en": "Rascal Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/rascal_blueprint.png"
+},
+{
+"id": "red_light_stick_blueprint",
+"name": {
+"en": "Red Light Stick Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/red_light_stick_blueprint.png"
+},
+{
+"id": "remote_raider_flare_blueprint",
+"name": {
+"en": "Remote Raider Flare Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/remote_raider_flare_blueprint.png"
+},
+{
+"id": "seeker_grenade_blueprint",
+"name": {
+"en": "Seeker Grenade Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/seeker_grenade_blueprint.png"
+},
+{
+"id": "shotgun_choke_ii_blueprint",
+"name": {
+"en": "Shotgun Choke II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/shotgun_choke_ii_blueprint.png"
+},
+{
+"id": "shotgun_choke_iii_blueprint",
+"name": {
+"en": "Shotgun Choke III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/shotgun_choke_iii_blueprint.png"
+},
+{
+"id": "shotgun_silencer_blueprint",
+"name": {
+"en": "Shotgun Silencer Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/shotgun_silencer_blueprint.png"
+},
+{
+"id": "showstopper_blueprint",
+"name": {
+"en": "Showstopper Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/showstopper_blueprint.png"
+},
+{
+"id": "silencer_i_blueprint",
+"name": {
+"en": "Silencer I Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/silencer_i_blueprint.png"
+},
+{
+"id": "silencer_ii_blueprint",
+"name": {
+"en": "Silencer II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/silencer_ii_blueprint.png"
+},
+{
+"id": "smoke_grenade_blueprint",
+"name": {
+"en": "Smoke Grenade Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/smoke_grenade_blueprint.png"
+},
+{
+"id": "snap_hook_blueprint",
+"name": {
+"en": "Snap Hook Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/snap_hook_blueprint.png"
+},
+{
+"id": "stable_stock_ii_blueprint",
+"name": {
+"en": "Stable Stock II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/stable_stock_ii_blueprint.png"
+},
+{
+"id": "stable_stock_iii_blueprint",
+"name": {
+"en": "Stable Stock III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/stable_stock_iii_blueprint.png"
+},
+{
+"id": "stiletto_blueprint",
+"name": {
+"en": "Stiletto Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/stiletto_blueprint.png"
+},
+{
+"id": "surge_coil_blueprint",
+"name": {
+"en": "Surge Coil Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/surge_coil_blueprint.png"
+},
+{
+"id": "tactical_mk3_defensive_blueprint",
+"name": {
+"en": "Tactical Mk. 3 (Defensive) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/tactical_mk3_defensive_blueprint.png"
+},
+{
+"id": "tactical_mk3_healing_blueprint",
+"name": {
+"en": "Tactical Mk. 3 (Healing) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/tactical_mk3_healing_blueprint.png"
+},
+{
+"id": "tactical_mk3_revival_blueprint",
+"name": {
+"en": "Tactical Mk. 3 (Revival) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/tactical_mk3_revival_blueprint.png"
+},
+{
+"id": "tactical_mk3_smoke_blueprint",
+"name": {
+"en": "Tactical Mk. 3 (Smoke) Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/tactical_mk3_smoke_blueprint.png"
+},
+{
+"id": "tagging_grenade_blueprint",
+"name": {
+"en": "Tagging Grenade Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/tagging_grenade_blueprint.png"
+},
+{
+"id": "tempest_blueprint",
+"name": {
+"en": "Tempest Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/tempest_blueprint.png"
+},
+{
+"id": "tether_launcher_blueprint",
+"name": {
+"en": "Tether Launcher Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/tether_launcher_blueprint.png"
+},
+{
+"id": "torrente_blueprint",
+"name": {
+"en": "Torrente Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/torrente_blueprint.png"
+},
+{
+"id": "trailblazer_blueprint",
+"name": {
+"en": "Trailblazer Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/trailblazer_blueprint.png"
+},
+{
+"id": "trigger_nade",
+"name": {
+"en": "Trigger 'Nade"
+},
+"type": "Quick Use",
+"imageFilename": "https://cdn.arctracker.io/items/v2/trigger_nade.png"
+},
+{
+"id": "trigger_nade_blueprint",
+"name": {
+"en": "Trigger Nade Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/trigger_nade_blueprint.png"
+},
+{
+"id": "venator_blueprint",
+"name": {
+"en": "Venator Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/venator_blueprint.png"
+},
+{
+"id": "vertical_grip_ii_blueprint",
+"name": {
+"en": "Vertical Grip II Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/vertical_grip_ii_blueprint.png"
+},
+{
+"id": "vertical_grip_iii_blueprint",
+"name": {
+"en": "Vertical Grip III Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/vertical_grip_iii_blueprint.png"
+},
+{
+"id": "vita_shot_blueprint",
+"name": {
+"en": "Vita Shot Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/vita_shot_blueprint.png"
+},
+{
+"id": "vita_spray_blueprint",
+"name": {
+"en": "Vita Spray Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/vita_spray_blueprint.png"
+},
+{
+"id": "vulcano_blueprint",
+"name": {
+"en": "Vulcano Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/vulcano_blueprint.png"
+},
+{
+"id": "white_flag_blueprint",
+"name": {
+"en": "White Flag Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/white_flag_blueprint.png"
+},
+{
+"id": "wolfpack_blueprint",
+"name": {
+"en": "Wolfpack Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/wolfpack_blueprint.png"
+},
+{
+"id": "yank_grenade_blueprint",
+"name": {
+"en": "Yank Grenade Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/yank_grenade_blueprint.png"
+},
+{
+"id": "yellow_light_stick_blueprint",
+"name": {
+"en": "Yellow Light Stick Blueprint"
+},
+"type": "Blueprint",
+"imageFilename": "https://cdn.arctracker.io/items/v2/yellow_light_stick_blueprint.png"
+}
+]
+}

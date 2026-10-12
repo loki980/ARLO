@@ -7,6 +7,8 @@ Combines data from three sources for best results:
   - arctracker.io API: recycle (home) and salvage (field) outputs, quest and
     project needs for needs.csv
   - MetaForge hideout: workshop level needs for needs.csv
+  - arctracker.io and the wiki Blueprints page: blueprints.csv (catalog and
+    where found) and blueprint_grid.csv (Collections grid order)
   - Arc Raiders Wiki: workshop upgrades, expedition requirements, project uses,
     and recycle outputs for items arctracker does not cover
 
@@ -76,6 +78,22 @@ NEEDS_FIELDS = [
     "starts",
     "ends",
 ]
+WIKI_BLUEPRINTS_URL = "https://arcraiders.wiki/w/index.php?title=Blueprints&action=raw"
+BLUEPRINTS_CSV = SCRIPT_DIR / "blueprints.csv"
+BLUEPRINTS_FIELDS = [
+    "name",
+    "item_id",
+    "unlocks",
+    "icon_url",
+    "map",
+    "map_condition",
+    "scavengable",
+    "containers",
+    "quest_reward",
+    "trials_reward",
+]
+BLUEPRINT_GRID_CSV = SCRIPT_DIR / "blueprint_grid.csv"
+BLUEPRINT_GRID_FIELDS = ["grid_index", "name"]
 
 ITEMS_FIELDS = [
     "name",
@@ -796,6 +814,237 @@ def update_needs_csv(
 
 
 # =============================================================================
+# Blueprints: catalog (blueprints.csv) and Collections grid (blueprint_grid.csv)
+# =============================================================================
+
+BLUEPRINT_TYPE = "Blueprint"
+BLUEPRINT_SUFFIX = " Blueprint"
+
+# Wiki table header (lowercase, references removed) -> blueprints.csv column
+WIKI_TABLE_COLUMNS = {
+    "blueprint name": "name",
+    "map": "map",
+    "map condition": "map_condition",
+    "scavengable": "scavengable",
+    "containers": "containers",
+    "quest reward": "quest_reward",
+    "trials reward": "trials_reward",
+}
+WIKI_COLUMNS = list(WIKI_TABLE_COLUMNS.values())[1:]
+
+_WIKI_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_WIKI_REF = re.compile(r"<ref[^>]*/>|<ref[^>]*>.*?</ref>", re.DOTALL)
+_WIKI_BREAK = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_WIKI_LINK = re.compile(r"\[\[(?:[^\]|]*\|)?([^\]]*)\]\]")
+_WIKI_GRID = re.compile(r"\{\{\s*BlueprintGrid\b(.*?)\}\}", re.DOTALL)
+
+
+def _wiki_text(raw: str) -> str:
+    """Plain text of a wikitext cell. Links keep their label, breaks become commas."""
+    text = _WIKI_COMMENT.sub("", raw)
+    text = _WIKI_REF.sub("", text)
+    text = _WIKI_BREAK.sub("\n", text)
+    text = _WIKI_LINK.sub(r"\1", text)
+    parts = (" ".join(part.split()) for part in text.split("\n"))
+    return ", ".join(part for part in parts if part)
+
+
+def _plain_key(name: str) -> str:
+    """Case-folded name without apostrophes, so Trigger 'Nade meets Trigger Nade."""
+    return " ".join(name.replace("'", "").replace("\u2019", "").casefold().split())
+
+
+def _blueprint_key(name: str) -> str:
+    """Matching key of a blueprint name, with the ' Blueprint' suffix added."""
+    key = _plain_key(name)
+    suffix = BLUEPRINT_SUFFIX.casefold()
+    return key if key.endswith(suffix) else key + suffix
+
+
+def parse_blueprint_grid(wikitext: str) -> list[str | None]:
+    """Entries of the {{BlueprintGrid}} template in order, None for a '?' slot.
+
+    Raises ValueError when the page has no grid template or it is empty.
+    """
+    match = _WIKI_GRID.search(wikitext)
+    if not match:
+        msg = "wiki Blueprints page has no BlueprintGrid template"
+        raise ValueError(msg)
+    entries: list[str | None] = []
+    for raw_line in match.group(1).splitlines():
+        line = raw_line.strip()
+        if not line.startswith("|"):
+            continue
+        name = _wiki_text(line[1:])
+        entries.append(None if name in {"", "?"} else name)
+    if not entries:
+        msg = "wiki BlueprintGrid template is empty"
+        raise ValueError(msg)
+    return entries
+
+
+def _wikitable_rows(wikitext: str) -> tuple[list[str], list[list[str]]]:
+    """Header cells and raw data cells of the table whose header names blueprints."""
+    for block in re.findall(r"^\{\|.*?^\|\}", wikitext, re.DOTALL | re.MULTILINE):
+        headers: list[str] = []
+        rows: list[list[str]] = []
+        cells: list[str] = []
+        for line in block.splitlines()[1:]:
+            if line.startswith("|}"):
+                break
+            if line.startswith("|-"):
+                if cells:
+                    rows.append(cells)
+                cells = []
+            elif line.startswith("!"):
+                headers += [_wiki_text(h).lower() for h in line[1:].split("!!")]
+            elif line.startswith("|"):
+                cells += line[1:].split("||")
+            elif cells:
+                cells[-1] += "\n" + line
+        if cells:
+            rows.append(cells)
+        if "blueprint name" in headers:
+            return headers, rows
+    msg = "wiki Blueprints page has no blueprint table"
+    raise ValueError(msg)
+
+
+def parse_blueprint_table(wikitext: str) -> dict[str, dict[str, str]]:
+    """Wiki table rows keyed by blueprint name key, valued by blueprints.csv column.
+
+    Raises ValueError when the table or one of its columns is missing.
+    """
+    headers, rows = _wikitable_rows(wikitext)
+    missing = [h for h in WIKI_TABLE_COLUMNS if h not in headers]
+    if missing:
+        msg = f"wiki blueprint table lacks columns {missing}"
+        raise ValueError(msg)
+    table: dict[str, dict[str, str]] = {}
+    for cells in rows:
+        if len(cells) != len(headers):
+            log.debug("blueprints: skipping wiki table row %r", cells)
+            continue
+        values = {
+            WIKI_TABLE_COLUMNS[h]: _wiki_text(cell)
+            for h, cell in zip(headers, cells, strict=True)
+            if h in WIKI_TABLE_COLUMNS
+        }
+        if values["name"]:
+            table.setdefault(_blueprint_key(values["name"]), values)
+    return table
+
+
+def _unlocked_item(name: str, arc_items: dict[str, ArcTrackerItem]) -> str:
+    """English name of the item a blueprint unlocks, or the stripped name."""
+    base = name.removesuffix(BLUEPRINT_SUFFIX)
+    exact = arc_items.get(base.lower())
+    if exact:
+        return exact.name
+    target = _plain_key(base)
+    for record in arc_items.values():
+        if record.item_type != BLUEPRINT_TYPE and _plain_key(record.name) == target:
+            return record.name
+    return base
+
+
+def build_blueprint_rows(
+    catalog: list[ArcTrackerItem],
+    table: dict[str, dict[str, str]],
+    arc_items: dict[str, ArcTrackerItem],
+) -> list[dict[str, str]]:
+    """One blueprints.csv row per catalog blueprint, sorted by name."""
+    rows = []
+    for record in catalog:
+        wiki = table.get(_blueprint_key(record.name), {})
+        row = {
+            "name": record.name,
+            "item_id": record.id,
+            "unlocks": _unlocked_item(record.name, arc_items),
+            "icon_url": record.icon_url,
+        }
+        row.update({column: wiki.get(column, "") for column in WIKI_COLUMNS})
+        rows.append(row)
+    rows.sort(key=lambda r: r["name"].lower())
+    return rows
+
+
+def build_blueprint_grid_rows(
+    grid: list[str | None], catalog: list[ArcTrackerItem]
+) -> list[dict[str, str]]:
+    """blueprint_grid.csv rows in game order, an empty name for unknown slots.
+
+    A wiki name that matches no catalog name, even case-insensitively and
+    with the ' Blueprint' suffix added, is logged once and left empty.
+    """
+    exact = {record.name: record.name for record in catalog}
+    by_key = {_blueprint_key(record.name): record.name for record in catalog}
+    rows = []
+    for index, wiki_name in enumerate(grid, start=1):
+        name = ""
+        if wiki_name is not None:
+            name = exact.get(wiki_name) or by_key.get(_blueprint_key(wiki_name), "")
+            if not name:
+                print(
+                    f"  WARNING: wiki grid slot {index} {wiki_name!r} "
+                    "matches no catalog blueprint"
+                )
+        rows.append({"grid_index": str(index), "name": name})
+    return rows
+
+
+def _write_rows(rows: list[dict[str, str]], fields: list[str], csv_path: Path) -> None:
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def update_blueprint_csvs(
+    arc_items: dict[str, ArcTrackerItem],
+    blueprints_csv: Path,
+    grid_csv: Path,
+) -> bool:
+    """Rebuild blueprints.csv and blueprint_grid.csv from arctracker and the wiki.
+
+    The catalog comes from arctracker items of type Blueprint, the grid order
+    and the where-found columns from the wiki Blueprints page. When either
+    source is missing, both files are left untouched.
+    """
+    catalog = [r for r in arc_items.values() if r.item_type == BLUEPRINT_TYPE]
+    if not catalog:
+        if arc_items:
+            print("  WARNING: arctracker items list no blueprints")
+        print("  blueprint CSVs left unchanged: arctracker blueprints unavailable")
+        return False
+
+    print(f"Fetching {WIKI_BLUEPRINTS_URL} ...")
+    try:
+        resp = requests.get(
+            WIKI_BLUEPRINTS_URL, timeout=30, headers={"User-Agent": USER_AGENT}
+        )
+        resp.raise_for_status()
+        grid = parse_blueprint_grid(resp.text)
+        table = parse_blueprint_table(resp.text)
+    except (requests.RequestException, ValueError) as e:
+        print(f"  WARNING: wiki Blueprints page unavailable ({e})")
+        print("  blueprint CSVs left unchanged")
+        return False
+
+    rows = build_blueprint_rows(catalog, table, arc_items)
+    grid_rows = build_blueprint_grid_rows(grid, catalog)
+    _write_rows(rows, BLUEPRINTS_FIELDS, blueprints_csv)
+    _write_rows(grid_rows, BLUEPRINT_GRID_FIELDS, grid_csv)
+    unknown = [r["grid_index"] for r in grid_rows if not r["name"]]
+    print(f"  Wrote {len(rows)} rows to {blueprints_csv}")
+    print(
+        f"  Wrote {len(grid_rows)} rows to {grid_csv} "
+        f"(empty slots: {', '.join(unknown) or 'none'})"
+    )
+    return True
+
+
+# =============================================================================
 # Wiki scraper
 # =============================================================================
 
@@ -1200,7 +1449,7 @@ def write_csv(rows: list[dict[str, str]], csv_path: Path) -> None:
 
 
 def _sync_csv_tables(csv_dir: Path, db_path: Path) -> None:
-    """Load recycle_outputs.csv and needs.csv from csv_dir into the database.
+    """Load recycle_outputs.csv, needs.csv and the blueprint CSVs into the database.
 
     Needs the arc_helper package. Without it (a bare python with only the
     updater's dependencies) the tables are left for the app to load on launch.
@@ -1211,12 +1460,14 @@ def _sync_csv_tables(csv_dir: Path, db_path: Path) -> None:
     try:
         from arc_helper.database import Database
     except ImportError as e:
-        print(f"  Skipped loading the recycle and needs CSVs ({e})")
+        print(f"  Skipped loading the recycle, needs and blueprint CSVs ({e})")
         return
     Database(
         db_path,
         recycle_outputs_csv=csv_dir / RECYCLE_OUTPUTS_CSV.name,
         needs_csv=csv_dir / NEEDS_CSV.name,
+        blueprints_csv=csv_dir / BLUEPRINTS_CSV.name,
+        blueprint_grid_csv=csv_dir / BLUEPRINT_GRID_CSV.name,
     ).sync_from_csvs()
 
 
@@ -1290,7 +1541,7 @@ def _rebuild_items_table(csv_path: Path, db_path: Path) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Update items.csv, recycle_outputs.csv, needs.csv and items.db from MetaForge, arctracker.io and the Arc Raiders Wiki.",
+        description="Update items.csv, recycle_outputs.csv, needs.csv, the blueprint CSVs and items.db from MetaForge, arctracker.io and the Arc Raiders Wiki.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1384,6 +1635,7 @@ Examples:
         print(f"  Wrote {len(output_rows)} rows to {RECYCLE_OUTPUTS_CSV}")
 
     update_needs_csv(arc_items, metaforge_items, NEEDS_CSV)
+    update_blueprint_csvs(arc_items, BLUEPRINTS_CSV, BLUEPRINT_GRID_CSV)
 
     if not args.csv_only:
         db_count = rebuild_database(ITEMS_CSV, ITEMS_DB)
@@ -1490,6 +1742,7 @@ def auto_update(*, force: bool = False) -> bool:
                 build_recycle_output_rows(arc_items), RECYCLE_OUTPUTS_CSV
             )
         update_needs_csv(arc_items, metaforge_items, NEEDS_CSV)
+        update_blueprint_csvs(arc_items, BLUEPRINTS_CSV, BLUEPRINT_GRID_CSV)
         rebuild_database(ITEMS_CSV, ITEMS_DB)
         _mark_updated()
 
