@@ -90,9 +90,9 @@ a{color:var(--accent)}
 
 <p class="asof">Status as of 2026-10-11, late evening. This page updates as work lands.</p>
 <div class="status">
-  <div><div class="big">1 of 6</div><div class="lab">Phases ready to try</div></div>
-  <div><div class="big">2</div><div class="lab">Pieces being built now</div></div>
-  <div><div class="big">91</div><div class="lab">Automated tests passing</div></div>
+  <div><div class="big">2</div><div class="lab">Things ready for you to try</div></div>
+  <div><div class="big">0</div><div class="lab">Pieces being built now</div></div>
+  <div><div class="big">146</div><div class="lab">Automated tests passing</div></div>
   <div><div class="big">3 of 3</div><div class="lab">Investigations finished</div></div>
 </div>
 
@@ -132,9 +132,9 @@ a{color:var(--accent)}
 <h2>Happening right now</h2>
 <div class="now">
   <p><b>Phase 1 is ready for you to try.</b> Run the overlay from the new branch, open your stash, and hover an item that recycles. The price chip should sit on the "Can be found in" row and the recycle chip under the icons. The work passed two rounds of independent review and 91 automated tests, including a run against your own screenshot.</p>
-  <p><b>Roman numerals are being fixed, and you can help.</b> Your June log shows the old mistakes: "ANVIL 1l", "ARPEGGIO |V", and "ARPEGGIO V" nine times for an Arpeggio IV. Your fixes from June handle the first two. The third is a dropped stroke that no amount of reading can recover. The fix being built does two new things: it checks the catalog (there is no Arpeggio V, and the read contains a V, so it must be IV), and it counts the strokes in the picture of the numeral. It also adds a capture library. Turn it on, hover every tiered weapon you own, and the folder it fills becomes the test set we measure against.</p>
-  <p><b>The data for better advice is being gathered.</b> Every quest, expedition project, and workshop level that needs items is being pulled into one list, including all nine Frozen Trail quests and the Outpost levels. That list is what phase 2 will reason over.</p>
-  <p><b>One line is yours to add</b> in .env.example, since agents are not allowed to touch env files: <code>TOOLTIP_CHIPS=true</code>.</p>
+  <p><b>Roman numerals are fixed as far as we can tell without you.</b> Your June log shows the old mistakes: "ANVIL 1l", "ARPEGGIO |V", and "ARPEGGIO V" nine times for an Arpeggio IV. The new code checks the catalog (there is no Arpeggio V, and the read contains a V, so it must be IV) and counts the strokes in the picture of the numeral. It passed review with no findings. The stroke counter has only seen synthetic shapes so far, which is where you come in: set <code>CAPTURE_LIBRARY=true</code>, hover every tiered weapon you own a few times each, and the folder that fills up becomes the test set we measure and tune against.</p>
+  <p><b>The data for better advice is gathered.</b> Every quest, expedition project, and workshop level that needs items is now one list of 289 rows, including all nine Frozen Trail quests and the Outpost levels. It matches your cheatsheet line for line where we checked. Phase 2 reasons over it next.</p>
+  <p><b>Three lines are yours to add</b> in .env.example, since agents are not allowed to touch env files: <code>TOOLTIP_CHIPS=true</code>, <code>CAPTURE_LIBRARY=false</code>, and <code>CAPTURE_LIBRARY_DIR=debug/captures</code>.</p>
 </div>
 
 <h2>Five things we learned today</h2>
@@ -159,14 +159,14 @@ a{color:var(--accent)}
     <p class="state">Built, reviewed twice, and waiting for one thing: you, with the game open.</p>
   </li>
   <li class="doing">
-    <h3>1a · Roman numerals, done right <span class="pill doing">building</span></h3>
-    <p>Tiered weapons like Anvil II or Arpeggio IV will be identified correctly even when the text reader drops a stroke. ARLO will know which tiers exist for each weapon, and it will count the strokes in the picture of the numeral as a second opinion. A capture library lets you record real tooltips by hovering, so we can measure the improvement instead of guessing.</p>
-    <p class="state">Being built now. Your captures will make it measurable.</p>
+    <h3>1a · Roman numerals, done right <span class="pill doing">ready to try</span></h3>
+    <p>Tiered weapons like Anvil II or Arpeggio IV are identified correctly even when the text reader drops a stroke. ARLO now knows which tiers exist for each weapon, and it counts the strokes in the picture of the numeral as a second opinion. A capture library lets you record real tooltips by hovering, so we measure the improvement instead of guessing.</p>
+    <p class="state">Built and reviewed. The stroke counter has only seen synthetic shapes, so your captures are the next step.</p>
   </li>
-  <li>
-    <h3>2 · Advice with a reason</h3>
-    <p>ARLO will know every quest, expedition project, and workshop level that needs an item, including Scrappy, Gunsmith, the Research Station, and the Outpost. From that it will tell you "Keep 3 for Gunsmith IV, then sell" instead of just "Keep", and the popup gets its overhaul.</p>
-    <p class="state">The data gathering is underway. The advice engine and the new popup follow once the chips are confirmed working.</p>
+  <li class="doing">
+    <h3>2 · Advice with a reason <span class="pill doing">half done</span></h3>
+    <p>ARLO now has the list of every quest, expedition project, and workshop level that needs an item, including Scrappy, Gunsmith, the Research Station, and the Outpost. From that it will tell you "Keep 3 for Gunsmith IV, then sell" instead of just "Keep", and the popup gets its overhaul.</p>
+    <p class="state">The data is gathered and reviewed. The advice engine and the new popup come next, after the chips are confirmed working in game.</p>
   </li>
   <li>
     <h3>3 · Read the grid</h3>
@@ -223,6 +223,7 @@ a{color:var(--accent)}
   <li><time>10-11</time>Wrote the design document. Started building phase 1 and the data feed repair side by side.</li>
   <li><time>10-11</time>Phase 1 built with 19 new tests. The data feed repaired. Both passed two rounds of external review and were merged onto one branch with 91 tests passing. The roadmap plan and this page are now kept in the repo.</li>
   <li><time>10-11</time>Answered the recognition question and reshaped phase 3 around it. Added the Roman numeral item, mined the evidence from the June log, and started building it. Started gathering the needs data for phase 2.</li>
+  <li><time>10-11</time>Roman numerals built with 38 new tests and accepted in review with no findings. The needs data built, accepted with no findings, and merged. The branch now has 146 passing tests and two things for you to try: the tooltip chips and the capture library.</li>
 </ul>
 </details>
 </div>

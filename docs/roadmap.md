@@ -44,7 +44,11 @@ Items are numbered in build order. Each has the decision date and its state.
    from arctracker quests and projects plus MetaForge workshop levels (the only
    source with Outpost). A verdict engine replaces the free-text actions. Popup
    overhaul: "Keep 3 for Gunsmith IV, then sell", color by verdict. Manual
-   progress setting. Decided 2026-10-11. Not started.
+   progress setting. Decided 2026-10-11. Data half done 2026-10-11: the
+   updater writes `needs.csv` (289 rows from a live run: 80 quest, 128
+   project, 81 workshop, all nine Frozen Trail quests, Expedition 1 to 5 with
+   dates, Outpost levels), reviewed and merged. Loading it into SQLite is
+   item 4. The verdict engine and popup overhaul are not started.
 6. **Phase 3, read the grid.** Lattice fit and tooltip geometry with OpenCV
    (edges, contours, template matching for fixed UI anchors), icon identity
    by an embedding model (DINOv2-small under onnxruntime, Apache-2.0) over a
@@ -74,8 +78,12 @@ Items are numbered in build order. Each has the decision date and its state.
     candidates containing V when the read contains V), and a stroke-count
     image vote on the tier token for the dropped-stroke case the text cannot
     fix. Rarity was checked and does not track tier, so it is not used.
-    Decided 2026-10-11. Built next, before phase 2, because it is small and
-    Jeffrey can test it as soon as it lands.
+    Decided 2026-10-11. Built, reviewed (accepted, no findings) and on the
+    `overlay-extension` branch 2026-10-11, 38 new tests. The stroke-count
+    thresholds are tuned on synthetic shapes only, so the next step is
+    Jeffrey's capture library run over his tiered weapons, then
+    `uv run python scripts/eval_captures.py debug/captures` with a
+    labels.csv to measure, then tune.
 11. **OCR engine trial.** Try PaddleOCR PP-OCRv5 under onnxruntime against
     Tesseract on the capture library from item 10. Decided 2026-10-11 as an
     option, scheduled only if item 10 leaves tier accuracy short.
@@ -93,8 +101,12 @@ Items are numbered in build order. Each has the decision date and its state.
 
 ## Known follow-ups
 
-- Add `TOOLTIP_CHIPS=true` to `.env.example` (blocked for agents by permission
-  settings).
+- Add `TOOLTIP_CHIPS=true`, `CAPTURE_LIBRARY=false` and
+  `CAPTURE_LIBRARY_DIR=debug/captures` to `.env.example` (blocked for agents
+  by permission settings).
+- The tracked `items.db` predates the `recycle_outputs` table, so the first
+  open on a fresh checkout creates it and dirties the file once. Rebuilding
+  and committing `items.db` with the updater removes that.
 - The ruff baseline on master has 9 lint errors and 7 unformatted files
   outside the new code.
 - MetaForge now lists 1,109 items against 606 in the shipped database. The
