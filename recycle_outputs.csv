@@ -1,0 +1,1328 @@
+item,component,quantity,location
+Acoustic Guitar,Wires,3,field
+Acoustic Guitar,Metal Parts,4,home
+Acoustic Guitar,Wires,6,home
+Adrenaline Shot,Chemicals,1,field
+Adrenaline Shot,Chemicals,1,home
+Adrenaline Shot,Plastic Parts,1,home
+Advanced ARC Powercell,ARC Powercell,1,field
+Advanced ARC Powercell,ARC Powercell,2,home
+Advanced Camera,Plastic Parts,5,field
+Advanced Camera,Calculator,1,home
+Advanced Electrical Components,Electrical Components,1,field
+Advanced Electrical Components,Electrical Components,1,home
+Advanced Electrical Components,Wires,1,home
+Advanced Mechanical Components,Mechanical Components,1,field
+Advanced Mechanical Components,Mechanical Components,1,home
+Advanced Mechanical Components,Steel Spring,1,home
+Agave,Assorted Seeds,2,field
+Agave,Assorted Seeds,3,home
+Agave Juice,Empty Wine Bottle,1,field
+Alarm Clock,Processor,1,field
+Alarm Clock,Plastic Parts,6,home
+Alarm Clock,Processor,1,home
+Alpine Wardrobe,Planks,30,home
+Amplification Module MK. I,Amplified Fragments,7,home
+Amplification Module MK. II,Amplified Fragments,7,home
+Amplification Module MK. III,Amplified Fragments,7,home
+Amplification Module MK. IV,Amplified Fragments,7,home
+Amplification Module MK. V,Amplified Fragments,7,home
+Amplified Anvil,Amplified Fragments,5,field
+Amplified Anvil,Amplified Fragments,7,home
+Amplified Anvil · Anvil Splitter,Amplified Fragments,9,field
+Amplified Anvil · Anvil Splitter,Amplified Fragments,13,home
+Amplified Anvil · X-Rounds,Amplified Fragments,8,field
+Amplified Anvil · X-Rounds,Amplified Fragments,11,home
+Amplified Aphelion,Amplified Fragments,8,field
+Amplified Aphelion,Amplified Fragments,13,home
+Amplified Aphelion · Bigger Mag,Amplified Fragments,12,field
+Amplified Aphelion · Bigger Mag,Amplified Fragments,19,home
+Amplified Aphelion · Bigger Mag + Charged Burst,Amplified Fragments,16,field
+Amplified Aphelion · Bigger Mag + Charged Burst,Amplified Fragments,25,home
+Amplified Aphelion · Bigger Mag + Charged Burst + Incendiary Rounds,Amplified Fragments,19,field
+Amplified Aphelion · Bigger Mag + Charged Burst + Incendiary Rounds,Amplified Fragments,29,home
+Amplified Aphelion · Bigger Mag + Charged Burst + Increased Burst,Amplified Fragments,20,field
+Amplified Aphelion · Bigger Mag + Charged Burst + Increased Burst,Amplified Fragments,31,home
+Amplified Aphelion · Bigger Mag + Charged Burst + Increased Burst + Incendiary Rounds,Amplified Fragments,23,field
+Amplified Aphelion · Bigger Mag + Charged Burst + Increased Burst + Incendiary Rounds,Amplified Fragments,35,home
+Amplified Aphelion · Bigger Mag + Incendiary Rounds,Amplified Fragments,15,field
+Amplified Aphelion · Bigger Mag + Incendiary Rounds,Amplified Fragments,23,home
+Amplified Aphelion · Charged Burst,Amplified Fragments,12,field
+Amplified Aphelion · Charged Burst,Amplified Fragments,19,home
+Amplified Aphelion · Charged Burst + Incendiary Rounds,Amplified Fragments,15,field
+Amplified Aphelion · Charged Burst + Incendiary Rounds,Amplified Fragments,23,home
+Amplified Aphelion · Charged Burst + Increased Burst,Amplified Fragments,16,field
+Amplified Aphelion · Charged Burst + Increased Burst,Amplified Fragments,25,home
+Amplified Aphelion · Charged Burst + Increased Burst + Incendiary Rounds,Amplified Fragments,19,field
+Amplified Aphelion · Charged Burst + Increased Burst + Incendiary Rounds,Amplified Fragments,29,home
+Amplified Aphelion · Incendiary Rounds,Amplified Fragments,11,field
+Amplified Aphelion · Incendiary Rounds,Amplified Fragments,17,home
+Amplified Bettina,Amplified Fragments,6,field
+Amplified Bettina,Amplified Fragments,10,home
+Amplified Bettina · Bigger Mag,Amplified Fragments,10,field
+Amplified Bettina · Bigger Mag,Amplified Fragments,16,home
+Amplified Bettina · Semi-Auto,Amplified Fragments,10,field
+Amplified Bettina · Semi-Auto,Amplified Fragments,16,home
+Amplified Bettina · Semi-Auto + X-Rounds,Amplified Fragments,13,field
+Amplified Bettina · Semi-Auto + X-Rounds,Amplified Fragments,20,home
+Amplified Burletta,Amplified Fragments,4,field
+Amplified Burletta,Amplified Fragments,6,home
+Amplified Burletta · Burst Fire,Amplified Fragments,8,field
+Amplified Burletta · Burst Fire,Amplified Fragments,12,home
+Amplified Burletta · Burst Fire + Increased Burst,Amplified Fragments,12,field
+Amplified Burletta · Burst Fire + Increased Burst,Amplified Fragments,18,home
+Amplified Burletta · Burst Fire + Increased Burst + Sprint Shooting,Amplified Fragments,16,field
+Amplified Burletta · Burst Fire + Increased Burst + Sprint Shooting,Amplified Fragments,24,home
+Amplified Burletta · Burst Fire + Sprint Shooting,Amplified Fragments,12,field
+Amplified Burletta · Burst Fire + Sprint Shooting,Amplified Fragments,18,home
+Amplified Burletta · Full-Auto,Amplified Fragments,8,field
+Amplified Burletta · Full-Auto,Amplified Fragments,12,home
+Amplified Burletta · Full-Auto + Sprint Shooting,Amplified Fragments,12,field
+Amplified Burletta · Full-Auto + Sprint Shooting,Amplified Fragments,18,home
+Amplified Burletta · Sprint Shooting,Amplified Fragments,8,field
+Amplified Burletta · Sprint Shooting,Amplified Fragments,12,home
+Amplified Canto,Amplified Fragments,5,field
+Amplified Canto,Amplified Fragments,7,home
+Amplified Canto · Carbine Conversion,Amplified Fragments,9,field
+Amplified Canto · Carbine Conversion,Amplified Fragments,13,home
+Amplified Canto · Incendiary Rounds,Amplified Fragments,8,field
+Amplified Canto · Incendiary Rounds,Amplified Fragments,11,home
+Amplified Canto · Incendiary Rounds + Carbine Conversion,Amplified Fragments,12,field
+Amplified Canto · Incendiary Rounds + Carbine Conversion,Amplified Fragments,17,home
+Amplified Canto · Incendiary Rounds + Sprint Shooting,Amplified Fragments,12,field
+Amplified Canto · Incendiary Rounds + Sprint Shooting,Amplified Fragments,17,home
+Amplified Canto · Sprint Shooting,Amplified Fragments,9,field
+Amplified Canto · Sprint Shooting,Amplified Fragments,13,home
+Amplified Equalizer,Amplified Fragments,8,field
+Amplified Equalizer,Amplified Fragments,13,home
+Amplified Equalizer · Anti-Weak Point,Amplified Fragments,12,field
+Amplified Equalizer · Anti-Weak Point,Amplified Fragments,19,home
+Amplified Equalizer · Anti-Weak Point + Bigger Mag,Amplified Fragments,16,field
+Amplified Equalizer · Anti-Weak Point + Bigger Mag,Amplified Fragments,25,home
+Amplified Equalizer · Bigger Mag,Amplified Fragments,12,field
+Amplified Equalizer · Bigger Mag,Amplified Fragments,19,home
+Amplified Equalizer · Ramping Damage,Amplified Fragments,16,field
+Amplified Equalizer · Ramping Damage,Amplified Fragments,26,home
+Amplified Equalizer · Ramping Damage + Bigger Mag,Amplified Fragments,20,field
+Amplified Equalizer · Ramping Damage + Bigger Mag,Amplified Fragments,32,home
+Amplified Hairpin,Amplified Fragments,2,field
+Amplified Hairpin,Amplified Fragments,4,home
+Amplified Hairpin · Incendiary Rounds,Amplified Fragments,5,field
+Amplified Hairpin · Incendiary Rounds,Amplified Fragments,8,home
+Amplified Hairpin · Semi-Auto,Amplified Fragments,6,field
+Amplified Hairpin · Semi-Auto,Amplified Fragments,10,home
+Amplified Hairpin · Semi-Auto + Sprint Shooting,Amplified Fragments,10,field
+Amplified Hairpin · Semi-Auto + Sprint Shooting,Amplified Fragments,16,home
+Amplified Hairpin · Tracker Rounds,Amplified Fragments,6,field
+Amplified Hairpin · Tracker Rounds,Amplified Fragments,10,home
+Amplified Hullcracker,Amplified Fragments,6,field
+Amplified Hullcracker,Amplified Fragments,10,home
+Amplified Hullcracker · Incendiary Rounds,Amplified Fragments,9,field
+Amplified Hullcracker · Incendiary Rounds,Amplified Fragments,14,home
+Amplified Hullcracker · Incendiary Rounds + Mag Reload,Amplified Fragments,13,field
+Amplified Hullcracker · Incendiary Rounds + Mag Reload,Amplified Fragments,20,home
+Amplified Hullcracker · Mag Reload,Amplified Fragments,10,field
+Amplified Hullcracker · Mag Reload,Amplified Fragments,16,home
+Amplified Il Toro,Amplified Fragments,4,field
+Amplified Il Toro,Amplified Fragments,6,home
+Amplified Il Toro · More Reload,Amplified Fragments,8,field
+Amplified Il Toro · More Reload,Amplified Fragments,12,home
+Amplified Il Toro · More Reload + Slug Rounds,Amplified Fragments,12,field
+Amplified Il Toro · More Reload + Slug Rounds,Amplified Fragments,18,home
+Amplified Il Toro · Slug Rounds,Amplified Fragments,8,field
+Amplified Il Toro · Slug Rounds,Amplified Fragments,12,home
+Amplified Jupiter,Amplified Fragments,8,field
+Amplified Jupiter,Amplified Fragments,13,home
+Amplified Jupiter · Bigger Mag,Amplified Fragments,10,field
+Amplified Jupiter · Bigger Mag,Amplified Fragments,16,home
+Amplified Jupiter · Bigger Mag + Ergonomic Bolt,Amplified Fragments,14,field
+Amplified Jupiter · Bigger Mag + Ergonomic Bolt,Amplified Fragments,22,home
+Amplified Jupiter · Bigger Mag + Scoped,Amplified Fragments,14,field
+Amplified Jupiter · Bigger Mag + Scoped,Amplified Fragments,22,home
+Amplified Jupiter · Bigger Mag + Scoped + Ergonomic Bolt,Amplified Fragments,18,field
+Amplified Jupiter · Bigger Mag + Scoped + Ergonomic Bolt,Amplified Fragments,28,home
+Amplified Jupiter · Ergonomic Bolt,Amplified Fragments,12,field
+Amplified Jupiter · Ergonomic Bolt,Amplified Fragments,19,home
+Amplified Jupiter · Scoped,Amplified Fragments,12,field
+Amplified Jupiter · Scoped,Amplified Fragments,19,home
+Amplified Jupiter · Scoped + Ergonomic Bolt,Amplified Fragments,16,field
+Amplified Jupiter · Scoped + Ergonomic Bolt,Amplified Fragments,25,home
+Amplified Kettle,Amplified Fragments,2,field
+Amplified Kettle,Amplified Fragments,4,home
+Amplified Kettle · Anti-Shield,Amplified Fragments,6,field
+Amplified Kettle · Anti-Shield,Amplified Fragments,10,home
+Amplified Kettle · Anti-Shield + Full-Auto,Amplified Fragments,10,field
+Amplified Kettle · Anti-Shield + Full-Auto,Amplified Fragments,16,home
+Amplified Kettle · Full-Auto,Amplified Fragments,6,field
+Amplified Kettle · Full-Auto,Amplified Fragments,10,home
+Amplified Kettle · X-Rounds,Amplified Fragments,5,field
+Amplified Kettle · X-Rounds,Amplified Fragments,8,home
+Amplified Osprey,Amplified Fragments,5,field
+Amplified Osprey,Amplified Fragments,7,home
+Amplified Osprey · Anti-Weak Point,Amplified Fragments,9,field
+Amplified Osprey · Anti-Weak Point,Amplified Fragments,13,home
+Amplified Osprey · Ergonomic Bolt,Amplified Fragments,9,field
+Amplified Osprey · Ergonomic Bolt,Amplified Fragments,13,home
+Amplified Osprey · Ergonomic Bolt + Anti-Weak Point,Amplified Fragments,13,field
+Amplified Osprey · Ergonomic Bolt + Anti-Weak Point,Amplified Fragments,19,home
+Amplified Osprey · Tracker Rounds,Amplified Fragments,9,field
+Amplified Osprey · Tracker Rounds,Amplified Fragments,13,home
+Amplified Osprey · Tracker Rounds + Ergonomic Bolt,Amplified Fragments,13,field
+Amplified Osprey · Tracker Rounds + Ergonomic Bolt,Amplified Fragments,19,home
+Amplified Rascal,Amplified Fragments,5,field
+Amplified Rascal,Amplified Fragments,7,home
+Amplified Rascal · High Velocity,Amplified Fragments,9,field
+Amplified Rascal · High Velocity,Amplified Fragments,13,home
+Amplified Rascal · High Velocity + Incendiary Rounds,Amplified Fragments,12,field
+Amplified Rascal · High Velocity + Incendiary Rounds,Amplified Fragments,17,home
+Amplified Rascal · High Velocity + Sprint Shooting,Amplified Fragments,13,field
+Amplified Rascal · High Velocity + Sprint Shooting,Amplified Fragments,19,home
+Amplified Rascal · High Velocity + Sprint Shooting + Incendiary Rounds,Amplified Fragments,16,field
+Amplified Rascal · High Velocity + Sprint Shooting + Incendiary Rounds,Amplified Fragments,23,home
+Amplified Rascal · Incendiary Rounds,Amplified Fragments,8,field
+Amplified Rascal · Incendiary Rounds,Amplified Fragments,11,home
+Amplified Rascal · Sprint Shooting,Amplified Fragments,9,field
+Amplified Rascal · Sprint Shooting,Amplified Fragments,13,home
+Amplified Rascal · Sprint Shooting + Incendiary Rounds,Amplified Fragments,12,field
+Amplified Rascal · Sprint Shooting + Incendiary Rounds,Amplified Fragments,17,home
+Amplified Rattler,Amplified Fragments,2,field
+Amplified Rattler,Amplified Fragments,4,home
+Amplified Rattler · Incendiary Rounds,Amplified Fragments,5,field
+Amplified Rattler · Incendiary Rounds,Amplified Fragments,8,home
+Amplified Rattler · More Reload,Amplified Fragments,6,field
+Amplified Rattler · More Reload,Amplified Fragments,10,home
+Amplified Rattler · More Reload + Drum Mag,Amplified Fragments,10,field
+Amplified Rattler · More Reload + Drum Mag,Amplified Fragments,16,home
+Amplified Rattler · More Reload + Drum Mag + Incendiary Rounds,Amplified Fragments,13,field
+Amplified Rattler · More Reload + Drum Mag + Incendiary Rounds,Amplified Fragments,20,home
+Amplified Rattler · More Reload + Incendiary Rounds,Amplified Fragments,9,field
+Amplified Rattler · More Reload + Incendiary Rounds,Amplified Fragments,14,home
+Amplified Renegade,Amplified Fragments,5,field
+Amplified Renegade,Amplified Fragments,7,home
+Amplified Renegade · More Reload,Amplified Fragments,9,field
+Amplified Renegade · More Reload,Amplified Fragments,13,home
+Amplified Renegade · More Reload + Scoped,Amplified Fragments,13,field
+Amplified Renegade · More Reload + Scoped,Amplified Fragments,19,home
+Amplified Renegade · Scoped,Amplified Fragments,9,field
+Amplified Renegade · Scoped,Amplified Fragments,13,home
+Angled Grip I,Plastic Parts,3,field
+Angled Grip I,Plastic Parts,6,home
+Angled Grip II,Mechanical Components,1,field
+Angled Grip II,Duct Tape,1,home
+Angled Grip II,Mechanical Components,1,home
+Angled Grip III,Mechanical Components,2,field
+Angled Grip III,Duct Tape,2,home
+Angled Grip III,Mod Components,1,home
+Antiseptic,Chemicals,5,field
+Antiseptic,Chemicals,10,home
+Anvil I,Heavy Gun Parts,2,field
+Anvil I,Advanced Mechanical Components,1,home
+Anvil I,Heavy Gun Parts,2,home
+Anvil II,Heavy Gun Parts,3,field
+Anvil II,Advanced Mechanical Components,2,home
+Anvil II,Heavy Gun Parts,2,home
+Anvil III,Heavy Gun Parts,4,field
+Anvil III,Advanced Mechanical Components,2,home
+Anvil III,Heavy Gun Parts,3,home
+Anvil IV,Heavy Gun Parts,5,field
+Anvil IV,Advanced Mechanical Components,3,home
+Anvil IV,Heavy Gun Parts,3,home
+Anvil Splitter,Amplified Fragments,2,field
+Anvil Splitter,Amplified Fragments,5,home
+Aphelion,Magnetic Accelerator,1,field
+Aphelion,Complex Gun Parts,1,home
+Aphelion,Magnetic Accelerator,2,home
+Apricot,Assorted Seeds,2,field
+Apricot,Assorted Seeds,3,home
+ARC Alloy,Metal Parts,1,field
+ARC Alloy,Metal Parts,2,home
+ARC Circuitry,ARC Alloy,1,field
+ARC Circuitry,ARC Alloy,2,home
+ARC Coolant,Chemicals,9,field
+ARC Coolant,Chemicals,16,home
+ARC Flex Rubber,Rubber Parts,9,field
+ARC Flex Rubber,Rubber Parts,16,home
+ARC Motion Core,ARC Alloy,1,field
+ARC Motion Core,ARC Alloy,2,home
+ARC Performance Steel,Metal Parts,7,field
+ARC Performance Steel,Metal Parts,12,home
+ARC Synthetic Resin,Plastic Parts,9,field
+ARC Synthetic Resin,Plastic Parts,14,home
+ARC Thermo Lining,Fabric,9,field
+ARC Thermo Lining,Fabric,16,home
+Archive Floor Lamp,SheetMetal,15,home
+Arpeggio I,Simple Gun Parts,2,field
+Arpeggio I,Mechanical Components,2,home
+Arpeggio I,Simple Gun Parts,2,home
+Arpeggio II,Simple Gun Parts,3,field
+Arpeggio II,Mechanical Components,3,home
+Arpeggio II,Simple Gun Parts,3,home
+Arpeggio III,Simple Gun Parts,4,field
+Arpeggio III,Mechanical Components,4,home
+Arpeggio III,Simple Gun Parts,4,home
+Arpeggio IV,Simple Gun Parts,5,field
+Arpeggio IV,Mechanical Components,5,home
+Arpeggio IV,Simple Gun Parts,5,home
+Assessor Matrix,Advanced ARC Powercell,2,field
+Assessor Matrix,Advanced ARC Powercell,4,home
+Assessor Matrix,Advanced Mechanical Components,1,home
+Bandage,Fabric,1,field
+Bandage,Fabric,2,home
+Banjo,Planks,6,field
+Banjo,Steel Cable,3,home
+Bantam I,Simple Gun Parts,2,field
+Bantam I,Mechanical Components,1,home
+Bantam I,Simple Gun Parts,2,home
+Bantam II,Simple Gun Parts,2,field
+Bantam II,Mechanical Components,2,home
+Bantam II,Simple Gun Parts,2,home
+Bantam III,Simple Gun Parts,3,field
+Bantam III,Mechanical Components,3,home
+Bantam III,Simple Gun Parts,3,home
+Bantam IV,Simple Gun Parts,4,field
+Bantam IV,Mechanical Components,4,home
+Bantam IV,Simple Gun Parts,4,home
+Bar Table,SheetMetal,12,home
+Barricade Kit,Metal Parts,3,field
+Barricade Kit,Metal Parts,4,home
+Barstool,SheetMetal,8,home
+Basic Camera,Plastic Parts,5,home
+Bastion Cell,Advanced Mechanical Components,1,field
+Bastion Cell,Advanced Mechanical Components,1,home
+Bastion Cell,ARC Alloy,3,home
+Battered Aviary Table,Planks,20,home
+Battered Bureau Chair,SheetMetal,8,home
+Battered Bureau Sofa,Planks,10,home
+Battered Den Bed,SheetMetal,2,home
+Battered Den Shelf,Planks,5,home
+Battered Diner Chair,SheetMetal,5,home
+Battered Faculty Table,SheetMetal,20,home
+Battered Lab Cabinet,SheetMetal,15,home
+Battered Lab Cabinet (Wide),SheetMetal,25,home
+Battered Lab Chair,SheetMetal,8,home
+Battered Shelf,SheetMetal,15,home
+Battered Stash,SheetMetal,10,home
+Battered Weapon Rack,SheetMetal,10,home
+Battery,Metal Parts,1,field
+Battery,Metal Parts,2,home
+Bettina I,Advanced Mechanical Components,1,field
+Bettina I,Advanced Mechanical Components,1,home
+Bettina I,Heavy Gun Parts,2,home
+Bettina II,Advanced Mechanical Components,2,field
+Bettina II,Advanced Mechanical Components,2,home
+Bettina II,Heavy Gun Parts,2,home
+Bettina III,Advanced Mechanical Components,3,field
+Bettina III,Advanced Mechanical Components,2,home
+Bettina III,Heavy Gun Parts,3,home
+Bettina IV,Advanced Mechanical Components,4,field
+Bettina IV,Advanced Mechanical Components,3,home
+Bettina IV,Heavy Gun Parts,3,home
+Bicycle Pump,Canister,3,field
+Bicycle Pump,Canister,4,home
+Bicycle Pump,Metal Parts,10,home
+Binoculars,Plastic Parts,4,field
+Binoculars,Plastic Parts,4,home
+Binoculars,Rubber Parts,2,home
+Blaze Grenade,Oil,1,field
+Blaze Grenade,Metal Parts,4,home
+Blaze Grenade,Oil,2,home
+Blue Lab Cabinet,SheetMetal,20,home
+Blue Light Stick,Chemicals,1,field
+Blue Light Stick,Chemicals,1,home
+Bobcat I,Light Gun Parts,2,field
+Bobcat I,Advanced Mechanical Components,2,home
+Bobcat I,Light Gun Parts,2,home
+Bobcat II,Light Gun Parts,3,field
+Bobcat II,Advanced Mechanical Components,3,home
+Bobcat II,Light Gun Parts,3,home
+Bobcat III,Light Gun Parts,4,field
+Bobcat III,Advanced Mechanical Components,4,home
+Bobcat III,Light Gun Parts,4,home
+Bobcat IV,Light Gun Parts,4,field
+Bobcat IV,Advanced Mechanical Components,5,home
+Bobcat IV,Light Gun Parts,4,home
+Bombardier Cell,Advanced Mechanical Components,1,field
+Bombardier Cell,Advanced Mechanical Components,1,home
+Bombardier Cell,ARC Alloy,3,home
+Broken Flashlight,Metal Parts,7,field
+Broken Flashlight,Battery,2,home
+Broken Flashlight,Metal Parts,6,home
+Broken Guidance System,Processor,2,field
+Broken Guidance System,Processor,4,home
+Broken Handheld Radio,Sensors,2,field
+Broken Handheld Radio,Sensors,3,home
+Broken Handheld Radio,Wires,2,home
+Broken Taser,Battery,2,field
+Broken Taser,Battery,2,home
+Broken Taser,Wires,2,home
+Bully Fragmenter,Crude Explosives,2,field
+Bully Fragmenter,ARC Alloy,1,home
+Bully Fragmenter,Explosive Compound,1,home
+Bureau Ceiling Lamp,SheetMetal,10,home
+Burletta I,Simple Gun Parts,2,field
+Burletta I,Mechanical Components,1,home
+Burletta I,Simple Gun Parts,2,home
+Burletta II,Simple Gun Parts,2,field
+Burletta II,Mechanical Components,2,home
+Burletta II,Simple Gun Parts,2,home
+Burletta III,Simple Gun Parts,3,field
+Burletta III,Mechanical Components,3,home
+Burletta III,Simple Gun Parts,3,home
+Burletta IV,Simple Gun Parts,4,field
+Burletta IV,Mechanical Components,4,home
+Burletta IV,Simple Gun Parts,4,home
+Burned ARC Circuitry,ARC Alloy,1,field
+Burned ARC Circuitry,ARC Alloy,2,home
+Cable Stripper,Metal Parts,1,field
+Cable Stripper,Metal Parts,2,home
+Cafeteria Table,SheetMetal,16,home
+Calculator,Rubber Parts,2,field
+Calculator,Plastic Parts,2,home
+Calculator,Wires,1,home
+Camera Lens,Plastic Parts,4,field
+Camera Lens,Plastic Parts,8,home
+Candle Holder,Metal Parts,4,field
+Candle Holder,Metal Parts,8,home
+Candleberries,Assorted Seeds,2,home
+Canister,Plastic Parts,1,field
+Canister,Plastic Parts,3,home
+Canto I,Medium Gun Parts,2,field
+Canto I,Advanced Mechanical Components,1,home
+Canto I,Medium Gun Parts,2,home
+Canto II,Medium Gun Parts,2,field
+Canto II,Advanced Mechanical Components,2,home
+Canto II,Medium Gun Parts,2,home
+Canto III,Medium Gun Parts,3,field
+Canto III,Advanced Mechanical Components,2,home
+Canto III,Medium Gun Parts,3,home
+Canto IV,Medium Gun Parts,3,field
+Canto IV,Advanced Mechanical Components,3,home
+Canto IV,Medium Gun Parts,3,home
+Chambers Lamp,SheetMetal,10,home
+Chambers Nightstand,Planks,10,home
+Chambers Shelf,SheetMetal,10,home
+Chandelier,SheetMetal,20,home
+Clinic Medical Cabinet,Planks,20,home
+Combat Mk. 1,Plastic Parts,3,field
+Combat Mk. 1,Plastic Parts,3,home
+Combat Mk. 1,Rubber Parts,3,home
+Combat Mk. 2,Electrical Components,1,field
+Combat Mk. 2,Electrical Components,1,home
+Combat Mk. 2,Magnet,1,home
+Combat Mk. 3 (Aggressive),Electrical Components,2,field
+Combat Mk. 3 (Aggressive),Advanced Electrical Components,1,home
+Combat Mk. 3 (Aggressive),Processor,1,home
+Combat Mk. 3 (Flanking),Electrical Components,2,field
+Combat Mk. 3 (Flanking),Advanced Electrical Components,1,home
+Combat Mk. 3 (Flanking),Processor,1,home
+Comet Igniter,Crude Explosives,2,field
+Comet Igniter,ARC Alloy,2,home
+Comet Igniter,Crude Explosives,2,home
+Compensator I,Metal Parts,3,field
+Compensator I,Metal Parts,5,home
+Compensator II,Mechanical Components,1,field
+Compensator II,Mechanical Components,1,home
+Compensator II,Wires,1,home
+Compensator III,Mechanical Components,2,field
+Compensator III,Mod Components,1,home
+Compensator III,Wires,2,home
+Complex Gun Parts,Simple Gun Parts,2,field
+Complex Gun Parts,Simple Gun Parts,3,home
+Console Chest,Planks,20,home
+Coolant,Oil,2,field
+Coolant,Chemicals,5,home
+Coolant,Oil,2,home
+Cooling Coil,Steel Spring,2,field
+Cooling Coil,Chemicals,6,home
+Cooling Coil,Steel Spring,2,home
+Cooling Fan,Wires,4,field
+Cooling Fan,Plastic Parts,14,home
+Cooling Fan,Wires,4,home
+Cracked Bioscanner,Battery,2,field
+Cracked Bioscanner,Battery,3,home
+Cracked Bioscanner,Rubber Parts,3,home
+Crash Mat,Fabric,4,field
+Crash Mat,Fabric,6,home
+Crash Mat,Plastic Parts,3,home
+Crude Explosives,Chemicals,2,field
+Crude Explosives,Chemicals,3,home
+Crumpled Plastic Bottle,Plastic Parts,1,field
+Crumpled Plastic Bottle,Plastic Parts,4,home
+Damaged ARC Motion Core,ARC Alloy,1,field
+Damaged ARC Motion Core,ARC Alloy,2,home
+Damaged ARC Powercell,Metal Parts,1,field
+Damaged ARC Powercell,ARC Alloy,1,home
+Damaged Fireball Burner,Metal Parts,1,field
+Damaged Fireball Burner,ARC Alloy,1,home
+Damaged Heat Sink,Wires,3,field
+Damaged Heat Sink,Metal Parts,6,home
+Damaged Heat Sink,Wires,2,home
+Damaged Hornet Driver,ARC Alloy,1,field
+Damaged Hornet Driver,ARC Alloy,2,home
+Damaged Rocketeer Driver,ARC Alloy,2,field
+Damaged Rocketeer Driver,ARC Alloy,3,home
+Damaged Tick Pod,Metal Parts,1,field
+Damaged Tick Pod,ARC Alloy,1,home
+Damaged Wasp Driver,Metal Parts,1,field
+Damaged Wasp Driver,ARC Alloy,1,home
+Deadline,Explosive Compound,1,field
+Deadline,ARC Circuitry,1,home
+Deadline,Explosive Compound,1,home
+Defibrillator,Chemicals,2,field
+Defibrillator,Moss,1,home
+Defibrillator,Plastic Parts,1,home
+Deflated Football,Rubber Parts,9,field
+Deflated Football,Fabric,9,home
+Deflated Football,Rubber Parts,9,home
+Degraded ARC Rubber,Rubber Parts,5,field
+Degraded ARC Rubber,Rubber Parts,11,home
+Differential Microphone,Wires,1,field
+Differential Microphone,Speaker Component,1,home
+Differential Microphone,Wires,2,home
+Diner Ceiling Lamp,SheetMetal,10,home
+Diner Cupboard,Planks,20,home
+Diner Shelf,Planks,30,home
+Diner Sofa,Planks,20,home
+Diner Stool,SheetMetal,5,home
+Diner Table,SheetMetal,20,home
+Diving Goggles,Rubber Parts,5,field
+Diving Goggles,Rubber Parts,12,home
+Dog Collar,Fabric,5,field
+Dog Collar,Fabric,8,home
+Dog Collar,Metal Parts,1,home
+Dolabra,Magnetic Accelerator,1,field
+Dolabra,Magnetic Accelerator,2,home
+Door Blocker,Metal Parts,1,field
+Door Blocker,Metal Parts,2,home
+Draped Debris A,Planks,5,home
+Draped Debris B,Planks,5,home
+Draped Debris C,Planks,5,home
+Draped Debris E,Planks,5,home
+Draped Debris F,Planks,5,home
+Draped Debris G,Planks,5,home
+Dried-Out ARC Resin,Plastic Parts,4,field
+Dried-Out ARC Resin,Plastic Parts,9,home
+Duct Tape,Fabric,1,field
+Duct Tape,Fabric,3,home
+Durable Cloth,Fabric,2,field
+Durable Cloth,Fabric,6,home
+Electrical Components,Plastic Parts,3,field
+Electrical Components,Plastic Parts,3,home
+Electrical Components,Rubber Parts,3,home
+Emperor Modulator,ARC Motion Core,2,field
+Epoxy Bucket,Chemicals,4,field
+Epoxy Bucket,Chemicals,8,home
+Equalizer,Magnetic Accelerator,1,field
+Equalizer,Complex Gun Parts,1,home
+Equalizer,Magnetic Accelerator,2,home
+Exodus Modules,Processor,2,field
+Exodus Modules,Magnet,2,home
+Exodus Modules,Processor,2,home
+Expired Respirator,Rubber Parts,5,field
+Expired Respirator,Fabric,4,home
+Expired Respirator,Rubber Parts,8,home
+Explosive Compound,Crude Explosives,1,field
+Explosive Compound,Crude Explosives,2,home
+Explosive Mine,Oil,2,field
+Explosive Mine,Oil,1,home
+Explosive Mine,Sensors,1,home
+Extended Barrel I,Metal Parts,3,field
+Extended Barrel I,Metal Parts,5,home
+Extended Barrel II,Mechanical Components,1,field
+Extended Barrel II,Mechanical Components,1,home
+Extended Barrel II,Wires,1,home
+Extended Barrel III,Mechanical Components,2,field
+Extended Barrel III,Mod Components,1,home
+Extended Barrel III,Wires,1,home
+Extended Light Mag I,Plastic Parts,3,field
+Extended Light Mag I,Plastic Parts,6,home
+Extended Light Mag II,Mechanical Components,1,field
+Extended Light Mag II,Mechanical Components,1,home
+Extended Light Mag II,Steel Spring,1,home
+Extended Light Mag III,Mechanical Components,2,field
+Extended Light Mag III,Mod Components,1,home
+Extended Light Mag III,Steel Spring,2,home
+Extended Medium Mag I,Plastic Parts,3,field
+Extended Medium Mag I,Plastic Parts,6,home
+Extended Medium Mag II,Mechanical Components,1,field
+Extended Medium Mag II,Mechanical Components,1,home
+Extended Medium Mag II,Steel Spring,1,home
+Extended Medium Mag III,Mechanical Components,2,field
+Extended Medium Mag III,Mod Components,1,home
+Extended Medium Mag III,Steel Spring,2,home
+Extended Shotgun Mag I,Plastic Parts,3,field
+Extended Shotgun Mag I,Plastic Parts,6,home
+Extended Shotgun Mag II,Mechanical Components,1,field
+Extended Shotgun Mag II,Mechanical Components,1,home
+Extended Shotgun Mag II,Steel Spring,1,home
+Extended Shotgun Mag III,Mechanical Components,2,field
+Extended Shotgun Mag III,Mod Components,1,home
+Extended Shotgun Mag III,Steel Spring,2,home
+Faculty Closet,SheetMetal,25,home
+Faculty Dresser,Planks,25,home
+Ferro I,Metal Parts,2,field
+Ferro I,Metal Parts,2,home
+Ferro I,Rubber Parts,1,home
+Ferro II,Metal Parts,4,field
+Ferro II,Metal Parts,4,home
+Ferro II,Rubber Parts,3,home
+Ferro III,Simple Gun Parts,1,field
+Ferro III,Metal Parts,6,home
+Ferro III,Simple Gun Parts,1,home
+Ferro IV,Simple Gun Parts,2,field
+Ferro IV,Mechanical Components,1,home
+Ferro IV,Simple Gun Parts,2,home
+Fertilizer,Assorted Seeds,1,field
+Fertilizer,Assorted Seeds,2,home
+Fireball Burner,ARC Alloy,1,field
+Fireball Burner,ARC Alloy,1,home
+Fireball Burner,Crude Explosives,1,home
+Firecracker,Plastic Parts,1,field
+Firecracker,Plastic Parts,3,home
+Firefly Burner,Crude Explosives,2,field
+Firefly Burner,ARC Alloy,2,home
+Firefly Burner,Crude Explosives,2,home
+Fireworks Box,Explosive Compound,1,field
+Fireworks Box,Explosive Compound,1,home
+Flame Spray,Fireball Burner,1,field
+Flame Spray,Canister,1,home
+Flame Spray,Fireball Burner,1,home
+Floor Lamp,SheetMetal,10,home
+Flow Controller,Mechanical Components,2,field
+Flow Controller,Advanced Mechanical Components,1,home
+Flow Controller,Sensors,1,home
+Fossilized Lightning,Explosive Compound,2,field
+Fossilized Lightning,Explosive Compound,3,home
+Free Loadout Augment,Plastic Parts,6,home
+Free Loadout Augment,Rubber Parts,6,home
+Frequency Modulation Box,Electrical Components,2,field
+Frequency Modulation Box,Advanced Electrical Components,1,home
+Frequency Modulation Box,Speaker Component,1,home
+Fried Motherboard,Wires,5,field
+Fried Motherboard,Electrical Components,2,home
+Fried Motherboard,Plastic Parts,5,home
+Frigate Inductor,ARC Circuitry,2,field
+Frigate Inductor,Advanced ARC Powercell,2,home
+Frigate Inductor,ARC Circuitry,2,home
+Frying Pan,Metal Parts,4,field
+Frying Pan,Metal Parts,8,home
+Garlic Press,Metal Parts,7,field
+Garlic Press,Metal Parts,12,home
+Gas Grenade,Chemicals,1,field
+Gas Grenade,Chemicals,1,home
+Gas Grenade,Rubber Parts,1,home
+Gas Mine,Chemicals,2,field
+Gas Mine,Chemicals,1,home
+Gas Mine,Rubber Parts,1,home
+Geiger Counter,Battery,3,field
+Geiger Counter,Battery,3,home
+Geiger Counter,Exodus Modules,1,home
+Geometric Fabric Chair,SheetMetal,10,home
+Glass Ceiling Lamp,SheetMetal,10,home
+Glitched ARC Circuitry,ARC Alloy,6,home
+Glitched ARC Circuitry,Exodus Modules,1,home
+Glitched ARC Light Ring,Advanced Electrical Components,1,home
+Glitched ARC Light Ring,ARC Alloy,3,home
+Glitched ARC Phased Array,ARC Alloy,3,home
+Glitched ARC Phased Array,Sensors,2,home
+Glitched ARC Power Converter,ARC Alloy,3,home
+Glitched ARC Transmitter,ARC Alloy,1,home
+Glitched ARC Transmitter,Electrical Components,1,home
+Grappling Hook,Rope,1,field
+Grappling Hook,Cable Stripper,1,home
+Grappling Hook,Rope,1,home
+Great Mullein,Assorted Seeds,1,field
+Great Mullein,Assorted Seeds,2,home
+Green Geometric Chair,SheetMetal,10,home
+Green Geometric Sofa,SheetMetal,15,home
+Green Lab Sofa,SheetMetal,10,home
+Green Light Stick,Chemicals,1,field
+Green Light Stick,Chemicals,1,home
+Hairpin I,Metal Parts,2,field
+Hairpin I,Metal Parts,2,home
+Hairpin I,Rubber Parts,1,home
+Hairpin II,Metal Parts,4,field
+Hairpin II,Metal Parts,4,home
+Hairpin II,Rubber Parts,3,home
+Hairpin III,Simple Gun Parts,1,field
+Hairpin III,Metal Parts,6,home
+Hairpin III,Simple Gun Parts,1,home
+Hairpin IV,Simple Gun Parts,2,field
+Hairpin IV,Mechanical Components,1,home
+Hairpin IV,Simple Gun Parts,2,home
+Hand Drill,Metal Parts,2,field
+Hand Drill,Mechanical Components,1,home
+Harmonica,Metal Parts,2,field
+Harmonica,Metal Parts,4,home
+Headphones,Speaker Component,1,field
+Headphones,Rubber Parts,7,home
+Headphones,Speaker Component,1,home
+Heavy Fuze Grenade,Crude Explosives,1,field
+Heavy Fuze Grenade,Oil,1,home
+Heavy Fuze Grenade,Rubber Parts,2,home
+Heavy Gun Parts,Simple Gun Parts,1,field
+Heavy Gun Parts,Simple Gun Parts,2,home
+Heavy Shield,ARC Alloy,4,field
+Heavy Shield,ARC Circuitry,2,home
+Heavy Shield,Voltage Converter,1,home
+Herbal Bandage,Fabric,8,field
+Herbal Bandage,Assorted Seeds,2,home
+Herbal Bandage,Fabric,5,home
+Holly Bush,Assorted Seeds,30,home
+Holly Bush,Fertilizer,3,home
+Horizontal Grip,Mechanical Components,2,field
+Horizontal Grip,Duct Tape,2,home
+Horizontal Grip,Mod Components,1,home
+Hornet Driver,Electrical Components,1,field
+Hornet Driver,ARC Alloy,1,home
+Hornet Driver,Electrical Components,1,home
+Hotel Chair,Planks,15,home
+Household Cleaner,Chemicals,5,field
+Household Cleaner,Chemicals,11,home
+Hullcracker I,Heavy Gun Parts,2,field
+Hullcracker I,Advanced Mechanical Components,2,home
+Hullcracker I,Heavy Gun Parts,2,home
+Hullcracker II,Heavy Gun Parts,3,field
+Hullcracker II,Advanced Mechanical Components,2,home
+Hullcracker II,Heavy Gun Parts,3,home
+Hullcracker III,Heavy Gun Parts,4,field
+Hullcracker III,Advanced Mechanical Components,3,home
+Hullcracker III,Heavy Gun Parts,4,home
+Hullcracker IV,Heavy Gun Parts,5,field
+Hullcracker IV,Advanced Mechanical Components,4,home
+Hullcracker IV,Heavy Gun Parts,5,home
+Humidifier,Canister,2,field
+Humidifier,Canister,2,home
+Humidifier,Wires,2,home
+Ice Cream Scooper,Metal Parts,3,field
+Ice Cream Scooper,Metal Parts,7,home
+Il Toro I,Simple Gun Parts,2,field
+Il Toro I,Mechanical Components,2,home
+Il Toro I,Simple Gun Parts,2,home
+Il Toro II,Simple Gun Parts,3,field
+Il Toro II,Mechanical Components,3,home
+Il Toro II,Simple Gun Parts,3,home
+Il Toro III,Simple Gun Parts,4,field
+Il Toro III,Mechanical Components,4,home
+Il Toro III,Simple Gun Parts,4,home
+Il Toro IV,Simple Gun Parts,5,field
+Il Toro IV,Mechanical Components,5,home
+Il Toro IV,Simple Gun Parts,5,home
+Impure ARC Coolant,Chemicals,5,field
+Impure ARC Coolant,Chemicals,12,home
+Industrial Battery,Battery,2,field
+Industrial Battery,Battery,2,home
+Industrial Battery,Chemicals,7,home
+Industrial Charger,Voltage Converter,1,field
+Industrial Charger,Metal Parts,5,home
+Industrial Charger,Voltage Converter,1,home
+Industrial Magnet,Magnet,2,field
+Industrial Magnet,Magnet,2,home
+Industrial Magnet,Metal Parts,4,home
+Insulation Roll,Fabric,6,field
+Insulation Roll,Durable Cloth,2,home
+Ion Sputter,Exodus Modules,1,field
+Ion Sputter,Exodus Modules,1,home
+Ion Sputter,Voltage Converter,4,home
+Jolt Mine,Battery,1,field
+Jolt Mine,Battery,1,home
+Jolt Mine,Plastic Parts,2,home
+Jupiter,Advanced Mechanical Components,3,field
+Jupiter,Complex Gun Parts,1,home
+Jupiter,Magnetic Accelerator,2,home
+Kettle I,Metal Parts,3,field
+Kettle I,Metal Parts,3,home
+Kettle I,Rubber Parts,2,home
+Kettle II,Metal Parts,6,field
+Kettle II,Metal Parts,6,home
+Kettle II,Rubber Parts,6,home
+Kettle III,Simple Gun Parts,1,field
+Kettle III,Metal Parts,12,home
+Kettle III,Simple Gun Parts,1,home
+Kettle IV,Simple Gun Parts,2,field
+Kettle IV,Mechanical Components,2,home
+Kettle IV,Simple Gun Parts,2,home
+Kinetic Converter,Mechanical Components,2,field
+Kinetic Converter,Duct Tape,2,home
+Kinetic Converter,Mod Components,1,home
+Lab Ceiling Light,SheetMetal,10,home
+Lab Stool,SheetMetal,5,home
+Laboratory Reagents,Crude Explosives,3,field
+Laboratory Reagents,Chemicals,16,home
+Laboratory Reagents,Crude Explosives,3,home
+Laser Level,Mechanical Components,1,field
+Laser Level,Mechanical Components,2,home
+Laser Level,Steel Spring,2,home
+Leaper Pulse Unit,Mechanical Components,2,field
+Leaper Pulse Unit,Advanced Mechanical Components,1,home
+Leaper Pulse Unit,ARC Alloy,3,home
+Lemon,Assorted Seeds,2,field
+Lemon,Assorted Seeds,3,home
+Li'l Smoke Grenade,Chemicals,2,field
+Li'l Smoke Grenade,Chemicals,1,home
+Li'l Smoke Grenade,Plastic Parts,1,home
+Light Gun Parts,Simple Gun Parts,1,field
+Light Gun Parts,Simple Gun Parts,2,home
+Light Impact Grenade,Chemicals,1,field
+Light Impact Grenade,Chemicals,1,home
+Light Impact Grenade,Plastic Parts,1,home
+Light Shield,ARC Alloy,1,field
+Light Shield,Plastic Parts,4,home
+Lightweight Stock,Mechanical Components,2,field
+Lightweight Stock,Duct Tape,1,home
+Lightweight Stock,Mod Components,1,home
+Looting Mk. 1,Plastic Parts,3,field
+Looting Mk. 1,Plastic Parts,3,home
+Looting Mk. 1,Rubber Parts,3,home
+Looting Mk. 2,Electrical Components,1,field
+Looting Mk. 2,Electrical Components,1,home
+Looting Mk. 2,Magnet,1,home
+Looting Mk. 3 (Cautious),Electrical Components,2,field
+Looting Mk. 3 (Cautious),Advanced Electrical Components,1,home
+Looting Mk. 3 (Cautious),Processor,1,home
+Looting Mk. 3 (Safekeeper),Electrical Components,2,field
+Looting Mk. 3 (Safekeeper),Advanced Electrical Components,1,home
+Looting Mk. 3 (Safekeeper),Processor,1,home
+Looting Mk. 3 (Survivor),Electrical Components,2,field
+Looting Mk. 3 (Survivor),Advanced Electrical Components,1,home
+Looting Mk. 3 (Survivor),Processor,1,home
+Lure Grenade,Speaker Component,1,field
+Lure Grenade,Speaker Component,1,home
+Magnet,Metal Parts,1,field
+Magnet,Metal Parts,2,home
+Magnetic Accelerator,Advanced Mechanical Components,1,field
+Magnetic Accelerator,Advanced Mechanical Components,1,home
+Magnetic Accelerator,ARC Motion Core,1,home
+Magnetron,Advanced Mechanical Components,1,field
+Magnetron,Magnetic Accelerator,1,home
+Magnetron,Steel Spring,1,home
+Matriarch Reactor,Magnetic Accelerator,1,field
+Matriarch Reactor,Magnetic Accelerator,1,home
+Matriarch Reactor,Power Rod,1,home
+Mechanical Components,Metal Parts,3,field
+Mechanical Components,Metal Parts,3,home
+Mechanical Components,Rubber Parts,2,home
+Medium Gun Parts,Simple Gun Parts,1,field
+Medium Gun Parts,Simple Gun Parts,2,home
+Medium Shield,ARC Alloy,2,field
+Medium Shield,ARC Circuitry,1,home
+Metal Brackets,Metal Parts,4,field
+Metal Brackets,Metal Parts,8,home
+Microscope,Mechanical Components,2,field
+Microscope,Advanced Mechanical Components,1,home
+Microscope,Magnet,3,home
+Mini Centrifuge,Mechanical Components,2,field
+Mini Centrifuge,Advanced Mechanical Components,1,home
+Mini Centrifuge,Canister,2,home
+Mini Pump,Plastic Parts,2,field
+Mini Pump,Plastic Parts,2,home
+Mini Pump,Sensors,1,home
+Mod Components,Mechanical Components,1,field
+Mod Components,Mechanical Components,1,home
+Mod Components,Steel Spring,1,home
+Moss,Assorted Seeds,2,field
+Moss,Assorted Seeds,3,home
+Motor,Oil,3,field
+Motor,Mechanical Components,2,home
+Motor,Oil,2,home
+Multicolored Geometric Sofa,SheetMetal,15,home
+Muzzle Brake I,Metal Parts,3,field
+Muzzle Brake I,Metal Parts,5,home
+Muzzle Brake II,Mechanical Components,1,field
+Muzzle Brake II,Mechanical Components,1,home
+Muzzle Brake II,Wires,1,home
+Muzzle Brake III,Mechanical Components,2,field
+Muzzle Brake III,Mod Components,1,home
+Muzzle Brake III,Wires,2,home
+Noisemaker,Speaker Component,1,field
+Noisemaker,Speaker Component,1,home
+Number Plate,Metal Parts,2,field
+Number Plate,Metal Parts,3,home
+Oil,Chemicals,1,field
+Oil,Chemicals,3,home
+Olives,Assorted Seeds,1,field
+Olives,Assorted Seeds,2,home
+Ornate Den Bed,Planks,20,home
+Ornate Den Shelf,Planks,25,home
+Ornate Stash,SheetMetal,20,home
+Ornate Wardrobe,Planks,30,home
+Osprey I,Medium Gun Parts,2,field
+Osprey I,Advanced Mechanical Components,1,home
+Osprey I,Medium Gun Parts,2,home
+Osprey II,Medium Gun Parts,2,field
+Osprey II,Advanced Mechanical Components,2,home
+Osprey II,Medium Gun Parts,2,home
+Osprey III,Medium Gun Parts,3,field
+Osprey III,Advanced Mechanical Components,2,home
+Osprey III,Medium Gun Parts,3,home
+Osprey IV,Medium Gun Parts,3,field
+Osprey IV,Advanced Mechanical Components,3,home
+Osprey IV,Medium Gun Parts,3,home
+Padded Stock,Mechanical Components,2,field
+Padded Stock,Duct Tape,1,home
+Padded Stock,Mod Components,1,home
+Photoelectric Cloak,Advanced Electrical Components,1,field
+Photoelectric Cloak,Advanced Electrical Components,1,home
+Photoelectric Cloak,Speaker Component,1,home
+Polished Den Bed,Planks,15,home
+Polished Den Shelf,Planks,20,home
+Polished Diner Chair,SheetMetal,5,home
+Polished Faculty Chair,Planks,8,home
+Polished Faculty Table,Planks,30,home
+Polished Round Sofa,Planks,15,home
+Polished Stash,SheetMetal,15,home
+Polished Study Sofa,Planks,15,home
+Polished Wardrobe,SheetMetal,30,home
+Polished Weapon Rack,SheetMetal,20,home
+Polluted Air Filter,Oil,2,field
+Polluted Air Filter,Fabric,6,home
+Polluted Air Filter,Oil,2,home
+Pop Trigger,Crude Explosives,1,field
+Pop Trigger,ARC Alloy,1,home
+Pop Trigger,Crude Explosives,1,home
+Portable TV,Wires,4,field
+Portable TV,Battery,2,home
+Portable TV,Wires,6,home
+Power Bank,Battery,2,field
+Power Bank,Battery,2,home
+Power Bank,Wires,2,home
+Power Cable,Wires,3,field
+Power Cable,Wires,4,home
+Power Rod,Advanced Electrical Components,1,field
+Power Rod,Advanced Electrical Components,1,home
+Power Rod,ARC Circuitry,1,home
+Powered Descender,Advanced Electrical Components,1,field
+Powered Descender,Advanced Electrical Components,1,home
+Powered Descender,ARC Circuitry,2,home
+Prickly Pear,Assorted Seeds,2,field
+Prickly Pear,Assorted Seeds,3,home
+Printed Fabric Chair,SheetMetal,10,home
+Printed Lab Sofa,SheetMetal,15,home
+Processor,Plastic Parts,2,field
+Processor,Plastic Parts,1,home
+Processor,Wires,1,home
+Projector,Processor,1,field
+Projector,Processor,1,home
+Projector,Wires,2,home
+Pulse Mine,Chemicals,3,field
+Pulse Mine,Chemicals,6,home
+Queen Reactor,Power Rod,1,field
+Queen Reactor,Magnetic Accelerator,1,home
+Queen Reactor,Power Rod,1,home
+Radial Press,Mechanical Components,1,field
+Radial Press,Advanced Mechanical Components,1,home
+Radio,Speaker Component,1,field
+Radio,Sensors,1,home
+Radio,Speaker Component,1,home
+Radio Relay,Sensors,2,field
+Radio Relay,Sensors,2,home
+Radio Relay,Speaker Component,2,home
+Rascal I,Heavy Gun Parts,2,field
+Rascal I,Advanced Mechanical Components,1,home
+Rascal I,Heavy Gun Parts,2,home
+Rascal II,Heavy Gun Parts,2,field
+Rascal II,Advanced Mechanical Components,2,home
+Rascal II,Heavy Gun Parts,2,home
+Rascal III,Heavy Gun Parts,3,field
+Rascal III,Advanced Mechanical Components,2,home
+Rascal III,Heavy Gun Parts,3,home
+Rascal IV,Heavy Gun Parts,3,field
+Rascal IV,Advanced Mechanical Components,3,home
+Rascal IV,Heavy Gun Parts,3,home
+Rattler I,Metal Parts,4,field
+Rattler I,Metal Parts,8,home
+Rattler I,Rubber Parts,4,home
+Rattler II,Metal Parts,8,field
+Rattler II,Metal Parts,12,home
+Rattler II,Rubber Parts,10,home
+Rattler III,Metal Parts,12,field
+Rattler III,Mechanical Components,3,home
+Rattler III,Simple Gun Parts,1,home
+Rattler IV,Metal Parts,14,field
+Rattler IV,Mechanical Components,4,home
+Rattler IV,Simple Gun Parts,2,home
+Recorder,Plastic Parts,4,field
+Recorder,Plastic Parts,10,home
+Red Light Stick,Chemicals,1,field
+Red Light Stick,Chemicals,1,home
+Red Study Sofa,SheetMetal,15,home
+Remote Control,Sensors,1,field
+Remote Control,Plastic Parts,7,home
+Remote Control,Sensors,1,home
+Remote Raider Flare,Chemicals,1,field
+Remote Raider Flare,Chemicals,1,home
+Remote Raider Flare,Rubber Parts,1,home
+Renegade I,Medium Gun Parts,2,field
+Renegade I,Advanced Mechanical Components,1,home
+Renegade I,Medium Gun Parts,2,home
+Renegade II,Medium Gun Parts,2,field
+Renegade II,Advanced Mechanical Components,2,home
+Renegade II,Medium Gun Parts,2,home
+Renegade III,Medium Gun Parts,3,field
+Renegade III,Advanced Mechanical Components,2,home
+Renegade III,Medium Gun Parts,3,home
+Renegade IV,Medium Gun Parts,3,field
+Renegade IV,Advanced Mechanical Components,3,home
+Renegade IV,Medium Gun Parts,3,home
+Restaurant Table,Planks,30,home
+Ripped Safety Vest,Fabric,8,field
+Ripped Safety Vest,Durable Cloth,1,home
+Ripped Safety Vest,Magnet,1,home
+Rocket Thruster,Synthesized Fuel,1,field
+Rocket Thruster,Metal Parts,6,home
+Rocket Thruster,Synthesized Fuel,2,home
+Rocketeer Driver,ARC Circuitry,1,field
+Rocketeer Driver,Advanced Electrical Components,1,home
+Rocketeer Driver,ARC Alloy,3,home
+Roots,Assorted Seeds,1,field
+Roots,Assorted Seeds,1,home
+Rope,Fabric,2,field
+Rope,Fabric,3,home
+Rotary Encoder,Processor,2,field
+Rotary Encoder,Electrical Components,2,home
+Rotary Encoder,Processor,2,home
+Rubber Pad,Rubber Parts,12,field
+Rubber Pad,Rubber Parts,18,home
+Ruined Accordion,Rubber Parts,13,field
+Ruined Accordion,Rubber Parts,18,home
+Ruined Accordion,Steel Spring,3,home
+Ruined Augment,Plastic Parts,3,field
+Ruined Augment,Plastic Parts,2,home
+Ruined Augment,Rubber Parts,2,home
+Ruined Baton,Metal Parts,4,field
+Ruined Baton,Metal Parts,6,home
+Ruined Baton,Rubber Parts,3,home
+Ruined Handcuffs,Metal Parts,4,field
+Ruined Handcuffs,Metal Parts,8,home
+Ruined Parachute,Fabric,5,field
+Ruined Parachute,Fabric,10,home
+Ruined Riot Shield,Plastic Parts,10,field
+Ruined Riot Shield,Plastic Parts,10,home
+Ruined Riot Shield,Rubber Parts,6,home
+Ruined Tactical Vest,Fabric,5,field
+Ruined Tactical Vest,Fabric,5,home
+Ruined Tactical Vest,Magnet,1,home
+Rusted Bolts,Metal Parts,4,field
+Rusted Bolts,Metal Parts,8,home
+Rusted Gear,Metal Parts,12,field
+Rusted Gear,Mechanical Components,2,home
+Rusted Gear,Metal Parts,4,home
+Rusted Shut Medical Kit,Syringe,2,field
+Rusted Shut Medical Kit,Antiseptic,1,home
+Rusted Shut Medical Kit,Syringe,2,home
+Rusted Tools,Metal Parts,7,field
+Rusted Tools,Metal Parts,8,home
+Rusted Tools,Steel Spring,1,home
+Rusty ARC Steel,Metal Parts,3,field
+Rusty ARC Steel,Metal Parts,8,home
+Sample Cleaner,Assorted Seeds,12,field
+Sample Cleaner,Assorted Seeds,14,home
+Sample Cleaner,Electrical Components,2,home
+Security Chair,SheetMetal,15,home
+Seeker Grenade,Chemicals,3,field
+Seeker Grenade,Crude Explosives,1,home
+Sensors,Wires,1,field
+Sensors,Metal Parts,1,home
+Sensors,Wires,1,home
+Sentinel Firing Core,Mechanical Components,2,field
+Sentinel Firing Core,ARC Alloy,2,home
+Sentinel Firing Core,Mechanical Components,2,home
+Shaker,Plastic Parts,4,field
+Shaker,Plastic Parts,10,home
+Shield Recharger,Rubber Parts,3,field
+Shield Recharger,Rubber Parts,4,home
+Shotgun Choke I,Metal Parts,3,field
+Shotgun Choke I,Metal Parts,5,home
+Shotgun Choke II,Mechanical Components,1,field
+Shotgun Choke II,Mechanical Components,1,home
+Shotgun Choke II,Wires,1,home
+Shotgun Choke III,Mechanical Components,2,field
+Shotgun Choke III,Mod Components,1,home
+Shotgun Choke III,Wires,2,home
+Shotgun Silencer,Mechanical Components,2,field
+Shotgun Silencer,Mod Components,1,home
+Shotgun Silencer,Wires,1,home
+Showstopper,Electrical Components,1,field
+Showstopper,Electrical Components,1,home
+Showstopper,Voltage Converter,1,home
+Shrapnel Grenade,Crude Explosives,1,field
+Shrapnel Grenade,Crude Explosives,1,home
+Shrapnel Grenade,Metal Parts,1,home
+Shredder Gyro,Mechanical Components,2,field
+Shredder Gyro,ARC Alloy,2,home
+Shredder Gyro,Mechanical Components,2,home
+Signal Amplifier,Voltage Converter,2,field
+Signal Amplifier,Electrical Components,2,home
+Signal Amplifier,Voltage Converter,2,home
+Silencer I,Mechanical Components,1,field
+Silencer I,Mechanical Components,1,home
+Silencer I,Wires,1,home
+Silencer II,Mechanical Components,2,field
+Silencer II,Mod Components,1,home
+Silencer II,Wires,2,home
+Silencer III,Mod Components,1,field
+Silencer III,Mod Components,1,home
+Silencer III,Wires,3,home
+Simple Gun Parts,Metal Parts,1,field
+Simple Gun Parts,Metal Parts,2,home
+Skulker Targeter,ARC Alloy,1,field
+Skulker Targeter,ARC Alloy,1,home
+Skulker Targeter,Simple Gun Parts,1,home
+Small Lab Cabinet,SheetMetal,5,home
+Smoke Grenade,Chemicals,3,field
+Smoke Grenade,Canister,1,home
+Smoke Grenade,Chemicals,2,home
+Snap Blast Grenade,Chemicals,2,field
+Snap Blast Grenade,Chemicals,1,home
+Snap Blast Grenade,Magnet,1,home
+Snap Hook,Advanced Electrical Components,2,field
+Snap Hook,Power Rod,1,home
+Snap Hook,Rope,3,home
+Snitch Scanner,Electrical Components,1,field
+Snitch Scanner,ARC Alloy,1,home
+Snitch Scanner,Electrical Components,1,home
+Solid Green Chair,SheetMetal,15,home
+Speaker Component,Plastic Parts,2,field
+Speaker Component,Plastic Parts,2,home
+Speaker Component,Rubber Parts,3,home
+Spectrometer,Electrical Components,2,field
+Spectrometer,Advanced Electrical Components,1,home
+Spectrometer,Sensors,1,home
+Spectrum Analyzer,Processor,2,field
+Spectrum Analyzer,Exodus Modules,1,home
+Spectrum Analyzer,Sensors,1,home
+Spotter Relay,Electrical Components,1,field
+Spotter Relay,ARC Alloy,1,home
+Spotter Relay,Electrical Components,1,home
+Spring Cushion,Steel Spring,2,field
+Spring Cushion,Durable Cloth,2,home
+Spring Cushion,Steel Spring,2,home
+Stable Stock I,Rubber Parts,3,field
+Stable Stock I,Rubber Parts,6,home
+Stable Stock II,Mechanical Components,1,field
+Stable Stock II,Duct Tape,1,home
+Stable Stock II,Mechanical Components,1,home
+Stable Stock III,Mechanical Components,2,field
+Stable Stock III,Duct Tape,2,home
+Stable Stock III,Mod Components,1,home
+Steel Cable,Rubber Parts,1,field
+Steel Cable,Wires,1,home
+Steel Spring,Metal Parts,1,field
+Steel Spring,Metal Parts,2,home
+Sterilized Bandage,Durable Cloth,1,field
+Sterilized Bandage,Antiseptic,1,home
+Sterilized Bandage,Fabric,1,home
+Stiletto I,Simple Gun Parts,2,field
+Stiletto I,Mechanical Components,1,home
+Stiletto I,Simple Gun Parts,2,home
+Stiletto II,Simple Gun Parts,2,field
+Stiletto II,Mechanical Components,2,home
+Stiletto II,Simple Gun Parts,2,home
+Stiletto III,Simple Gun Parts,3,field
+Stiletto III,Mechanical Components,3,home
+Stiletto III,Simple Gun Parts,3,home
+Stiletto IV,Simple Gun Parts,4,field
+Stiletto IV,Mechanical Components,4,home
+Stiletto IV,Simple Gun Parts,4,home
+Stitcher I,Metal Parts,3,field
+Stitcher I,Metal Parts,3,home
+Stitcher I,Rubber Parts,2,home
+Stitcher II,Metal Parts,6,field
+Stitcher II,Metal Parts,6,home
+Stitcher II,Rubber Parts,6,home
+Stitcher III,Simple Gun Parts,1,field
+Stitcher III,Metal Parts,12,home
+Stitcher III,Simple Gun Parts,1,home
+Stitcher IV,Simple Gun Parts,2,field
+Stitcher IV,Mechanical Components,2,home
+Stitcher IV,Simple Gun Parts,2,home
+Study Armchair,SheetMetal,15,home
+Study Ceiling Lamp,SheetMetal,10,home
+Study Piano,Planks,50,home
+Study TV Stand,SheetMetal,10,home
+Sturdy Aviary Table,SheetMetal,20,home
+Sturdy Bureau Chair,SheetMetal,8,home
+Sturdy Bureau Sofa,SheetMetal,12,home
+Sturdy Den Bed,SheetMetal,10,home
+Sturdy Den Shelf,Planks,10,home
+Sturdy Faculty Chair,Planks,15,home
+Sturdy Faculty Table,SheetMetal,18,home
+Sturdy Lab Cabinet,SheetMetal,12,home
+Sturdy Lab Cabinet (Wide),SheetMetal,20,home
+Sturdy Lab Chair,SheetMetal,8,home
+Sturdy Shelf,SheetMetal,25,home
+Sturdy Stash,SheetMetal,10,home
+Sturdy Wardrobe,SheetMetal,5,home
+Sturdy Weapon Rack,SheetMetal,10,home
+Surge Coil,Electrical Components,1,field
+Surge Coil,Electrical Components,1,home
+Surge Coil,Sensors,1,home
+Surge Shield Recharger,Plastic Parts,5,field
+Surge Shield Recharger,Electrical Components,1,home
+Surveyor Vault,Mechanical Components,1,field
+Surveyor Vault,ARC Alloy,1,home
+Surveyor Vault,Mechanical Components,1,home
+Synthesized Fuel,Oil,1,field
+Synthesized Fuel,Chemicals,1,home
+Synthesized Fuel,Oil,1,home
+Syringe,Plastic Parts,2,field
+Syringe,Chemicals,2,home
+Syringe,Plastic Parts,3,home
+Tactical Mk. 1,Plastic Parts,3,field
+Tactical Mk. 1,Plastic Parts,3,home
+Tactical Mk. 1,Rubber Parts,3,home
+Tactical Mk. 2,Electrical Components,1,field
+Tactical Mk. 2,Electrical Components,1,home
+Tactical Mk. 2,Magnet,1,home
+Tactical Mk. 3 (Defensive),Electrical Components,2,field
+Tactical Mk. 3 (Defensive),Advanced Electrical Components,1,home
+Tactical Mk. 3 (Defensive),Processor,1,home
+Tactical Mk. 3 (Healing),Electrical Components,2,field
+Tactical Mk. 3 (Healing),Advanced Electrical Components,1,home
+Tactical Mk. 3 (Healing),Processor,1,home
+Tactical Mk. 3 (Revival),Electrical Components,2,field
+Tactical Mk. 3 (Revival),Advanced Electrical Components,1,home
+Tactical Mk. 3 (Revival),Processor,1,home
+Tactical Mk. 3 (Smoke),Electrical Components,2,field
+Tactical Mk. 3 (Smoke),Advanced Electrical Components,1,home
+Tactical Mk. 3 (Smoke),Processor,1,home
+Tagging Grenade,Sensors,1,field
+Tagging Grenade,Plastic Parts,1,home
+Tagging Grenade,Sensors,1,home
+Tattered ARC Lining,Fabric,5,field
+Tattered ARC Lining,Fabric,12,home
+Tattered Clothes,Fabric,5,field
+Tattered Clothes,Fabric,11,home
+Telemetry Transceiver,Electrical Components,2,field
+Telemetry Transceiver,Advanced Electrical Components,1,home
+Telemetry Transceiver,Processor,1,home
+Tempest I,Medium Gun Parts,2,field
+Tempest I,Advanced Mechanical Components,2,home
+Tempest I,Medium Gun Parts,2,home
+Tempest II,Medium Gun Parts,3,field
+Tempest II,Advanced Mechanical Components,3,home
+Tempest II,Medium Gun Parts,3,home
+Tempest III,Medium Gun Parts,4,field
+Tempest III,Advanced Mechanical Components,4,home
+Tempest III,Medium Gun Parts,4,home
+Tempest IV,Medium Gun Parts,5,field
+Tempest IV,Advanced Mechanical Components,5,home
+Tempest IV,Medium Gun Parts,4,home
+Tether Launcher,Steel Cable,1,field
+Tether Launcher,Mechanical Components,1,home
+Tether Launcher,Steel Cable,1,home
+Thermal Shaker,Electrical Components,1,field
+Thermal Shaker,Calculator,2,home
+Thermal Shaker,Electrical Components,2,home
+Thermostat,Sensors,1,field
+Thermostat,Rubber Parts,7,home
+Thermostat,Sensors,1,home
+Tick Pod,ARC Alloy,1,field
+Tick Pod,ARC Alloy,2,home
+Tick Pod,Chemicals,2,home
+Toaster,Wires,3,field
+Toaster,Plastic Parts,5,home
+Toaster,Wires,3,home
+Torn Blanket,Fabric,5,field
+Torn Blanket,Fabric,12,home
+Torrente I,Medium Gun Parts,2,field
+Torrente I,Advanced Mechanical Components,1,home
+Torrente I,Medium Gun Parts,2,home
+Torrente II,Medium Gun Parts,2,field
+Torrente II,Advanced Mechanical Components,2,home
+Torrente II,Medium Gun Parts,2,home
+Torrente III,Medium Gun Parts,3,field
+Torrente III,Advanced Mechanical Components,2,home
+Torrente III,Medium Gun Parts,3,home
+Torrente IV,Medium Gun Parts,3,field
+Torrente IV,Advanced Mechanical Components,3,home
+Torrente IV,Medium Gun Parts,3,home
+Trailblazer,Crude Explosives,2,field
+Trailblazer,Crude Explosives,2,home
+Trigger 'Nade,Processor,1,field
+Trigger 'Nade,Chemicals,1,home
+Trigger 'Nade,Processor,1,home
+Tufted Sofa,Planks,20,home
+Turbine Compressor,ARC Circuitry,1,field
+Turbine Compressor,ARC Circuitry,1,home
+Turbine Compressor,ARC Motion Core,1,home
+Turbo Pump,Steel Spring,3,field
+Turbo Pump,Mechanical Components,1,home
+Turbo Pump,Oil,3,home
+Unusable Weapon,Simple Gun Parts,3,field
+Unusable Weapon,Metal Parts,4,home
+Unusable Weapon,Simple Gun Parts,5,home
+Vaporizer Regulator,ARC Circuitry,2,field
+Vaporizer Regulator,Advanced Electrical Components,1,home
+Vaporizer Regulator,ARC Circuitry,2,home
+Venator I,Medium Gun Parts,2,field
+Venator I,Advanced Mechanical Components,1,home
+Venator I,Medium Gun Parts,2,home
+Venator II,Medium Gun Parts,2,field
+Venator II,Advanced Mechanical Components,2,home
+Venator II,Medium Gun Parts,2,home
+Venator III,Medium Gun Parts,3,field
+Venator III,Advanced Mechanical Components,2,home
+Venator III,Medium Gun Parts,3,home
+Venator IV,Medium Gun Parts,3,field
+Venator IV,Advanced Mechanical Components,3,home
+Venator IV,Medium Gun Parts,3,home
+Venetian Dresser,Planks,25,home
+Vertical Grip I,Plastic Parts,3,field
+Vertical Grip I,Plastic Parts,6,home
+Vertical Grip II,Mechanical Components,1,field
+Vertical Grip II,Duct Tape,1,home
+Vertical Grip II,Mechanical Components,1,home
+Vertical Grip III,Mechanical Components,2,field
+Vertical Grip III,Duct Tape,2,home
+Vertical Grip III,Mechanical Components,2,home
+Vita Shot,Syringe,1,field
+Vita Shot,Chemicals,4,home
+Vita Shot,Syringe,1,home
+Vita Spray,Antiseptic,1,field
+Vita Spray,Antiseptic,1,home
+Vita Spray,Canister,1,home
+Voltage Converter,Rubber Parts,2,field
+Voltage Converter,Rubber Parts,1,home
+Voltage Converter,Wires,1,home
+Vulcano I,Heavy Gun Parts,2,field
+Vulcano I,Advanced Mechanical Components,2,home
+Vulcano I,Heavy Gun Parts,2,home
+Vulcano II,Heavy Gun Parts,3,field
+Vulcano II,Advanced Mechanical Components,2,home
+Vulcano II,Heavy Gun Parts,3,home
+Vulcano III,Heavy Gun Parts,4,field
+Vulcano III,Advanced Mechanical Components,3,home
+Vulcano III,Heavy Gun Parts,4,home
+Vulcano IV,Heavy Gun Parts,5,field
+Vulcano IV,Advanced Mechanical Components,4,home
+Vulcano IV,Heavy Gun Parts,5,home
+Warehouse Chair,SheetMetal,5,home
+Warehouse Desk,SheetMetal,20,home
+Warehouse Dresser,SheetMetal,20,home
+Wasp Driver,ARC Alloy,2,field
+Wasp Driver,ARC Alloy,2,home
+Water Filter,Canister,2,field
+Water Filter,Canister,3,home
+Water Filter,Rubber Parts,2,home
+Water Pump,Oil,2,field
+Water Pump,Metal Parts,4,home
+Water Pump,Oil,2,home
+Weather Station Chair,SheetMetal,8,home
+Weather Station Table,SheetMetal,20,home
+White Flag,Fabric,3,field
+White Flag,Fabric,5,home
+White Flag,Plastic Parts,1,home
+Winter Table,Planks,20,home
+Wires,Rubber Parts,1,field
+Wires,Rubber Parts,2,home
+Wolfpack,Explosive Compound,2,field
+Wolfpack,ARC Motion Core,1,home
+Wolfpack,Explosive Compound,1,home
+Work Light,SheetMetal,5,home
+Yank Grenade,Fabric,3,field
+Yank Grenade,Rope,1,home
+Yellow Light Stick,Chemicals,1,field
+Yellow Light Stick,Chemicals,1,home
+Zipline,Metal Parts,4,field
+Zipline,Steel Cable,1,home

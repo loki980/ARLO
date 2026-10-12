@@ -6,13 +6,16 @@ Items are stored in `items.db` (SQLite database) with the following columns: `na
 
 Every time `ARLO.exe` (or `uv run arc-helper`) starts, it checks for item database updates. This is throttled to once per 24 hours so it doesn't slow down repeated launches. The update runs in merge mode, meaning your manual action overrides are always preserved.
 
-The updater pulls data from three MetaForge sources:
+The updater pulls data from these sources:
 
-- **Items API** (`/api/arc-raiders/items`) - Item names, categories, sell prices, stack sizes, rarity
-- **Recycle components** (Supabase `arc_item_recycle_components`) - What each item recycles into
-- **Quests API** (`/api/arc-raiders/quests`) - Which items are needed for which quests
+- **MetaForge items API** (`/api/arc-raiders/items`) - Item names, categories, sell prices, stack sizes, rarity
+- **MetaForge quests API** (`/api/arc-raiders/quests`) - Which items are needed for which quests
+- **arctracker.io items API** (`https://arctracker.io/api/items`, public, no key) - What each item gives when recycled at home (Speranza) and when salvaged in the field. Items are matched to MetaForge by English name, case-insensitive.
+- **Arc Raiders Wiki** (Loot page) - Workshop, expedition and project uses, plus recycle outputs for items arctracker does not cover
 
-If MetaForge is unreachable, the updater automatically falls back to scraping the Arc Raiders Wiki. If both are down, the app starts normally with whatever database it already has.
+The home outputs fill `recycle_for` in `items.csv` (for example `2x Battery, 2x Wires`). Both home and field outputs are written to `recycle_outputs.csv` next to `items.csv`, one row per output with the columns `item,component,quantity,location`, where `location` is `home` or `field`.
+
+The old MetaForge Supabase recycle feed was dropped because its key was disabled on 2026-04-02. If arctracker.io is unreachable, the updater logs a warning, takes recycle data from the wiki, and leaves `recycle_outputs.csv` as it was. If MetaForge is unreachable, the updater falls back to scraping the wiki. If everything is down, the app starts normally with whatever database it already has.
 
 The throttle timestamp is stored in `.last_wiki_update` in the app directory. Delete this file to force an update on the next launch.
 
