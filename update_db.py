@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import re
 import sqlite3
@@ -67,6 +68,7 @@ MATERIAL_CATEGORIES = {"Basic Material", "Refined Material", "Topside Material"}
 # Data classes
 # =============================================================================
 
+
 @dataclass
 class GameItem:
     """An item normalized to a common format."""
@@ -101,6 +103,7 @@ class ScraperStats:
 # MetaForge API
 # =============================================================================
 
+
 def _api_get(url: str, *, timeout: int = 30):
     resp = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
     resp.raise_for_status()
@@ -112,7 +115,8 @@ def _supabase_get(table: str, params: str = "") -> list:
     if params:
         url += f"?{params}"
     resp = requests.get(
-        url, timeout=30,
+        url,
+        timeout=30,
         headers={
             "User-Agent": USER_AGENT,
             "apikey": METAFORGE_SUPABASE_KEY,
@@ -151,7 +155,7 @@ def fetch_wiki_recycle_map() -> dict[str, str]:
     print("  Falling back to wiki for recycle data...")
     try:
         html = fetch_wiki_page()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"  Wiki recycle fallback also failed ({e})")
         return {}
 
@@ -182,7 +186,11 @@ def fetch_wiki_recycle_map() -> dict[str, str]:
             continue
         item_cell = cells[item_idx]
         name_link = item_cell.find("a")
-        name = name_link.get_text(strip=True) if name_link else item_cell.get_text(strip=True)
+        name = (
+            name_link.get_text(strip=True)
+            if name_link
+            else item_cell.get_text(strip=True)
+        )
         if not name:
             continue
         recycles_to = _parse_recycles_to(cells[recycle_idx])
@@ -198,15 +206,23 @@ def fetch_metaforge_recycle_map(all_items: list[dict]) -> dict[str, str]:
     print("Fetching recycle data from MetaForge...")
     try:
         components = _supabase_get("arc_item_recycle_components", "select=*")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"  Supabase unavailable ({e}), falling back to wiki for recycle data...")
         return fetch_wiki_recycle_map()
 
-    id_to_name = {item["id"]: item["name"] for item in all_items if item.get("id") and item.get("name")}
+    id_to_name = {
+        item["id"]: item["name"]
+        for item in all_items
+        if item.get("id") and item.get("name")
+    }
 
     recycle_raw: dict[str, list[tuple[str, int]]] = {}
     for comp in components:
-        item_id, comp_id, qty = comp.get("item_id", ""), comp.get("component_id", ""), comp.get("quantity", 0)
+        item_id, comp_id, qty = (
+            comp.get("item_id", ""),
+            comp.get("component_id", ""),
+            comp.get("quantity", 0),
+        )
         if item_id and comp_id:
             recycle_raw.setdefault(item_id, []).append((comp_id, qty))
 
@@ -214,7 +230,9 @@ def fetch_metaforge_recycle_map(all_items: list[dict]) -> dict[str, str]:
     for item_id, parts in recycle_raw.items():
         item_name = id_to_name.get(item_id, "")
         if item_name:
-            recycle_map[item_name] = ", ".join(f"{qty}x {id_to_name.get(cid, cid)}" for cid, qty in parts)
+            recycle_map[item_name] = ", ".join(
+                f"{qty}x {id_to_name.get(cid, cid)}" for cid, qty in parts
+            )
 
     print(f"  Loaded recycle data for {len(recycle_map)} items")
     return recycle_map
@@ -229,7 +247,7 @@ def fetch_metaforge_quest_items() -> dict[str, list[str]]:
     while True:
         try:
             data = _api_get(f"{METAFORGE_API_BASE}/quests?page={page}&limit=100")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"  Quest data unavailable ({e})")
             return {}
 
@@ -250,7 +268,9 @@ def fetch_metaforge_quest_items() -> dict[str, list[str]]:
                 iname = req.get("name", "")
                 qty = req.get("quantity", req.get("count", 1))
                 if iname:
-                    quest_map.setdefault(iname.lower(), []).append(f"{quest_name} ({qty}x)")
+                    quest_map.setdefault(iname.lower(), []).append(
+                        f"{quest_name} ({qty}x)"
+                    )
             elif isinstance(req, str) and req:
                 quest_map.setdefault(req.lower(), []).append(quest_name)
 
@@ -260,18 +280,30 @@ def fetch_metaforge_quest_items() -> dict[str, list[str]]:
 
 def _normalize_category(item_type: str) -> str:
     mapping = {
-        "basic_material": "Basic Material", "refined_material": "Refined Material",
-        "topside_material": "Topside Material", "recyclable": "Recyclable",
-        "trinket": "Trinket", "nature": "Nature", "quick_use": "Quick Use",
-        "key": "Key", "ammunition": "Ammunition", "ammo": "Ammunition",
-        "shield": "Shield", "augment": "Augment", "mods": "Mods", "mod": "Mods",
+        "basic_material": "Basic Material",
+        "refined_material": "Refined Material",
+        "topside_material": "Topside Material",
+        "recyclable": "Recyclable",
+        "trinket": "Trinket",
+        "nature": "Nature",
+        "quick_use": "Quick Use",
+        "key": "Key",
+        "ammunition": "Ammunition",
+        "ammo": "Ammunition",
+        "shield": "Shield",
+        "augment": "Augment",
+        "mods": "Mods",
+        "mod": "Mods",
     }
-    return mapping.get(item_type.lower().strip(), item_type.title() if item_type else "")
+    return mapping.get(
+        item_type.lower().strip(), item_type.title() if item_type else ""
+    )
 
 
 # =============================================================================
 # Wiki scraper
 # =============================================================================
+
 
 def fetch_wiki_page() -> str:
     print(f"Fetching {WIKI_URL} ...")
@@ -355,7 +387,11 @@ def scrape_wiki_uses() -> dict[str, str]:
 
         item_cell = cells[item_col]
         name_link = item_cell.find("a")
-        name = name_link.get_text(strip=True) if name_link else item_cell.get_text(strip=True)
+        name = (
+            name_link.get_text(strip=True)
+            if name_link
+            else item_cell.get_text(strip=True)
+        )
         if not name:
             continue
 
@@ -388,13 +424,20 @@ def fetch_items_from_wiki() -> list[GameItem]:
 
     col_map = {}
     for i, h in enumerate(headers):
-        if h == "item": col_map["item"] = i
-        elif h == "rarity": col_map["rarity"] = i
-        elif "recycles" in h: col_map["recycles_to"] = i
-        elif "sell" in h: col_map["sell_price"] = i
-        elif "stack" in h: col_map["stack_size"] = i
-        elif h == "category": col_map["category"] = i
-        elif h == "uses": col_map["uses"] = i
+        if h == "item":
+            col_map["item"] = i
+        elif h == "rarity":
+            col_map["rarity"] = i
+        elif "recycles" in h:
+            col_map["recycles_to"] = i
+        elif "sell" in h:
+            col_map["sell_price"] = i
+        elif "stack" in h:
+            col_map["stack_size"] = i
+        elif h == "category":
+            col_map["category"] = i
+        elif h == "uses":
+            col_map["uses"] = i
 
     items: list[GameItem] = []
     for row in loot_table.find_all("tr")[1:]:
@@ -402,7 +445,7 @@ def fetch_items_from_wiki() -> list[GameItem]:
         if len(cells) < 4:
             continue
 
-        def get_cell(key: str):
+        def get_cell(key: str, cells=cells):
             idx = col_map.get(key)
             return cells[idx] if idx is not None and idx < len(cells) else None
 
@@ -410,19 +453,29 @@ def fetch_items_from_wiki() -> list[GameItem]:
         if not item_cell:
             continue
         name_link = item_cell.find("a")
-        name = name_link.get_text(strip=True) if name_link else item_cell.get_text(strip=True)
+        name = (
+            name_link.get_text(strip=True)
+            if name_link
+            else item_cell.get_text(strip=True)
+        )
         if not name:
             continue
 
-        items.append(GameItem(
-            name=name,
-            rarity=get_cell("rarity").get_text(strip=True) if get_cell("rarity") else "",
-            recycles_to=_parse_recycles_to(get_cell("recycles_to")),
-            sell_price=_parse_int_cell(get_cell("sell_price")),
-            stack_size=_parse_int_cell(get_cell("stack_size")),
-            category=get_cell("category").get_text(strip=True) if get_cell("category") else "",
-            uses=_parse_uses(get_cell("uses")),
-        ))
+        items.append(
+            GameItem(
+                name=name,
+                rarity=get_cell("rarity").get_text(strip=True)
+                if get_cell("rarity")
+                else "",
+                recycles_to=_parse_recycles_to(get_cell("recycles_to")),
+                sell_price=_parse_int_cell(get_cell("sell_price")),
+                stack_size=_parse_int_cell(get_cell("stack_size")),
+                category=get_cell("category").get_text(strip=True)
+                if get_cell("category")
+                else "",
+                uses=_parse_uses(get_cell("uses")),
+            )
+        )
 
     print(f"  Scraped {len(items)} items from wiki")
     return items
@@ -431,6 +484,7 @@ def fetch_items_from_wiki() -> list[GameItem]:
 # =============================================================================
 # Hybrid fetch: MetaForge + Wiki enrichment
 # =============================================================================
+
 
 def fetch_items_hybrid() -> list[GameItem]:
     """
@@ -446,14 +500,13 @@ def fetch_items_hybrid() -> list[GameItem]:
     # 2. Wiki: Uses column only
     try:
         wiki_uses = scrape_wiki_uses()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"  Wiki scrape failed ({e}), continuing without wiki uses")
         wiki_uses = {}
 
     # 3. Combine into GameItems
     items: list[GameItem] = []
     for raw in raw_items:
-        item_id = raw.get("id", "")
         name = raw.get("name", "")
         if not name:
             continue
@@ -476,15 +529,17 @@ def fetch_items_hybrid() -> list[GameItem]:
         uses_parts = [p for p in [wiki_use_str, quest_str] if p]
         combined_uses = "; ".join(uses_parts)
 
-        items.append(GameItem(
-            name=name,
-            rarity=rarity,
-            recycles_to=recycles_to,
-            sell_price=sell_price,
-            stack_size=stack_size,
-            category=category,
-            uses=combined_uses,
-        ))
+        items.append(
+            GameItem(
+                name=name,
+                rarity=rarity,
+                recycles_to=recycles_to,
+                sell_price=sell_price,
+                stack_size=stack_size,
+                category=category,
+                uses=combined_uses,
+            )
+        )
 
     print(f"\n  Processed {len(items)} items (MetaForge + Wiki enrichment)")
     return items
@@ -493,6 +548,7 @@ def fetch_items_hybrid() -> list[GameItem]:
 # =============================================================================
 # Action generation
 # =============================================================================
+
 
 def generate_action(item: GameItem) -> tuple[str, str, str]:
     has_uses = bool(item.uses.strip())
@@ -505,22 +561,40 @@ def generate_action(item: GameItem) -> tuple[str, str, str]:
     if category == "Key":
         return "Keep", "", "Unlocks locked areas"
     if category == "Quick Use":
-        return ("Keep", recycle_for, keep_for) if has_uses else ("Use", recycle_for, "Quick Use consumable")
+        return (
+            ("Keep", recycle_for, keep_for)
+            if has_uses
+            else ("Use", recycle_for, "Quick Use consumable")
+        )
     if category == "Ammunition":
         return "Keep", "", "Ammo"
     if category in {"Shield", "Augment", "Mods"}:
         return "Keep", recycle_for, f"Equippable {category}"
     if category in MATERIAL_CATEGORIES:
-        return ("Keep", recycle_for, keep_for) if has_uses else ("Keep", recycle_for, f"{category} - crafting ingredient")
+        return (
+            ("Keep", recycle_for, keep_for)
+            if has_uses
+            else ("Keep", recycle_for, f"{category} - crafting ingredient")
+        )
     if category == "Nature":
-        return ("Keep", recycle_for, keep_for) if has_uses else ("Sell", recycle_for, "")
+        return (
+            ("Keep", recycle_for, keep_for) if has_uses else ("Sell", recycle_for, "")
+        )
     if category == "Trinket":
-        return ("Keep until uses complete; sell after", "", keep_for) if has_uses else ("Sell", "", "")
+        return (
+            ("Keep until uses complete; sell after", "", keep_for)
+            if has_uses
+            else ("Sell", "", "")
+        )
     if category == "Recyclable":
         if has_uses:
             return "Keep until uses complete; recycle after", recycle_for, keep_for
         if can_recycle:
-            return ("Recycle if short on materials; Sell otherwise", recycle_for, "") if item.sell_price >= 2000 else ("Recycle", recycle_for, "")
+            return (
+                ("Recycle if short on materials; Sell otherwise", recycle_for, "")
+                if item.sell_price >= 2000
+                else ("Recycle", recycle_for, "")
+            )
         return "Sell", "", ""
 
     if has_uses:
@@ -533,6 +607,7 @@ def generate_action(item: GameItem) -> tuple[str, str, str]:
 # =============================================================================
 # CSV / DB operations
 # =============================================================================
+
 
 def load_existing_csv(csv_path: Path) -> dict[str, dict[str, str]]:
     existing: dict[str, dict[str, str]] = {}
@@ -556,6 +631,7 @@ def load_existing_csv(csv_path: Path) -> dict[str, dict[str, str]]:
 def build_csv_rows(
     items: list[GameItem],
     existing: dict[str, dict[str, str]] | None = None,
+    *,
     merge: bool = False,
 ) -> tuple[list[dict[str, str]], ScraperStats]:
     stats = ScraperStats(items_scraped=len(items))
@@ -569,21 +645,28 @@ def build_csv_rows(
 
         if merge and existing and key in existing:
             old = existing[key]
-            rows.append({
-                "name": item.name,
-                "action": old["action"],
-                "recycle_for": old["recycle_for"] or recycle_for,
-                "keep_for": old["keep_for"] or keep_for,
-                "sell_price": sell_price,
-                "stack_size": stack_size,
-            })
+            rows.append(
+                {
+                    "name": item.name,
+                    "action": old["action"],
+                    "recycle_for": old["recycle_for"] or recycle_for,
+                    "keep_for": old["keep_for"] or keep_for,
+                    "sell_price": sell_price,
+                    "stack_size": stack_size,
+                }
+            )
             stats.items_preserved += 1
         else:
-            rows.append({
-                "name": item.name, "action": action,
-                "recycle_for": recycle_for, "keep_for": keep_for,
-                "sell_price": sell_price, "stack_size": stack_size,
-            })
+            rows.append(
+                {
+                    "name": item.name,
+                    "action": action,
+                    "recycle_for": recycle_for,
+                    "keep_for": keep_for,
+                    "sell_price": sell_price,
+                    "stack_size": stack_size,
+                }
+            )
             if existing and key not in (existing or {}):
                 stats.items_new += 1
 
@@ -594,7 +677,17 @@ def build_csv_rows(
 
 def write_csv(rows: list[dict[str, str]], csv_path: Path) -> None:
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["name", "action", "recycle_for", "keep_for", "sell_price", "stack_size"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "name",
+                "action",
+                "recycle_for",
+                "keep_for",
+                "sell_price",
+                "stack_size",
+            ],
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -613,7 +706,9 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
                 stack_size INTEGER
             )
         """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name COLLATE NOCASE)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_items_name ON items(name COLLATE NOCASE)"
+        )
 
         count = 0
         with csv_path.open(encoding="utf-8") as f:
@@ -632,7 +727,14 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
                     "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET "
                     "action=excluded.action, recycle_for=excluded.recycle_for, "
                     "keep_for=excluded.keep_for, sell_price=excluded.sell_price, stack_size=excluded.stack_size",
-                    (name, action, recycle_for, keep_for, int(sp) if sp else None, int(ss) if ss else None),
+                    (
+                        name,
+                        action,
+                        recycle_for,
+                        keep_for,
+                        int(sp) if sp else None,
+                        int(ss) if ss else None,
+                    ),
                 )
                 count += 1
 
@@ -645,6 +747,7 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
 # =============================================================================
 # CLI
 # =============================================================================
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -659,11 +762,21 @@ Examples:
   python update_db.py --source api  # MetaForge-only mode (no wiki)
         """,
     )
-    parser.add_argument("--merge", action="store_true", help="Preserve existing action overrides")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without writing files")
-    parser.add_argument("--csv-only", action="store_true", help="Update CSV only, skip DB rebuild")
-    parser.add_argument("--source", choices=["hybrid", "api", "wiki"], default="hybrid",
-                        help="Data source: 'hybrid' (default), 'api' MetaForge only, 'wiki' only")
+    parser.add_argument(
+        "--merge", action="store_true", help="Preserve existing action overrides"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing files"
+    )
+    parser.add_argument(
+        "--csv-only", action="store_true", help="Update CSV only, skip DB rebuild"
+    )
+    parser.add_argument(
+        "--source",
+        choices=["hybrid", "api", "wiki"],
+        default="hybrid",
+        help="Data source: 'hybrid' (default), 'api' MetaForge only, 'wiki' only",
+    )
 
     args = parser.parse_args()
 
@@ -677,7 +790,7 @@ Examples:
         try:
             items = fetch_items_hybrid()
             source_name = "MetaForge API + Wiki"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"\nHybrid fetch failed ({e}), falling back to wiki only...")
             items = fetch_items_from_wiki()
             source_name = "Arc Raiders Wiki (fallback)"
@@ -705,10 +818,14 @@ Examples:
 
     if args.dry_run:
         print("\n[DRY RUN] Preview of first 20 items:\n")
-        print(f"  {'Name':<35} {'Action':<40} {'Sell':>7} {'Stack':>5}  {'Recycle For':<25}")
-        print(f"  {'-'*35} {'-'*40} {'-'*7} {'-'*5}  {'-'*25}")
+        print(
+            f"  {'Name':<35} {'Action':<40} {'Sell':>7} {'Stack':>5}  {'Recycle For':<25}"
+        )
+        print(f"  {'-' * 35} {'-' * 40} {'-' * 7} {'-' * 5}  {'-' * 25}")
         for row in rows[:20]:
-            print(f"  {row['name']:<35} {row['action']:<40} {row.get('sell_price',''):>7} {row.get('stack_size',''):>5}  {row['recycle_for']:<25}")
+            print(
+                f"  {row['name']:<35} {row['action']:<40} {row.get('sell_price', ''):>7} {row.get('stack_size', ''):>5}  {row['recycle_for']:<25}"
+            )
         print(f"\n  ... and {len(rows) - 20} more items")
         return
 
@@ -730,21 +847,24 @@ def fetch_items_from_metaforge_only() -> list[GameItem]:
 
     items: list[GameItem] = []
     for raw in raw_items:
-        item_id, name = raw.get("id", ""), raw.get("name", "")
+        name = raw.get("name", "")
         if not name:
             continue
         stat_block = raw.get("stat_block") or {}
         quest_uses = quest_map.get(name.lower(), [])
         quest_str = "Quests: " + ", ".join(quest_uses) if quest_uses else ""
 
-        items.append(GameItem(
-            name=name, rarity=raw.get("rarity", ""),
-            recycles_to=recycle_map.get(name, ""),
-            sell_price=raw.get("value", 0) or 0,
-            stack_size=stat_block.get("stackSize", 0) or 0,
-            category=_normalize_category(raw.get("item_type", "")),
-            uses=quest_str,
-        ))
+        items.append(
+            GameItem(
+                name=name,
+                rarity=raw.get("rarity", ""),
+                recycles_to=recycle_map.get(name, ""),
+                sell_price=raw.get("value", 0) or 0,
+                stack_size=stat_block.get("stackSize", 0) or 0,
+                category=_normalize_category(raw.get("item_type", "")),
+                uses=quest_str,
+            )
+        )
     print(f"  Processed {len(items)} items from MetaForge")
     return items
 
@@ -768,10 +888,8 @@ def _should_auto_update() -> bool:
 
 
 def _mark_updated() -> None:
-    try:
+    with contextlib.suppress(OSError):
         LAST_UPDATE_FILE.write_text(str(time.time()), encoding="utf-8")
-    except OSError:
-        pass
 
 
 def auto_update(*, force: bool = False) -> bool:
@@ -787,11 +905,11 @@ def auto_update(*, force: bool = False) -> bool:
         print("Checking for item database updates...")
         try:
             items = fetch_items_hybrid()
-        except Exception:
+        except Exception:  # noqa: BLE001
             print("  Hybrid fetch failed, trying wiki only...")
             try:
                 items = fetch_items_from_wiki()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 print("  All sources unavailable, skipping update.")
                 return False
 
@@ -806,12 +924,15 @@ def auto_update(*, force: bool = False) -> bool:
         _mark_updated()
 
         new_count = stats.items_written - stats.items_preserved
-        print(f"  Database updated: {stats.items_written} items ({new_count} new, {stats.items_preserved} preserved)")
-        return True
+        print(
+            f"  Database updated: {stats.items_written} items ({new_count} new, {stats.items_preserved} preserved)"
+        )
 
     except Exception as e:  # noqa: BLE001
         print(f"  Database update skipped (error: {e})")
         return False
+    else:
+        return True
 
 
 if __name__ == "__main__":
