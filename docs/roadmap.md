@@ -152,7 +152,16 @@ it shows the name and best places to find it based on public data." His
 Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
 
 1. Data: the 91 blueprints, the order of the Collections grid, and where each
-   drops, from public sources. Started 11 Oct.
+   drops, from public sources. Done 11 Oct. arctracker lists exactly 91
+   items of type Blueprint with 256 px icons. The wiki's Blueprints page
+   has the grid order (17 columns, 88 names and 3 unnamed slots: Banjo,
+   Stiletto, Tether Launcher in an unknown order), validated by icon against
+   all 20 of Jeffrey's found cells. Where found: the wiki table (map,
+   container category, quest, trials) for 84, and a MetaForge vote endpoint
+   (player votes by container, map and event) for 87. No source has drop
+   chances. The 3 unnamed slots get resolved from the screen by elimination.
+   Findings in the handoff folder, to be folded into the design spec when
+   step 2 starts.
 2. Read the Collections screen: the BLUEPRINTS tab and FOUND count, the
    lattice, found versus empty cells, cells mapped to blueprints by the grid
    order (or learned from the found icons when no public order exists), and
@@ -194,6 +203,10 @@ pages, project pages and the quest list.
 - Four catalog names appear twice ignoring case (Colorful Shoes and three
   others). The database keeps the last row. Leave it, or dedupe in the
   updater.
+- Blueprint find locations: MetaForge's terms ask for attribution and ask
+  paid projects to contact them first, and the vote endpoint is
+  undocumented. ARLO is free. Use it with attribution in the README, or stay
+  on the wiki table alone.
 
 ## Known follow-ups
 
