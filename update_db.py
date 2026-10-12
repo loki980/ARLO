@@ -260,12 +260,24 @@ def fetch_metaforge_quest_items() -> dict[str, list[str]]:
         page += 1
         time.sleep(0.1)
 
+    quest_map = parse_metaforge_quests(all_quests)
+    print(f"  Mapped quest requirements for {len(quest_map)} items")
+    return quest_map
+
+
+def parse_metaforge_quests(all_quests: list[dict]) -> dict[str, list[str]]:
+    """Build item_name_lower -> ['Quest (2x)', ...] from MetaForge quest records.
+
+    Each required_items entry has id, item, item_id and quantity. The item
+    name is under item.name, there is no top-level name key.
+    """
     quest_map: dict[str, list[str]] = {}
     for quest in all_quests:
         quest_name = quest.get("name", "")
-        for req in quest.get("required_items", []):
+        for req in quest.get("required_items") or []:
             if isinstance(req, dict):
-                iname = req.get("name", "")
+                item = req.get("item")
+                iname = item.get("name", "") if isinstance(item, dict) else ""
                 qty = req.get("quantity", req.get("count", 1))
                 if iname:
                     quest_map.setdefault(iname.lower(), []).append(
@@ -273,8 +285,6 @@ def fetch_metaforge_quest_items() -> dict[str, list[str]]:
                     )
             elif isinstance(req, str) and req:
                 quest_map.setdefault(req.lower(), []).append(quest_name)
-
-    print(f"  Mapped quest requirements for {len(quest_map)} items")
     return quest_map
 
 
