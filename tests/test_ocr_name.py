@@ -1,10 +1,20 @@
 """Tests for item-name line detection used by the two-pass OCR reader."""
 
+import shutil
+from pathlib import Path
+
 import numpy as np
+import pytest
 from PIL import Image
 
 from arc_helper import ocr as ocr_module
+from arc_helper.database import Database
 from arc_helper.ocr import OCREngine
+from arc_helper.screen import Point
+from arc_helper.tooltip_layout import Edges
+from arc_helper.tooltip_layout import Rect
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_upper_ratio():
@@ -120,3 +130,121 @@ def test_capture_library_throttles_per_name_and_never_raises(tmp_path):
     engine.capture_library_dir = tmp_path / "blocked"
     engine.capture_library_dir.write_text("a file, not a folder")
     engine._save_to_library(image, "OSPREY I")  # noqa: SLF001 - logged, not raised
+
+
+# A real 1031x1174 capture is pasted into a dark 4K frame at FRAME_AT and
+# grab_screen crops the frame, like the Wayland backend's cached frame. The
+# cursor-relative box (offset 40, -600) then equals the pasted capture, and
+# the 2400x1600 search window centred on the cursor contains all of it.
+FRAME_AT = (1500, 400)
+BOX_OFFSET = (40, -600)
+CURSOR = Point(x=FRAME_AT[0] - BOX_OFFSET[0], y=FRAME_AT[1] - BOX_OFFSET[1])
+# Anvil card in the fixture is (482, 462, 1031, 1174)
+ANVIL_CARD = Rect(482, 462, 1031, 1174)
+
+
+def _engine_on_frame(monkeypatch, fixture: str) -> OCREngine:
+    with Image.open(FIXTURES / fixture) as capture:
+        frame = Image.new("RGB", (3840, 2160), (14, 16, 24))
+        frame.paste(capture.convert("RGB"), FRAME_AT)
+        box_size = capture.size
+    monkeypatch.setattr(ocr_module, "grab_screen", frame.crop)
+    monkeypatch.setattr(ocr_module, "get_cursor_position", lambda: CURSOR)
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (3840, 2160))
+    engine = OCREngine()
+    engine.debug_mode = False
+    engine.capture_library = False
+    engine.tooltip_width, engine.tooltip_height = box_size
+    engine.tooltip_offset_x, engine.tooltip_offset_y = BOX_OFFSET
+    engine.search_width, engine.search_height = 2400, 1600
+    return engine
+
+
+def test_card_in_search_window_is_cropped_and_window_saved(monkeypatch, tmp_path):
+    _fake_tesseract(
+        monkeypatch,
+        plain="ANVIL IV\nHas high damage\n",
+        whitelisted="ANVILIV\nHASHIGHDAMAGE\n",
+        words=[],
+    )
+    engine = _engine_on_frame(monkeypatch, "anvil_iv_loadout_capture.png")
+    engine.capture_library = True
+    engine.capture_library_dir = tmp_path
+    seen = []
+    preprocess = engine.preprocess_tooltip
+
+    def recording_preprocess(image):
+        seen.append(image.size)
+        return preprocess(image)
+
+    engine.preprocess_tooltip = recording_preprocess
+
+    assert engine.extract_item_name_at_cursor() == "ANVILIV"
+
+    # The window is centred on the cursor, the card is found inside it
+    window_origin = (CURSOR.x - 1200, CURSOR.y - 800)
+    assert engine._last_origin == window_origin  # noqa: SLF001
+    card = engine._last_card  # noqa: SLF001
+    left = FRAME_AT[0] - window_origin[0]
+    top = FRAME_AT[1] - window_origin[1]
+    assert card == Rect(
+        left + ANVIL_CARD.left,
+        top + ANVIL_CARD.top,
+        left + ANVIL_CARD.right,
+        top + ANVIL_CARD.bottom,
+    )
+    # Only the card plus 8 px each side is preprocessed
+    assert seen == [(card.width + 16, card.height + 16)]
+    # The library keeps the whole window, named as before
+    saved = list(tmp_path.iterdir())
+    assert [p.name.split("_", 1)[1] for p in saved] == ["ANVILIV.png"]
+    with Image.open(saved[0]) as image:
+        assert image.size == (2400, 1600)
+
+    # The layout uses the located card, which does not touch the window edge
+    layout = engine.layout_from_last_capture()
+    assert layout.tooltip == Rect(
+        FRAME_AT[0] + ANVIL_CARD.left,
+        FRAME_AT[1] + ANVIL_CARD.top,
+        FRAME_AT[0] + ANVIL_CARD.right,
+        FRAME_AT[1] + ANVIL_CARD.bottom,
+    )
+    assert layout.clipped == Edges()
+
+
+def test_no_card_falls_back_to_cursor_box(monkeypatch, tmp_path):
+    _fake_tesseract(monkeypatch, plain="", whitelisted="", words=[])
+    engine = _engine_on_frame(monkeypatch, "loadout_no_card_capture.png")
+    engine.capture_library = True
+    engine.capture_library_dir = tmp_path
+
+    assert engine.extract_item_name_at_cursor() is None
+
+    assert engine._last_card is None  # noqa: SLF001
+    assert engine._last_origin == FRAME_AT  # noqa: SLF001
+    assert engine._last_capture.size == (1031, 1174)  # noqa: SLF001
+    saved = list(tmp_path.iterdir())
+    assert [p.name.split("_", 1)[1] for p in saved] == ["none.png"]
+    with Image.open(saved[0]) as image:
+        assert image.size == (1031, 1174)
+
+
+@pytest.mark.skipif(shutil.which("tesseract") is None, reason="needs tesseract")
+def test_anvil_card_read_resolves_through_vote(monkeypatch, tmp_path):
+    path = tmp_path / "anvil.db"
+    db = Database(db_path=path)
+    db.clear()
+    with db._get_connection() as conn:  # noqa: SLF001 - test seam
+        conn.executemany(
+            "INSERT INTO items (name, action) VALUES (?, ?)",
+            [(f"Anvil {t}", "Keep") for t in ("I", "II", "III", "IV")],
+        )
+        conn.commit()
+    db = Database(db_path=path)  # the tier index is built on open
+    engine = _engine_on_frame(monkeypatch, "anvil_iv_loadout_capture.png")
+
+    name = engine.extract_item_name_at_cursor()
+
+    assert engine._last_card is not None  # noqa: SLF001 - the new path ran
+    assert engine.last_tier_vote is not None
+    assert db.lookup(name, tier_vote=engine.last_tier_vote).name == "Anvil IV"

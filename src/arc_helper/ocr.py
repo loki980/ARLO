@@ -25,12 +25,18 @@ from .tiers import TIER_LIKE
 from .tiers import TierVote
 from .tiers import count_strokes
 from .tiers import tier_key
+from .tooltip_layout import Edges
 from .tooltip_layout import Point as LayoutPoint
+from .tooltip_layout import Rect
 from .tooltip_layout import TooltipLayout
 from .tooltip_layout import Word
 from .tooltip_layout import find_cream_rect
 from .tooltip_layout import find_label_rows
+from .tooltip_layout import find_tooltip_card
 from .tooltip_layout import to_screen
+
+# Margin kept around the located card when it is cropped for OCR
+CARD_CROP_MARGIN = 8
 
 
 def grab_screen(bbox: tuple[int, int, int, int]) -> Image.Image:
@@ -82,10 +88,16 @@ class OCREngine:
         self.tooltip_offset_x = settings.tooltip_capture.offset_x
         self.tooltip_offset_y = settings.tooltip_capture.offset_y
 
+        # Card search window, centred on the cursor
+        self.search_width = settings.tooltip_search.width
+        self.search_height = settings.tooltip_search.height
+
         # Last cursor capture and its top-left screen origin, kept so
-        # layout_from_last_capture can locate the tooltip without a new grab
+        # layout_from_last_capture can locate the tooltip without a new grab.
+        # _last_card is the item card located in that capture, if any.
         self._last_capture: Image.Image | None = None
         self._last_origin: LayoutPoint | None = None
+        self._last_card: Rect | None = None
 
         if self.debug_mode:
             self.debug_dir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +132,6 @@ class OCREngine:
         """
 
         cursor = get_cursor_position()
-        screen_width, screen_height = get_screen_resolution()
 
         # TODO: flipping the tooltip region on the right side of screen
         # to be implemented properly
@@ -137,8 +148,37 @@ class OCREngine:
         # Calculate capture region around cursor
         left = cursor.x + offset_x
         top = cursor.y + self.tooltip_offset_y
-        right = left + self.tooltip_width
-        bottom = top + self.tooltip_height
+        image = self._grab_clamped(
+            cursor, left, top, self.tooltip_width, self.tooltip_height
+        )
+        return image, cursor
+
+    def capture_search_window(self) -> tuple[Image.Image, Point]:
+        """Capture the card search window centred on the cursor.
+
+        The window is search_width by search_height physical pixels, clamped
+        to the screen, and becomes the last capture with its origin. Returns
+        the captured image and the cursor position.
+        """
+        cursor = get_cursor_position()
+        left = cursor.x - self.search_width // 2
+        top = cursor.y - self.search_height // 2
+        image = self._grab_clamped(
+            cursor, left, top, self.search_width, self.search_height
+        )
+        return image, cursor
+
+    def _grab_clamped(
+        self, cursor: Point, left: int, top: int, width: int, height: int
+    ) -> Image.Image:
+        """Grab a box clamped to the screen and keep it as the last capture.
+
+        Clears the last capture and located card first. When the grab fails
+        a small black image is returned and no last capture is kept.
+        """
+        screen_width, screen_height = get_screen_resolution()
+        right = left + width
+        bottom = top + height
 
         # Clamp to valid screen coordinates (handle multi-monitor)
         # Note: We clamp to primary monitor bounds for simplicity
@@ -148,16 +188,14 @@ class OCREngine:
         bottom = max(top + 1, min(bottom, screen_height))
 
         # Log if we had to clamp significantly
-        if (
-            right - left < self.tooltip_width // 2
-            or bottom - top < self.tooltip_height // 2
-        ):
+        if right - left < width // 2 or bottom - top < height // 2:
             logger.debug(
                 f"Capture region clamped significantly: cursor=({cursor.x}, {cursor.y}), bbox=({left}, {top}, {right}, {bottom})"
             )
 
         self._last_capture = None
         self._last_origin = None
+        self._last_card = None
         try:
             image = grab_screen((left, top, right, bottom))
         except ScreenCaptureUnavailable:
@@ -167,16 +205,46 @@ class OCREngine:
                 f"Screen grab failed at bbox ({left}, {top}, {right}, {bottom}): {e}"
             )
             # Return a dummy image to avoid crashing
-            return Image.new("RGB", (100, 100), color="black"), cursor
+            return Image.new("RGB", (100, 100), color="black")
 
         self._last_capture = image
         self._last_origin = LayoutPoint(left, top)
-        return image, cursor
+        return image
+
+    def _locate_card(self, cursor: Point) -> Image.Image | None:
+        """Find the item card in the last capture and return its OCR crop.
+
+        The cursor is converted to capture coordinates for
+        find_tooltip_card. On success the card is kept as _last_card and
+        the crop includes CARD_CROP_MARGIN px around it, clamped to the
+        capture. None when there is no capture or no card.
+        """
+        image, origin = self._last_capture, self._last_origin
+        if image is None or origin is None:
+            return None
+        rgb = image.convert("RGB")
+        card = find_tooltip_card(
+            np.array(rgb), LayoutPoint(cursor.x - origin.x, cursor.y - origin.y)
+        )
+        if card is None:
+            return None
+        self._last_card = card
+        return rgb.crop(
+            (
+                max(0, card.left - CARD_CROP_MARGIN),
+                max(0, card.top - CARD_CROP_MARGIN),
+                min(image.width, card.right + CARD_CROP_MARGIN),
+                min(image.height, card.bottom + CARD_CROP_MARGIN),
+            )
+        )
 
     def layout_from_last_capture(self) -> TooltipLayout | None:
         """Locate the tooltip and its label rows in the last cursor capture.
 
-        Runs a word-box OCR pass on the cream region upscaled 2x. Returns the
+        Runs a word-box OCR pass on the cream region upscaled 2x. When the
+        last name read located the item card, that card is the cream region
+        and its clipped edges are the ones touching the search window edge.
+        Otherwise find_cream_rect locates it in the capture. Returns the
         tooltip and label rectangles in physical screen pixels, or None when
         there is no capture or no cream region. Costs one extra Tesseract
         pass, so callers run it once per shown item, not every scan.
@@ -185,10 +253,19 @@ class OCREngine:
         if image is None or origin is None:
             return None
 
-        region = find_cream_rect(np.array(image.convert("RGB")))
-        if region is None:
-            return None
-        cream = region.rect
+        if self._last_card is not None:
+            cream = self._last_card
+            clipped = Edges(
+                left=cream.left == 0,
+                top=cream.top == 0,
+                right=cream.right == image.width,
+                bottom=cream.bottom == image.height,
+            )
+        else:
+            region = find_cream_rect(np.array(image.convert("RGB")))
+            if region is None:
+                return None
+            cream, clipped = region
 
         scale = 2
         crop = image.crop((cream.left, cream.top, cream.right, cream.bottom))
@@ -229,7 +306,7 @@ class OCREngine:
             for name, rect in find_label_rows(words, scale).items()
         }
         return TooltipLayout(
-            tooltip=to_screen(cream, origin), labels=labels, clipped=region.clipped
+            tooltip=to_screen(cream, origin), labels=labels, clipped=clipped
         )
 
     def check_trigger_any(self, regions: list[RegionMixin]) -> bool:
@@ -486,13 +563,23 @@ class OCREngine:
         """
         Extract item name from tooltip near the cursor.
 
-        Captures area around cursor, finds the tooltip, and extracts the item name.
+        Captures the search window around the cursor and locates the item
+        card in it, so a card drawn left of, below or further from the cursor
+        is still read. The name passes then run on the card crop only. When
+        no card is found it falls back to the cursor-relative capture box.
         Returns the cleaned item name or None if extraction fails.
         """
         self.last_tier_vote = None
 
-        # Capture around cursor
-        image, _ = self.capture_around_cursor()
+        window, cursor = self.capture_search_window()
+        card_crop = self._locate_card(cursor)
+        if card_crop is not None:
+            image = card_crop
+            # The whole window goes to the library, so evaluation sees context
+            library_image = window
+        else:
+            image, _ = self.capture_around_cursor()
+            library_image = image
 
         # Save debug image if enabled
         if self.debug_mode:
@@ -506,8 +593,8 @@ class OCREngine:
         # The item name is typically in the upper portion of the tooltip
         # in large dark text on the cream background
 
-        # First, let's try to find and extract from the whole capture
-        # using appropriate preprocessing for dark text on light background
+        # Extract from the card crop (or the fallback capture) using
+        # preprocessing for dark text on light background
 
         processed = self.preprocess_tooltip(image)
 
@@ -525,7 +612,7 @@ class OCREngine:
                 logger.debug(f"Extracted item name: '{item_name}'")
 
         if self.capture_library and self._last_capture is not None:
-            self._save_to_library(image, item_name)
+            self._save_to_library(library_image, item_name)
         return item_name
 
     def _save_to_library(self, image: Image.Image, item_name: str | None) -> None:
