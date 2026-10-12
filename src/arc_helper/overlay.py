@@ -8,9 +8,16 @@ from typing import Callable
 
 from .clickthrough import make_click_through
 from .config import get_dpi_scale
+from .config import get_screen_resolution
 from .config import get_settings
 from .database import Item
+from .screen import get_backend
 from .screen import phys_to_tk
+from .tooltip_layout import PRICE_CHIP
+from .tooltip_layout import RECYCLE_CHIP
+from .tooltip_layout import Size
+from .tooltip_layout import TooltipLayout
+from .tooltip_layout import place_chips
 
 # Action colors
 ACTION_COLORS: dict[str, str] = {
@@ -28,6 +35,11 @@ BG_PANEL = "#1a1a2e"
 BORDER_COLOR = "#3a3a5c"
 TEXT_DIM = "#9999bb"
 TEXT_INFO = "#c4a0ff"
+
+# Recycle chip labels. HOME_ONLY draws in the accent color, HOME_RECYCLER
+# in the neutral info color.
+RECYCLE_LABEL_HOME_ONLY = "HOME ONLY"
+RECYCLE_LABEL_HOME_RECYCLER = "HOME RECYCLER"
 
 
 class OverlayWindow:
@@ -249,6 +261,149 @@ class OverlayWindow:
             return self.window.winfo_viewable()
         except tk.TclError:
             return False
+
+
+class TooltipChips:
+    """Two small click-through chips placed beside the game's own tooltip.
+
+    The price chip sits on the "Can be found in" row, the recycle chip on
+    the icon row under "Recycles into". Positions come from place_chips in
+    physical pixels and are converted with phys_to_tk.
+    """
+
+    # Gap between chip and tooltip edge or label, in tk units
+    PAD = 8
+
+    def __init__(self, root: tk.Tk):
+        self.root = root
+        self.settings = get_settings()
+        self.dpi_scale = get_dpi_scale()
+
+        self.info_size = max(8, self._scale(13))
+        self.detail_size = max(8, self._scale(12))
+
+        self.price_window, price_body = self._make_chip(ACTION_COLORS["SELL"])
+        self.price_label = self._label(price_body, "white", bold=True)
+        self.price_label.pack(anchor="w")
+        self.stack_label = self._label(price_body, TEXT_DIM, size=self.detail_size)
+        # Only packed when there is stack text (see show())
+
+        self.recycle_accent = ACTION_COLORS["RECYCLE"]
+        self.recycle_window, recycle_body = self._make_chip(self.recycle_accent)
+        self.recycle_title = self._label(recycle_body, TEXT_INFO, bold=True)
+        self.recycle_title.pack(side="left")
+        self.recycle_text = self._label(recycle_body, "white")
+        self.recycle_text.pack(side="left", padx=(self._scale(10), 0))
+
+        self.windows = {
+            PRICE_CHIP: self.price_window,
+            RECYCLE_CHIP: self.recycle_window,
+        }
+        self._hide_after_id: str | None = None
+
+    def _scale(self, value: int) -> int:
+        return max(1, int(value / self.dpi_scale))
+
+    def _make_chip(self, accent: str) -> tuple[tk.Toplevel, tk.Frame]:
+        """Build one hidden chip window, returning it and its content frame."""
+        window = tk.Toplevel(self.root)
+        window.title("ARLO chip")
+        window.attributes("-topmost", True)  # noqa: FBT003
+        window.attributes("-alpha", 0.92)
+        window.overrideredirect(boolean=True)
+        window.withdraw()
+
+        border_w = max(1, self._scale(2))
+        outer = tk.Frame(window, bg=BORDER_COLOR, padx=border_w, pady=border_w)
+        outer.pack()
+        inner = tk.Frame(outer, bg=BG_PANEL)
+        inner.pack()
+        tk.Frame(inner, bg=accent, width=max(2, self._scale(4))).pack(
+            side="left", fill="y"
+        )
+        body = tk.Frame(inner, bg=BG_PANEL, padx=self._scale(10), pady=self._scale(5))
+        body.pack(side="left")
+
+        # The chips sit on top of the game tooltip and must not eat clicks
+        make_click_through(window)
+        return window, body
+
+    def _label(
+        self, parent: tk.Frame, fg: str, *, size: int | None = None, bold: bool = False
+    ) -> tk.Label:
+        font = ("Segoe UI", size or self.info_size, *(("bold",) if bold else ()))
+        return tk.Label(parent, text="", font=font, fg=fg, bg=BG_PANEL, anchor="w")
+
+    def show(
+        self,
+        layout: TooltipLayout,
+        price_text: str | None,
+        stack_text: str | None,
+        recycle_label: str | None,
+        recycle_text: str | None,
+    ) -> None:
+        """Fill, measure, place and show the chips that have content."""
+        if self._hide_after_id:
+            self.root.after_cancel(self._hide_after_id)
+            self._hide_after_id = None
+
+        active: list[str] = []
+        if price_text:
+            self.price_label.config(text=price_text)
+            self.stack_label.pack_forget()
+            if stack_text:
+                self.stack_label.config(text=stack_text)
+                self.stack_label.pack(anchor="w")
+            active.append(PRICE_CHIP)
+        if recycle_label and recycle_text:
+            title_fg = (
+                self.recycle_accent
+                if recycle_label == RECYCLE_LABEL_HOME_ONLY
+                else TEXT_INFO
+            )
+            self.recycle_title.config(text=recycle_label, fg=title_fg)
+            self.recycle_text.config(text=recycle_text)
+            active.append(RECYCLE_CHIP)
+
+        # Sizes in physical pixels, measured before the chips are mapped
+        tk_scale = get_backend().tk_scale
+        sizes: dict[str, Size] = {}
+        for key in active:
+            window = self.windows[key]
+            window.update_idletasks()
+            sizes[key] = Size(
+                round(window.winfo_reqwidth() * tk_scale),
+                round(window.winfo_reqheight() * tk_scale),
+            )
+
+        screen_w, screen_h = get_screen_resolution()
+        positions = place_chips(
+            layout.tooltip,
+            layout.labels,
+            sizes,
+            Size(screen_w, screen_h),
+            round(self.PAD * tk_scale),
+        )
+
+        for key, window in self.windows.items():
+            point = positions.get(key)
+            if point is None:
+                window.withdraw()
+                continue
+            window.geometry(f"+{phys_to_tk(point.x)}+{phys_to_tk(point.y)}")
+            window.deiconify()
+            window.lift()
+
+        if positions:
+            hide_ms = int(self.settings.overlay.display_time * 1000)
+            self._hide_after_id = self.root.after(hide_ms, self.hide)
+
+    def hide(self) -> None:
+        if self._hide_after_id:
+            self.root.after_cancel(self._hide_after_id)
+            self._hide_after_id = None
+        for window in self.windows.values():
+            window.withdraw()
 
 
 class StatusWindow:

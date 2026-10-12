@@ -23,15 +23,21 @@ from arc_helper.config import APP_DIR
 from arc_helper.config import SettingsManager
 from arc_helper.config import get_settings
 from arc_helper.config import logger
+from arc_helper.database import FIELD
+from arc_helper.database import HOME
 from arc_helper.database import Database
 from arc_helper.database import Item
+from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
 from arc_helper.ocr import OCREngineManager
 from arc_helper.ocr import get_ocr_engine
+from arc_helper.overlay import RECYCLE_LABEL_HOME_ONLY
+from arc_helper.overlay import RECYCLE_LABEL_HOME_RECYCLER
 from arc_helper.overlay import OverlayWindow
 from arc_helper.overlay import StatusWindow
+from arc_helper.overlay import TooltipChips
 from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 
@@ -87,6 +93,39 @@ class DebugOverlay:
 
     def destroy(self):
         self.window.destroy()
+
+
+def chip_payload(
+    item: Item, outputs: list[RecycleOutput], home_only: list[RecycleOutput]
+) -> dict[str, str | None]:
+    """Chip texts for TooltipChips.show. None hides that line or chip.
+
+    Without field rows the recycle chip lists every home output. With field
+    rows it lists only the home extras, and hides when there are none.
+    """
+    price_text = stack_text = None
+    if item.sell_price is not None:
+        price_text = f"SELLS FOR {item.sell_price:,} \u20a1"
+        if item.stack_size is not None:
+            stack_total = item.sell_price * item.stack_size
+            stack_text = f"\u00d7{item.stack_size} = {stack_total:,} \u20a1"
+
+    recycle_label = recycle_text = None
+    home = [o for o in outputs if o.location == HOME]
+    has_field = any(o.location == FIELD for o in outputs)
+    if home and not has_field:
+        recycle_label = RECYCLE_LABEL_HOME_RECYCLER
+        recycle_text = "  ".join(f"{o.quantity} {o.component}" for o in home)
+    elif home and home_only:
+        recycle_label = RECYCLE_LABEL_HOME_ONLY
+        recycle_text = "  ".join(f"+{o.quantity} {o.component}" for o in home_only)
+
+    return {
+        "price_text": price_text,
+        "stack_text": stack_text,
+        "recycle_label": recycle_label,
+        "recycle_text": recycle_text,
+    }
 
 
 @dataclass
@@ -153,6 +192,7 @@ class Scanner:
         """Stop the scanner."""
         self._running = False
         self.state = ScannerState.STOPPED
+        self._hide_chips()
         if self._scan_thread:
             self._scan_thread.join(timeout=2.0)
         self.hotkey.stop()
@@ -214,6 +254,7 @@ class Scanner:
                         if not hotkey_now:
                             self._hotkey_override = False
                             self.state = ScannerState.IDLE
+                            self._hide_chips()
                             self._update_status("scanning")
                             logger.info("Hotkey released - returning to idle")
                             continue
@@ -227,6 +268,7 @@ class Scanner:
                         ):
                             # Inventory closed, go back to idle
                             self.state = ScannerState.IDLE
+                            self._hide_chips()
                             self._update_status("scanning")
                             logger.info("INVENTORY closed - returning to idle")
                             continue
@@ -245,6 +287,7 @@ class Scanner:
                 logger.error(f"Screen capture lost permanently: {e}")
                 self._update_status("error")
                 self.state = ScannerState.STOPPED
+                self._hide_chips()
                 break  # latch: no point scanning without capture
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Scanner error: {e}")
@@ -281,6 +324,9 @@ class Scanner:
         # Show overlay (must be done on main thread)
         self._show_overlay(item_name, recommendation)
 
+        if settings.overlay.tooltip_chips:
+            self._queue_chips(recommendation)
+
         # Update cooldown tracking
         self._last_shown_item = item_name
         self._last_shown_time = current_time
@@ -288,6 +334,31 @@ class Scanner:
     def _show_overlay(self, item_name: str, recommendation: Item | None) -> None:
         """Queue an overlay update for the main (GUI) thread to apply."""
         self.ui_queue.put(("overlay", item_name, recommendation))
+
+    def _queue_chips(self, recommendation: Item | None) -> None:
+        """Locate the tooltip and queue the chips for the current item.
+
+        Runs the extra layout OCR pass, so it is only called once the
+        cooldown check passed. Unknown items and missing tooltips hide the
+        chips, so they never sit beside another item's tooltip.
+        """
+        layout = None
+        if recommendation is not None:
+            layout = get_ocr_engine().layout_from_last_capture()
+        if recommendation is None or layout is None:
+            self._hide_chips()
+            return
+
+        payload = chip_payload(
+            recommendation,
+            self.db.recycle_outputs(recommendation.name),
+            self.db.home_only_outputs(recommendation.name),
+        )
+        self.ui_queue.put(("chips", layout, payload))
+
+    def _hide_chips(self) -> None:
+        """Queue hiding the tooltip chips for the main (GUI) thread."""
+        self.ui_queue.put(("chips_hide",))
 
     def _update_status(self, status: str) -> None:
         """Queue a status update for the main (GUI) thread to apply."""
@@ -312,6 +383,9 @@ class Application:
         # Create overlay and status windows
         self.overlay = OverlayWindow(self.root)
         self.status = StatusWindow(self.root, on_quit=self.quit)
+        self.chips = (
+            TooltipChips(self.root) if self.settings.overlay.tooltip_chips else None
+        )
 
         # Debug overlay for visualizing capture area (separate from debug_mode)
         self.debug_overlay = None
@@ -352,6 +426,10 @@ class Application:
                     self._apply_status(msg[1])
                 elif msg[0] == "overlay":
                     self.overlay.show(msg[1], msg[2])
+                elif msg[0] == "chips" and self.chips is not None:
+                    self.chips.show(msg[1], **msg[2])
+                elif msg[0] == "chips_hide" and self.chips is not None:
+                    self.chips.hide()
         except queue.Empty:
             pass
         self.root.after(50, self._pump_ui_queue)
