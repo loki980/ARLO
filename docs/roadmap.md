@@ -90,13 +90,25 @@ Ahead, in order:
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
     Fix: key everything on the resolved catalog name, never re-map a window
-    for the same item. Added 12 Oct, done 12 Oct, reviewed. Awaiting
-    Jeffrey's confirmation in game.
+    for the same item. Added 12 Oct, done 12 Oct, reviewed. Jeffrey, 12 Oct
+    after testing: "the flickering and the fading in and out of the pop-ups
+    are still there. For tomorrow." Still open. Leading suspect: a scan now
+    takes about a second (full-screen card search plus two OCR passes plus
+    the 0.3 s sleep), while the popup hides after OVERLAY_DISPLAY_TIME,
+    which is 1.0 s in the example settings. The keep-alive touch only
+    arrives once per scan, so the timer can expire between scans. Other
+    suspects to rule out with timestamps: the INVENTORY trigger recheck
+    every third scan dropping the scanner to IDLE (which hides the chips),
+    scans that read nothing letting the timer lapse, and KWin's fade
+    animation on map and unmap. First step tomorrow: log each show, touch,
+    hide and timer expiry with a timestamp during one hover, then fix the
+    cause the log shows.
 13. Search the whole screen for the card. The labeled capture library (320
     captures, 113 with a card) showed 56 cards missing their title row
     because the cursor-centred window cut tall weapon cards at the top. The
     search window now defaults to the full screen. Added 12 Oct, done 12 Oct,
-    reviewed. Awaiting Jeffrey's confirmation in game.
+    reviewed. Confirmed by Jeffrey in game 12 Oct: "It seems like all the
+    weapon identification is working now."
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 

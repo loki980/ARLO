@@ -134,7 +134,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 
 <section class="counts" aria-label="Where things stand">
   <div><b>1 / 8</b><span>phases extracted</span><small>phase 0 done</small></div>
-  <div><b>~76%</b><span>of phase 1 done</span><small>7 of 11 steps, weighted by effort</small></div>
+  <div><b>~80%</b><span>of phase 1 done</span><small>8 of 12 steps, weighted by effort</small></div>
   <div><b>209</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
@@ -165,9 +165,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag now">Underway</span><span class="dates">from 11 Oct</span></div>
       <h2>Hover an item and read the whole story</h2>
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
-      <div class="gauge" aria-label="Phase 1 about 76 percent done">
-        <div class="bar"><i style="width:76%"></i></div>
-        <div class="read">~76%<small>7 of 11 steps</small></div>
+      <div class="gauge" aria-label="Phase 1 about 80 percent done">
+        <div class="bar"><i style="width:80%"></i></div>
+        <div class="read">~80%<small>8 of 12 steps</small></div>
       </div>
       <div class="split">
         <div>
@@ -180,6 +180,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="done"><span class="tick">✓</span><span class="what">New data loaded, catalog grown to 1,109 items<small>Frozen Trail items known, database stable on open</small></span><span class="when">11 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">First capture session measured<small>7 of 7 captures with a card read right, the vote said IV at 0.88 on the real font</small></span><span class="when">11 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Find the card anywhere on screen<small>99 of your captures held no card because the fixed box missed it. A search around the cursor now finds the card wherever the game draws it</small></span><span class="when recent">done 11 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Weapons identified in game<small>The whole screen is searched, so tall weapon cards keep their title. You confirmed weapon identification works</small></span><span class="when recent">done 12 Oct</span></li>
           </ul>
         </div>
         <div>
@@ -188,7 +189,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="next"><span class="tick">▸</span><span class="what">Your live check of the chips<small>Hover a Power Bank, tell me where the chips land and what the game's own recycle row shows. Also a screenshot of any weapon hover where ARLO shows nothing</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Capture run for tiers I to III<small>So the stroke counter is tuned on every numeral, not only IV</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Decide the recycle chip label<small>"home only" if the game shows the field result, "field only" if it shows home</small></span><span class="when"></span></li>
-            <li class="todo"><span class="tick">○</span><span class="what">Confirm the flicker and tall-card fixes in game<small>Both windows should stay still while you hover, and tall weapon cards like Rattler III should now be found with their title</small></span><span class="when recent">added 12 Oct</span></li>
+            <li class="next"><span class="tick">▸</span><span class="what">Stop the popups fading in and out<small>Still happening after two fixes. Leading suspect: a scan now takes about a second and the popup's hide timer is one second, so it can lapse between scans. First a timestamped log of one hover, then the fix it points to</small></span><span class="when recent">first thing 13 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Replace the title reader on evidence<small>Your 320 captures are labeled. Three readers are competing on them now: today's Tesseract, Tesseract with the title line isolated, and PaddleOCR. The winner ships</small></span><span class="when recent">changed 12 Oct</span></li>
           </ul>
         </div>
@@ -329,6 +330,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>11 Oct</time><span>Card finder built and merged: the card is found wherever the game draws it. Verdict engine accepted. 183 tests. Your checkout brought up to date automatically, as you asked.</span></li>
   <li><time>12 Oct</time><span>Flicker fixed once (timers) and a second cause found (varying reads). Rattler III, Burletta IV and Anvil I misses traced to the title reader, not the card finder. Labeling of your captures and a reader bake-off started. Blueprint data pipeline started.</span></li>
   <li><time>12 Oct</time><span>Your 320 captures labeled by eye: half the cards had their title cut off by the capture window, so the search now covers the whole screen. Second flicker cause fixed. Blueprint data inside ARLO. 209 tests. Paused for the night with the reader bake-off still running.</span></li>
+  <li><time>12 Oct</time><span>You confirmed weapon identification works in game. The popups still fade in and out, so that is first thing tomorrow.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
