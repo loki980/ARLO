@@ -45,9 +45,17 @@ Items are numbered in build order. Each has the decision date and its state.
    source with Outpost). A verdict engine replaces the free-text actions. Popup
    overhaul: "Keep 3 for Gunsmith IV, then sell", color by verdict. Manual
    progress setting. Decided 2026-10-11. Not started.
-6. **Phase 3, read the grid.** Lattice fit from a still full frame while the
-   INVENTORY trigger is active, icon identity by perceptual hash with
-   hover-to-learn, stack counts by OCR. Decided 2026-10-11. Not started.
+6. **Phase 3, read the grid.** Lattice fit and tooltip geometry with OpenCV
+   (edges, contours, template matching for fixed UI anchors), icon identity
+   by an embedding model (DINOv2-small under onnxruntime, Apache-2.0) over a
+   gallery built from the stable arctracker icon PNGs plus hover-to-learn
+   crops, tier numerals in the icon corner by glyph template matching.
+   A perceptual-hash baseline is measured first as the experiment that
+   justifies the model. Stack counts by OCR. Decided 2026-10-11 after
+   Jeffrey asked what ARLO and ARC Tracker use for recognition and proposed
+   OpenCV: "OpenCV sounds like the frontier option for this work." Answer
+   recorded: OpenCV for geometry and gating, embeddings for identity, OCR
+   for text. Not started.
 7. **Phase 4, badges on every cell.** Spike a full-screen click-through
    surface with per-pixel transparency first (Tk cannot do it), then owned over
    needed on each cell, colored by verdict, hidden while scrolling. Decided
@@ -58,6 +66,19 @@ Items are numbered in build order. Each has the decision date and its state.
 9. **Phase 6, progress from the screen.** Readers for the workshop and project
    pages. Needs screenshots of those pages at 3840x2160. Decided 2026-10-11.
    Not started.
+10. **Roman numeral tiers.** Jeffrey, 2026-10-11: "I have a suspicion that the
+    roman numerals identification is better, but not fixed. This should be
+    tested and maybe improved." Three parts: a capture library setting so
+    hovering tiered weapons builds an offline test set, a catalog-aware tier
+    resolver in the lookup (tolerant key, nearest available tier, prefer
+    candidates containing V when the read contains V), and a stroke-count
+    image vote on the tier token for the dropped-stroke case the text cannot
+    fix. Rarity was checked and does not track tier, so it is not used.
+    Decided 2026-10-11. Built next, before phase 2, because it is small and
+    Jeffrey can test it as soon as it lands.
+11. **OCR engine trial.** Try PaddleOCR PP-OCRv5 under onnxruntime against
+    Tesseract on the capture library from item 10. Decided 2026-10-11 as an
+    option, scheduled only if item 10 leaves tier accuracy short.
 
 ## Open decisions for Jeffrey
 
