@@ -23,15 +23,15 @@
   color-scheme:light;
 }
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.55;margin:0}
-.wrap{max-width:820px;margin-inline:auto;padding-inline:16px;padding-block:36px 72px}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.6;margin:0}
+.wrap{max-width:780px;margin-inline:auto;padding-inline:16px;padding-block:36px 72px}
 .eyebrow{font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
 h1{font-family:var(--display);font-weight:700;font-size:clamp(36px,7vw,52px);line-height:1.02;margin:6px 0 14px;text-wrap:balance}
 h2{font-family:var(--display);font-weight:600;font-size:28px;margin:52px 0 14px;text-wrap:balance}
-h3{font-family:var(--display);font-weight:600;font-size:20px;margin:0 0 6px;text-wrap:balance}
+h3{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 6px;text-wrap:balance}
 p{max-width:62ch;margin:0 0 14px}
 ul{max-width:62ch;padding-left:20px;margin:0 0 14px}
-li{margin:5px 0}
+li{margin:6px 0}
 .lede{color:var(--muted);font-size:20px;line-height:1.45;max-width:58ch}
 .rule{height:3px;width:72px;background:var(--accent);margin:18px 0 26px}
 .asof{color:var(--muted);font-size:14px;margin:0 0 10px}
@@ -49,19 +49,20 @@ li{margin:5px 0}
 .card .when{font-family:var(--display);font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .mock{font-family:var(--mono);font-size:13px;background:var(--bg);border:1px solid var(--line);padding:12px 14px;overflow-x:auto;white-space:pre;line-height:1.5;margin:4px 0 2px}
 .mock .k{color:var(--keep)} .mock .s{color:var(--sell)} .mock .r{color:var(--recycle)} .mock .h{color:var(--accent)} .mock .d{color:var(--muted)} .mock .w{color:var(--warn)}
-.now{border-left:3px solid var(--accent);background:var(--panel);padding:12px 18px;margin:12px 0 10px;max-width:62ch}
-.now p{margin:0 0 6px}
+.now{border-left:3px solid var(--accent);background:var(--panel);padding:14px 18px;margin:12px 0 10px;max-width:62ch}
+.now p{margin:0 0 10px}
+.now p:last-child{margin-bottom:0}
 .story{display:grid;gap:18px;margin:14px 0}
 .story > div{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start}
 .story .n{font-family:var(--display);font-weight:700;font-size:26px;color:var(--accent);line-height:1;padding-top:3px;font-variant-numeric:tabular-nums}
 .story p{margin:0 0 6px}
 .ladder{list-style:none;padding:0;margin:14px 0 0;max-width:none}
-.ladder > li{position:relative;padding:0 0 24px 26px;border-left:2px solid var(--line);margin:0}
+.ladder > li{position:relative;padding:0 0 28px 26px;border-left:2px solid var(--line);margin:0}
 .ladder > li::before{content:"";position:absolute;left:-7px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
 .ladder > li.done::before{background:var(--keep);border-color:var(--keep)}
 .ladder > li.doing::before{background:var(--accent)}
-.ladder p{margin:0 0 4px}
-.ladder .dep{color:var(--muted);font-size:14px}
+.ladder p{margin:0 0 6px}
+.ladder .state{color:var(--muted);font-size:15px}
 details{border:1px solid var(--line);background:var(--panel);padding:10px 16px;margin:14px 0;max-width:none}
 summary{cursor:pointer;font-family:var(--display);font-weight:600;font-size:17px;color:var(--fg)}
 details[open] summary{margin-bottom:10px}
@@ -71,8 +72,8 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);verti
 th{font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .tbl{overflow-x:auto}
 code{font-family:var(--mono);font-size:.88em;background:var(--panel-2);border:1px solid var(--line);padding:1px 5px;border-radius:3px}
-.log{font-size:14px;color:var(--muted)}
-.log li{margin:3px 0}
+.log{font-size:15px;color:var(--muted)}
+.log li{margin:6px 0}
 .log time{font-family:var(--mono);font-size:12px;color:var(--fg);margin-right:8px}
 a{color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -89,87 +90,120 @@ a{color:var(--accent)}
 
 <p class="asof">Status as of 2026-10-11, late evening. This page updates as work lands.</p>
 <div class="status">
-  <div><div class="big">3 / 3</div><div class="lab">Investigations done</div></div>
-  <div><div class="big">2 / 2</div><div class="lab">Builds reviewed and merged</div></div>
-  <div><div class="big">1 / 6</div><div class="lab">Phases awaiting live check</div></div>
-  <div><div class="big">91</div><div class="lab">Tests green on the branch</div></div>
+  <div><div class="big">1 of 6</div><div class="lab">Phases ready to try</div></div>
+  <div><div class="big">2</div><div class="lab">Pieces being built now</div></div>
+  <div><div class="big">91</div><div class="lab">Automated tests passing</div></div>
+  <div><div class="big">3 of 3</div><div class="lab">Investigations finished</div></div>
 </div>
 
 <h2>What you will see in game</h2>
 <div class="cards">
   <div class="card wide">
-    <h3>Hover an item, read the whole story <span class="pill doing">building now</span></h3>
-    <p>Two small chips appear beside the game's own tooltip. The price sits on the "Can be found in" row. Under "Recycles into", the extra parts you only get from the Speranza recycler light up in amber, so you know when carrying it home beats salvaging it in the field.</p>
+    <h3>Hover an item and read the whole story <span class="pill doing">ready to try</span></h3>
+    <p>Two small chips appear beside the game's own tooltip. The price sits on the "Can be found in" row. Under "Recycles into", the extra parts you only get from the Speranza recycler light up in amber, so you know when carrying something home beats salvaging it in the field.</p>
     <div class="mock"><span class="d">CAN BE FOUND IN</span>                     <span class="s">SELLS FOR 250 ₡</span>
 <span class="d">  Technological · Electrical</span>          <span class="d">×15 = 3,750 ₡</span>
 <span class="d">RECYCLES INTO</span>
 <span class="d">  [battery]</span>      <span class="h">HOME ONLY</span>  <span class="r">+2 Wires</span></div>
-    <p class="when">Phase 1 · no new data needed · lands first</p>
+    <p class="when">Phase 1. Built and reviewed. Waiting for you to try it in game.</p>
   </div>
   <div class="card">
     <h3>Advice with a reason <span class="pill next">next</span></h3>
-    <p>"Keep" becomes "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item, and the color follows the verdict instead of a keyword.</p>
-    <p class="when">Phase 2 · needs the new data feed</p>
+    <p>Instead of a bare "Keep", the popup will say "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item, and the color follows the advice.</p>
+    <p class="when">Phase 2. The data for it is being gathered now.</p>
   </div>
   <div class="card">
     <h3>Your stash, annotated <span class="pill">later</span></h3>
-    <p>Open the stash and every cell wears a badge: owned over needed, green when you are covered, red when short, with the stack's sell value tucked under the icon.</p>
-    <p class="when">Phases 3 and 4 · the hard vision work</p>
+    <p>Open the stash and every cell wears a badge: how many you own over how many you need, green when you are covered, red when short, with the stack's sell value tucked under the icon.</p>
+    <p class="when">Phases 3 and 4. The hard vision work.</p>
   </div>
   <div class="card">
     <h3>ARLO knows what you own <span class="pill">later</span></h3>
     <p>One slow scroll through the stash teaches ARLO your inventory. From then on it keeps count as you loot and sell, and tells you when a category looks wrong and deserves another scroll.</p>
-    <p class="when">Phase 5 · local only, nothing leaves your machine</p>
+    <p class="when">Phase 5. Local only, nothing leaves your machine.</p>
   </div>
   <div class="card">
     <h3>It reads your progress too <span class="pill">later</span></h3>
-    <p>Open a workshop or project page once and ARLO reads which tiers are done, so "keep 3" turns into "keep 1 more". Until then, a small manual progress setting does the same job.</p>
-    <p class="when">Phase 6 · needs screenshots of your project pages</p>
+    <p>Open a workshop or project page once and ARLO reads which tiers are done, so "keep 3" turns into "keep 1 more". Until then, a small manual setting does the same job.</p>
+    <p class="when">Phase 6. Needs screenshots of your project pages.</p>
   </div>
 </div>
 
 <h2>Happening right now</h2>
 <div class="now">
-  <p><b>Phase 1 is ready for you to try.</b> Check out the <code>overlay-extension</code> branch, run ARLO, open your stash, and hover an item that recycles. The price chip should sit on the "Can be found in" row and the recycle chip under the icons. Both passed two rounds of independent review and 91 tests, including a run against your own screenshot.</p>
-  <p><b>The data feed is repaired on the same branch.</b> The dead feed is gone, the quest parser reads the right field, and the recycle table came out of a real run with 1,327 rows keeping home and field apart. Power Bank reads exactly as the game does: 2 Battery and 2 Wires at home, 2 Battery in the field.</p>
-  <p><b>Roman numerals are next, and you can help.</b> Your June log shows the old reads: "ANVIL 1l", "ARPEGGIO |V", and "ARPEGGIO V" nine times for an Arpeggio IV. Your fixes handle the first two. The third is a dropped stroke that text alone cannot recover, so the fix being built uses the catalog (no Arpeggio V exists, and the read contains a V) and counts the strokes in the image. It also adds a capture library: turn it on, hover every tiered weapon you own, and the folder becomes the test set we measure against.</p>
+  <p><b>Phase 1 is ready for you to try.</b> Run the overlay from the new branch, open your stash, and hover an item that recycles. The price chip should sit on the "Can be found in" row and the recycle chip under the icons. The work passed two rounds of independent review and 91 automated tests, including a run against your own screenshot.</p>
+  <p><b>Roman numerals are being fixed, and you can help.</b> Your June log shows the old mistakes: "ANVIL 1l", "ARPEGGIO |V", and "ARPEGGIO V" nine times for an Arpeggio IV. Your fixes from June handle the first two. The third is a dropped stroke that no amount of reading can recover. The fix being built does two new things: it checks the catalog (there is no Arpeggio V, and the read contains a V, so it must be IV), and it counts the strokes in the picture of the numeral. It also adds a capture library. Turn it on, hover every tiered weapon you own, and the folder it fills becomes the test set we measure against.</p>
+  <p><b>The data for better advice is being gathered.</b> Every quest, expedition project, and workshop level that needs items is being pulled into one list, including all nine Frozen Trail quests and the Outpost levels. That list is what phase 2 will reason over.</p>
   <p><b>One line is yours to add</b> in .env.example, since agents are not allowed to touch env files: <code>TOOLTIP_CHIPS=true</code>.</p>
 </div>
 
 <h2>Five things we learned today</h2>
 <div class="story">
-  <div><div class="n">1</div><div><p><b>ARLO has been flying blind on recycling since April.</b> The MetaForge database key it used was revoked on 2026-04-02. Every weekly update since then quietly fell back to the wiki. Nobody noticed because the fallback mostly agrees.</p></div></div>
-  <div><div class="n">2</div><div><p><b>Quest needs never made it into the database.</b> The quest parser reads a field the API does not have, so it maps zero items. The "After Rain Comes" line you see today came from wiki prose, not from the quest feed.</p></div></div>
-  <div><div class="n">3</div><div><p><b>Your instinct about recycling was right, and it has a name.</b> In a raid the action is called Salvage and it uses its own table, usually a smaller one. Power Bank gives 2 Battery and 2 Wires at home but only 2 Battery in the field. Both tables are public, and they agree across MetaForge, ARC Tracker, and the wiki for almost every item.</p></div></div>
-  <div><div class="n">4</div><div><p><b>ARC Tracker is a vision pipeline, and we can borrow the shape without the code.</b> A detector finds every slot, an embedding model names the icon, a guided stash scroll builds a ledger, and it only scans when the stash is open and still. Their trick we get for free: when the tooltip names an item, remember what its icon looked like. ARLO already reads the tooltip.</p></div></div>
-  <div><div class="n">5</div><div><p><b>Per-cell badges are the one risky piece on Wayland.</b> Dozens of little windows will not do. We need one transparent click-through surface over the game, which the current toolkit cannot draw. A short spike decides the approach before any badge code exists.</p></div></div>
+  <div><div class="n">1</div><div><p><b>ARLO has been flying blind on recycling since April.</b> The database key it used for recycle data was revoked on 2026-04-02. Every weekly update since then quietly fell back to the wiki. Nobody noticed because the wiki mostly agrees. The feed is now replaced.</p></div></div>
+  <div><div class="n">2</div><div><p><b>Quest needs never made it into the database.</b> The quest reader looked for a field the API does not have, so it found nothing, every time. The "After Rain Comes" line you see today came from wiki prose, not from the quest feed. Also fixed.</p></div></div>
+  <div><div class="n">3</div><div><p><b>Your instinct about recycling was right, and it has a name.</b> In a raid the action is called Salvage and it uses its own table, usually a smaller one. Power Bank gives 2 Battery and 2 Wires at home but only 2 Battery in the field. Both tables are public, and three independent sources agree on them for almost every item.</p></div></div>
+  <div><div class="n">4</div><div><p><b>ARC Tracker is a vision pipeline, and we can borrow the shape without the code.</b> A detector finds every slot, a learned model names the icon, a guided stash scroll builds a ledger, and it only scans when the stash is open and still. Their trick we get for free: when the tooltip names an item, remember what its icon looked like. ARLO already reads the tooltip.</p></div></div>
+  <div><div class="n">5</div><div><p><b>Badges on every cell are the one risky piece on Wayland.</b> Dozens of little windows will not do. We need one transparent click-through layer over the game, which the current toolkit cannot draw. A short experiment decides the approach before any badge code is written.</p></div></div>
 </div>
 
 <h2>The plan, phase by phase</h2>
 <ol class="ladder">
-  <li class="done"><h3>0 · Investigate <span class="pill done">done</span></h3><p>Codebase survey, ARC Tracker teardown, and a data-source study with evidence for every claim. The design spec is in the repo under docs.</p></li>
-  <li class="doing"><h3>1 · Chips on the tooltip <span class="pill doing">live check</span></h3><p>Price on the found-in row, home-only recycle extras on the icon row. New recycle table with a home and field column. Updater repaired alongside so the field column can fill itself. Built, reviewed twice, merged to the overlay-extension branch.</p><p class="dep">Waiting on one thing: you, with the game open.</p></li>
-  <li><h3>2 · Verdicts with reasons</h3><p>Structured needs from quests, projects, and every workshop bench (Scrappy, Gunsmith, Research Station, Outpost included). A verdict engine replaces thirty hand-written action strings. The popup gets its overhaul.</p><p class="dep">Needs phase 1's data plumbing.</p></li>
-  <li><h3>3 · Read the grid</h3><p>OpenCV for the geometry: slot lattice from edges and contours, template matches for fixed UI anchors, frame differencing for stillness. An embedding model for identity, matched against a gallery of the stable item icons plus crops learned from your own hovering. Tier numerals on icons by glyph matching. A hash baseline is measured first, and is expected to lose on lookalikes, which is the evidence for the model.</p><p class="dep">Needs phase 1. Decided after the "what does each use" question: OpenCV is the floor, embeddings are the frontier for icons, OCR stays for text.</p></li>
-  <li class="doing"><h3>3a · Roman numerals, done right <span class="pill doing">building</span></h3><p>A capture library you fill by hovering, a catalog-aware resolver that knows Arpeggio has no tier V, and a stroke counter that reads II where the OCR dropped a stroke and wrote I. Rarity was checked as a signal and rejected: Anvil I through IV are all Rare.</p><p class="dep">Needs nothing. Your captures make it measurable.</p></li>
-  <li><h3>4 · Badges on every cell</h3><p>Spike the transparent overlay surface first. Then owned over needed on each cell, colored by verdict, hidden while you scroll.</p><p class="dep">Needs phases 2 and 3.</p></li>
-  <li><h3>5 · The stash ledger</h3><p>Guided scroll, header count as the anchor, deltas afterwards, unsure flags when the numbers disagree.</p><p class="dep">Needs phase 3.</p></li>
-  <li><h3>6 · Progress from the screen</h3><p>Readers for the workshop and project pages so verdicts count down as you upgrade.</p><p class="dep">Needs phases 2 and 5, plus screenshots of your project pages.</p></li>
+  <li class="done">
+    <h3>0 · Look before building <span class="pill done">done</span></h3>
+    <p>We surveyed ARLO's code, took apart the ARC Tracker app to see how it works, and checked every public data source for prices, recycling, quests, projects, and workshop levels. Every claim in the design has a source behind it.</p>
+    <p class="state">Finished 2026-10-11. The design document is in the repo.</p>
+  </li>
+  <li class="doing">
+    <h3>1 · Chips on the tooltip <span class="pill doing">ready to try</span></h3>
+    <p>When you hover an item, the sell price appears on the "Can be found in" row and the recycle bonus you only get at home appears under the "Recycles into" icons. Behind the scenes, ARLO now keeps home and field recycling as two separate lists, and the weekly data update was repaired so those lists stay current on their own.</p>
+    <p class="state">Built, reviewed twice, and waiting for one thing: you, with the game open.</p>
+  </li>
+  <li class="doing">
+    <h3>1a · Roman numerals, done right <span class="pill doing">building</span></h3>
+    <p>Tiered weapons like Anvil II or Arpeggio IV will be identified correctly even when the text reader drops a stroke. ARLO will know which tiers exist for each weapon, and it will count the strokes in the picture of the numeral as a second opinion. A capture library lets you record real tooltips by hovering, so we can measure the improvement instead of guessing.</p>
+    <p class="state">Being built now. Your captures will make it measurable.</p>
+  </li>
+  <li>
+    <h3>2 · Advice with a reason</h3>
+    <p>ARLO will know every quest, expedition project, and workshop level that needs an item, including Scrappy, Gunsmith, the Research Station, and the Outpost. From that it will tell you "Keep 3 for Gunsmith IV, then sell" instead of just "Keep", and the popup gets its overhaul.</p>
+    <p class="state">The data gathering is underway. The advice engine and the new popup follow once the chips are confirmed working.</p>
+  </li>
+  <li>
+    <h3>3 · Read the grid</h3>
+    <p>ARLO will find every slot in your open stash and recognize the icon in each one, without you hovering. Slots are found with classic image processing. Icons are recognized by a small learned model that compares each icon against a reference set, including crops learned from your own hovering. A simpler fingerprint approach is tried first as a baseline, and is expected to fail on lookalikes, which is what justifies the model.</p>
+    <p class="state">Not started. Needs phase 1.</p>
+  </li>
+  <li>
+    <h3>4 · Badges on every cell</h3>
+    <p>Every recognized slot gets a badge: owned over needed, colored by the advice, hidden while you scroll. First a short experiment proves we can draw one transparent click-through layer over the game on Wayland, because that is the risky part.</p>
+    <p class="state">Not started. Needs phases 2 and 3.</p>
+  </li>
+  <li>
+    <h3>5 · The stash ledger</h3>
+    <p>One slow scroll through your stash teaches ARLO what you own. The stash header count anchors the scroll so rows are not double counted. After that, ARLO keeps the count current from what it sees, and flags a category as unsure when the numbers stop adding up.</p>
+    <p class="state">Not started. Needs phase 3.</p>
+  </li>
+  <li>
+    <h3>6 · Progress from the screen</h3>
+    <p>ARLO will read your workshop and project pages when you open them, so the advice counts down as you upgrade. Until then, a manual setting for your current levels does the same job.</p>
+    <p class="state">Not started. Needs phases 2 and 5, plus screenshots of your project pages at your resolution.</p>
+  </li>
 </ol>
 
 <h2>Calls that are yours to make</h2>
 <ul>
-  <li><b>Which recycle row does the game show?</b> The chip assumes the tooltip shows the field result and amber marks the home bonus. If the game shows the home result instead, the label flips to "field only" with the same data. One hover in game settles it.</li>
-  <li><b>Expeditions 1 to 4 are over.</b> The feed has their needs with dates. Show them, hide them, or hide anything that has ended by default?</li>
-  <li><b>Coin-funding project phases</b> are not item needs. Skip them, or show "fund 50,000 ₡" as a line?</li>
+  <li><b>Which recycle row does the game show?</b> The chip assumes the tooltip shows the field result and amber marks the home bonus. If the game shows the home result instead, the label flips to "field only" with the same data. One hover on a Power Bank settles it.</li>
+  <li><b>Expeditions 1 to 4 are over.</b> The data has their needs with dates. Show them, hide them, or hide anything that has ended by default?</li>
+  <li><b>Some project phases ask for coins, not items.</b> Skip them, or show "fund 50,000 ₡" as a line?</li>
   <li><b>Project page screenshots</b> at your resolution unlock phase 6. Any time before then is fine.</li>
 </ul>
 
 <details>
 <summary>Technical notes, for when you want them</summary>
-<p><b>How ARLO works today.</b> A scanner thread OCRs a fixed region for the word INVENTORY every half second, then OCRs a cursor-relative crop every 0.3 s to read the hovered name. The crop is masked to the tooltip's cream background, which is why the tooltip rectangle is almost free. One click-through Tk popup draws the result in a corner. The database has six columns, and quest, project, and workshop needs live only as wiki prose in one text field. On Wayland the capture backend keeps the latest full frame in memory, so a full-screen grab costs one crop. 51 tests pass, none cover the overlay or the updater yet.</p>
-<p><b>Data sources, chosen.</b> ARC Tracker's public JSON API for items (price, stack, rarity, recycle and salvage maps, stable icon URLs), quests (all nine Frozen Trail quests with structured needs), and projects (Expedition 1 to 5 with dates). MetaForge for workshop levels, the only source with Outpost 1 to 4. The wiki stays as fallback. Twelve recycle rows disagree between the APIs and the wiki and want an in-game check.</p>
-<p><b>What ARC Tracker 2.3.2 does.</b> Windows Graphics Capture at 15 Hz, scanning at 4 Hz, gated by a frame classifier and a motion check. A YOLO11 slot detector, a DINOv2 embedding gallery of 1,416 crops over 915 items, a separate weapon tier classifier, glyph reading for stack counts, rarity from the colored disc. Badges in a transparent Electron window, a hover card placed beside the game's tooltip, a stash ledger stitched from a guided scroll, and screen readers for workshop, project, quest, and blueprint pages. All rights reserved, so ideas only.</p>
+<p><b>How ARLO works today.</b> A scanner thread reads a fixed screen region for the word INVENTORY every half second. When it sees it, it reads a crop next to the cursor every 0.3 seconds to get the hovered item's name. The crop is masked to the tooltip's cream background, which is why finding the tooltip rectangle was cheap. One click-through popup draws the result in a corner. The database has six columns per item, and quest, project, and workshop needs lived only as wiki prose in one text field. On Wayland the capture keeps the latest full frame in memory, so a full-screen grab costs one crop. 91 tests pass.</p>
+<p><b>What recognition each tool uses.</b> ARLO uses Tesseract OCR for everything and no image library. ARC Tracker 2.3.2 uses a YOLO11 slot detector and a DINOv2 embedding gallery of 1,416 crops over 915 items for icons, a separate weapon tier classifier, glyph reading for stack counts, and rarity from the colored disc, with OCR only for tooltip titles and progress pages. OpenCV is in its bundle as plumbing: letterboxing, batch preparation, slot bounds, and finding the tooltip card. The decision for ARLO: OpenCV for geometry and gating, an embedding model for icon identity, OCR for text.</p>
+<p><b>Data sources chosen.</b> ARC Tracker's public JSON API for items (price, stack, rarity, recycle and salvage maps, stable icon URLs), quests (all nine Frozen Trail quests with structured needs), and projects (Expedition 1 to 5 with dates). MetaForge for workshop levels, the only source with Outpost 1 to 4. The wiki stays as fallback. Twelve recycle rows disagree between the APIs and the wiki, and Anvil and Arpeggio tiers look swapped between them, which wants an in-game check.</p>
+<p><b>Roman numerals.</b> Rarity was checked as a tier signal and rejected: Anvil I through IV are all Rare, because rarity belongs to the base weapon. The fix uses the catalog of 112 tiered names (some bases also exist untiered, such as Rascal) and a stroke count from the numeral's own pixels.</p>
 <div class="tbl"><table>
 <tr><th>Need</th><th>Source</th><th>Note</th></tr>
 <tr><td>Price, stack, rarity, recycle, salvage, icons</td><td>arctracker.io /api/items</td><td>One call, stable ids, MIT data set</td></tr>
@@ -182,15 +216,13 @@ a{color:var(--accent)}
 <details>
 <summary>Log</summary>
 <ul class="log">
-  <li><time>10-11</time>Checkout updated to upstream master. ARC Tracker 2.3.2 installer extracted. Three investigations launched.</li>
-  <li><time>10-11</time>Codebase survey complete. Needs are unstructured, the overlay can already be repositioned, Wayland full-frame grabs are cheap.</li>
-  <li><time>10-11</time>ARC Tracker teardown complete. Vision pipeline mapped, badge and ledger designs noted, Wayland overlay surface flagged as the main risk.</li>
-  <li><time>10-11</time>Data-source research complete. Recycle feed found dead since April, quest parser bug found, recycle versus salvage confirmed in three sources, ARC Tracker public API chosen as primary.</li>
-  <li><time>10-11</time>Design spec written to the repo. Phase 1 build started. Updater repair started in a second worktree.</li>
-  <li><time>10-11</time>Phase 1 built: tooltip geometry, chips, recycle table, 19 new tests. Round 2 for the clipped-capture placement rule.</li>
-  <li><time>10-11</time>Updater repaired: ARC Tracker public API as the recycle source, quest parser fixed, recycle_outputs.csv generated. The run also showed MetaForge now lists 1,109 items against 606 in the shipped database, and that Anvil and Arpeggio tiers look swapped between the wiki and the API, which wants an in-game check.</li>
-  <li><time>10-11</time>Both builds through two rounds of external review (Codex), both accepted. Merged onto one branch, 91 tests green. Roadmap plan and page source committed to the repo with a project CLAUDE.md pointing at them.</li>
-  <li><time>10-11</time>Recognition question answered: ARLO is Tesseract only, ARC Tracker is a detector plus embeddings with OCR only for text. Phase 3 reshaped around OpenCV geometry plus embeddings. Roman numeral item added and started, with evidence mined from the June log. Rarity checked as a tier signal and rejected.</li>
+  <li><time>10-11</time>Brought the checkout up to date with upstream. Unpacked the ARC Tracker 2.3.2 installer. Started three investigations.</li>
+  <li><time>10-11</time>Finished the code survey. Needs were unstructured, the popup could already be moved, and full-frame capture on Wayland is cheap.</li>
+  <li><time>10-11</time>Finished the ARC Tracker teardown. Mapped its vision pipeline, its badges, and its stash ledger. Flagged the Wayland overlay layer as the main risk.</li>
+  <li><time>10-11</time>Finished the data-source research. Found the dead recycle feed and the broken quest reader. Confirmed recycle versus salvage in three sources. Chose ARC Tracker's public API as the main source.</li>
+  <li><time>10-11</time>Wrote the design document. Started building phase 1 and the data feed repair side by side.</li>
+  <li><time>10-11</time>Phase 1 built with 19 new tests. The data feed repaired. Both passed two rounds of external review and were merged onto one branch with 91 tests passing. The roadmap plan and this page are now kept in the repo.</li>
+  <li><time>10-11</time>Answered the recognition question and reshaped phase 3 around it. Added the Roman numeral item, mined the evidence from the June log, and started building it. Started gathering the needs data for phase 2.</li>
 </ul>
 </details>
 </div>
