@@ -186,7 +186,10 @@ class TooltipCaptureSettings(BaseSettings):
 
 
 class TooltipSearchSettings(BaseSettings):
-    """Window centred on the cursor that is searched for the item card."""
+    """Window centred on the cursor that is searched for the item card.
+
+    A size of 0 means the full screen on that axis.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="TOOLTIP_SEARCH_",
@@ -196,10 +199,12 @@ class TooltipSearchSettings(BaseSettings):
     )
 
     width: int = Field(
-        default=2400, description="Width of the card search window (physical px)"
+        default=0,
+        description="Width of the card search window (physical px, 0 = full screen)",
     )
     height: int = Field(
-        default=1600, description="Height of the card search window (physical px)"
+        default=0,
+        description="Height of the card search window (physical px, 0 = full screen)",
     )
 
 

@@ -56,8 +56,20 @@ def clamp_bbox(
 def search_window_bbox(
     cursor: Point, width: int, height: int
 ) -> tuple[int, int, int, int]:
-    """The card search window centred on the cursor, clamped to the screen."""
-    return clamp_bbox(cursor.x - width // 2, cursor.y - height // 2, width, height)
+    """The card search window centred on the cursor, clamped to the screen.
+
+    A width or height of 0 (or less) spans the whole screen on that axis.
+    """
+    screen_width, screen_height = get_screen_resolution()
+    if width <= 0:
+        width, left = screen_width, 0
+    else:
+        left = cursor.x - width // 2
+    if height <= 0:
+        height, top = screen_height, 0
+    else:
+        top = cursor.y - height // 2
+    return clamp_bbox(left, top, width, height)
 
 
 def crop_card(rgb: Image.Image, cursor: LayoutPoint) -> tuple[Image.Image, Rect] | None:
@@ -198,15 +210,16 @@ class OCREngine:
         """Capture the card search window centred on the cursor.
 
         The window is search_width by search_height physical pixels, clamped
-        to the screen, and becomes the last capture with its origin. Returns
-        the captured image and the cursor position.
+        to the screen, where 0 means the full screen on that axis. It becomes
+        the last capture with its origin. Returns the captured image and the
+        cursor position.
         """
         cursor = get_cursor_position()
-        left = cursor.x - self.search_width // 2
-        top = cursor.y - self.search_height // 2
-        image = self._grab_clamped(
-            cursor, left, top, self.search_width, self.search_height
+        left, top, right, bottom = search_window_bbox(
+            cursor, self.search_width, self.search_height
         )
+        # The box is already clamped, so its own size is passed on
+        image = self._grab_clamped(cursor, left, top, right - left, bottom - top)
         return image, cursor
 
     def _grab_clamped(

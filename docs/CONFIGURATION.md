@@ -26,8 +26,8 @@ TRIGGER_REGION2_HEIGHT=44
 # TOOLTIP SEARCH - Window around the cursor searched for the item card
 # =============================================================================
 
-TOOLTIP_SEARCH_WIDTH=2400        # Width of the window, centred on the cursor (physical px)
-TOOLTIP_SEARCH_HEIGHT=1600       # Height of the window, centred on the cursor (physical px)
+TOOLTIP_SEARCH_WIDTH=0           # Width of the window, centred on the cursor (physical px, 0 = full screen)
+TOOLTIP_SEARCH_HEIGHT=0          # Height of the window, centred on the cursor (physical px, 0 = full screen)
 
 # =============================================================================
 # TOOLTIP CAPTURE - Fallback box captured relative to the cursor

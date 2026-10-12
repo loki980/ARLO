@@ -124,6 +124,24 @@ def test_search_window_near_screen_edge_matches_debug_box(monkeypatch):
     assert grabbed == [(0, 0, 2200, 1300)]
 
 
+def test_search_window_of_zero_spans_the_full_screen(monkeypatch):
+    grabbed = []
+
+    def grab(bbox):
+        grabbed.append(bbox)
+        return Image.new("RGB", (bbox[2] - bbox[0], bbox[3] - bbox[1]))
+
+    cursor = Point(1000, 500)
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (3840, 2160))
+    monkeypatch.setattr(ocr_module, "get_cursor_position", lambda: cursor)
+    monkeypatch.setattr(ocr_module, "grab_screen", grab)
+    engine = OCREngine()
+    engine.search_width, engine.search_height = 0, 0
+    engine.capture_search_window()
+    assert grabbed == [search_window_bbox(cursor, 0, 0)]
+    assert grabbed == [(0, 0, 3840, 2160)]
+
+
 def test_card_nearest_cursor_wins():
     frame = np.zeros((600, 1200, 3), dtype=np.uint8)
     frame[50:550, 700:1150] = CREAM  # large panel, far from the cursor
