@@ -113,7 +113,7 @@ You can also edit `items.csv` directly. The CSV has the following columns:
 
 ```csv
 name,action,recycle_for,keep_for,sell_price,stack_size,rarity,category
-Advanced Arc Powercell,Keep,2x ARC Powercell,Medical Lab: Surge Shield Recharger,640,5,Rare,Refined Material
+Advanced Arc Powercell,Keep,2x ARC Powercell,Medical Lab: Surge Shield Recharger,640,5,Rare,Topside Material
 ARC Alloy,Keep,2x Metal Parts,Workshop Explosives Station 1 (6x),200,15,Uncommon,Topside Material
 Air Freshener,Sell,,,2000,5,Uncommon,Trinket
 Alarm Clock,Recycle,"1x Processor, 6x Plastic Parts",,1000,3,Rare,Recyclable
