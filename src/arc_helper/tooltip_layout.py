@@ -9,9 +9,11 @@ arrays and fake word boxes.
 """
 
 import difflib
+import math
 from collections.abc import Iterable
 from typing import NamedTuple
 
+import cv2
 import numpy as np
 
 # Tooltip background is #f9eedf = RGB(249, 238, 223). Same bounds and
@@ -21,6 +23,12 @@ CREAM_UPPER = np.array([255, 250, 240])
 ROW_CREAM_MIN = 0.5
 COL_CREAM_MIN = 0.3
 TIGHT_COL_CREAM_MIN = 0.5
+
+# A cream component counts as the item card only when its bounding box is at
+# least this many pixels on each side and the cream fills this share of it.
+# The card is a solid rectangle, the ACTIONS tab and stray highlights are not.
+CARD_MIN_SIDE = 150
+CARD_MIN_FILL = 0.6
 
 # Label keys returned by find_label_rows, mapped to the text the game prints
 FOUND_IN = "found_in"
@@ -146,6 +154,50 @@ def find_cream_rect(rgb: np.ndarray) -> CreamRegion | None:
         bottom=rect.bottom == height,
     )
     return CreamRegion(rect, clipped)
+
+
+def _distance_to_rect(point: Point, rect: Rect) -> float:
+    """Distance from a point to a rectangle, zero when the point is inside."""
+    dx = max(rect.left - point.x, point.x - (rect.right - 1), 0)
+    dy = max(rect.top - point.y, point.y - (rect.bottom - 1), 0)
+    return math.hypot(dx, dy)
+
+
+def find_tooltip_card(rgb: np.ndarray, cursor: Point) -> Rect | None:
+    """Return the item card nearest the cursor, or None.
+
+    Builds a mask from the same cream bounds as find_cream_rect and splits it
+    into connected components with OpenCV. Components under 150 px on either
+    side, or whose cream fills under 60 percent of their bounding box, are
+    discarded. Of the rest, the one whose bounding box is nearest the cursor
+    wins (distance zero when the cursor is inside it), so a large cream panel
+    elsewhere on screen loses to the card under the cursor. The cursor and
+    the result are in the array's own coordinates.
+    """
+    if rgb.ndim != 3 or rgb.shape[0] == 0 or rgb.shape[1] == 0:
+        return None
+
+    pixels = np.ascontiguousarray(rgb[:, :, :3], dtype=np.uint8)
+    mask = cv2.inRange(
+        pixels,
+        tuple(int(v) for v in CREAM_LOWER),
+        tuple(int(v) for v in CREAM_UPPER),
+    )
+    count, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+
+    best: tuple[float, Rect] | None = None
+    for label in range(1, count):  # label 0 is the background
+        left, top, width, height, area = (int(v) for v in stats[label][:5])
+        if width < CARD_MIN_SIDE or height < CARD_MIN_SIDE:
+            continue
+        if area / (width * height) < CARD_MIN_FILL:
+            continue
+        rect = Rect(left, top, left + width, top + height)
+        distance = _distance_to_rect(cursor, rect)
+        if best is None or distance < best[0]:
+            best = (distance, rect)
+
+    return best[1] if best is not None else None
 
 
 def _label_key(text: str) -> str:
