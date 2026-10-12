@@ -136,6 +136,24 @@ Decided 11 Oct. Carries the Wayland risk.
 Will contain: badge drawing from verdicts and the grid, hidden while the
 grid moves.
 
+## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
+
+Jeffrey's words, 11 Oct, after the weapon rule said "more until you own the
+blueprint": "We should build in some kind of blueprint tracker assist, too.
+The blank boxes should be greyed out images of the actual blueprint. On hover
+it shows the name and best places to find it based on public data." His
+Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
+
+1. Data: the 91 blueprints, the order of the Collections grid, and where each
+   drops, from public sources. Started 11 Oct.
+2. Read the Collections screen: the BLUEPRINTS tab and FOUND count, the
+   lattice, found versus empty cells, cells mapped to blueprints by the grid
+   order (or learned from the found icons when no public order exists), and
+   ownership stored in the user database. Feeds the weapon rule on its own.
+3. Hover assist: with the cursor over an empty cell, the popup shows the
+   blueprint's name and the best places to find it.
+4. Greyed icons drawn in the empty cells on the overlay surface (phase 4).
+
 ## Phase 5. The stash ledger. Next, after phase 3
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start

@@ -1,10 +1,10 @@
 <title>ARLO Overlay Roadmap</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Theme: the roadmap as a raider's stash. Phases are item cards in the game's cream tooltip style, stacked down one column like the stash grid. Status reads as a rarity tag. The current phase shows a durability-style gauge. Headline numbers are stack counts. The log is the raid log. */
+/* Theme: the roadmap as a raider's stash. Phases are item cards, dark like the stash cells with a small cream tab in the game's tooltip style, stacked down one column like the stash grid. Status reads as a rarity tag. The current phase shows a durability-style gauge. Headline numbers are stack counts. The log is the raid log. */
 :root{
   --bg:#13161b; --bg2:#1a1e25; --line:#2c313a; --fg:#e9e6e0; --muted:#9c9a93;
-  --card:#f6eedf; --card-ink:#1c1e22; --card-dim:#5c5a54; --card-line:#d9ccb4; --tab:#e9dcc3;
+  --card:#1c2027; --card-ink:#e9e6e0; --card-dim:#9c9a93; --card-line:#2f353e; --tab:#d9ccb4; --tab-ink:#1c1e22; --bar-bg:#2b3038; --code-bg:#252a32;
   --amber:#f2b134; --green:#3fbf6f; --blue:#2e9bff; --grey:#7d8289; --cyan:#4fd1c5;
   --recent:#f2b134;
   --display:"Barlow Semi Condensed","Barlow",system-ui,sans-serif;
@@ -15,14 +15,14 @@
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
     --bg:#efe8da; --bg2:#f7f2e8; --line:#d8cfbd; --fg:#1c1e22; --muted:#5f5d57;
-    --card:#ffffff; --card-ink:#1c1e22; --card-dim:#5f5d57; --card-line:#e1d9c9; --tab:#ebe3d3;
+    --card:#ffffff; --card-ink:#1c1e22; --card-dim:#5f5d57; --card-line:#e1d9c9; --tab:#ebe3d3; --tab-ink:#1c1e22; --bar-bg:#e3d8c3; --code-bg:#efe5d2;
     --amber:#b8780a; --green:#1f8f45; --blue:#1565c0; --grey:#6b7076; --cyan:#13877e; --recent:#b8780a;
     color-scheme:light;
   }
 }
 :root[data-theme="light"]{
   --bg:#efe8da; --bg2:#f7f2e8; --line:#d8cfbd; --fg:#1c1e22; --muted:#5f5d57;
-  --card:#ffffff; --card-ink:#1c1e22; --card-dim:#5f5d57; --card-line:#e1d9c9; --tab:#ebe3d3;
+  --card:#ffffff; --card-ink:#1c1e22; --card-dim:#5f5d57; --card-line:#e1d9c9; --tab:#ebe3d3; --tab-ink:#1c1e22; --bar-bg:#e3d8c3; --code-bg:#efe5d2;
   --amber:#b8780a; --green:#1f8f45; --blue:#1565c0; --grey:#6b7076; --cyan:#13877e; --recent:#b8780a;
   color-scheme:light;
 }
@@ -61,7 +61,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6.5vw,50px);l
 
 /* Each phase is an item card */
 .card{background:var(--card);color:var(--card-ink);border:1px solid var(--card-line);border-radius:4px;padding:16px 18px 14px;position:relative}
-.card::before{content:attr(data-tab);position:absolute;left:-1px;top:-24px;background:var(--tab);color:var(--card-ink);font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:4px 12px;border-radius:4px 4px 0 0;border:1px solid var(--card-line);border-bottom:0}
+.card::before{content:attr(data-tab);position:absolute;left:-1px;top:-24px;background:var(--tab);color:var(--tab-ink);font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:4px 12px;border-radius:4px 4px 0 0;border:1px solid var(--card-line);border-bottom:0}
 .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px}
 .tag{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#fff;padding:3px 9px;border-radius:2px}
 .tag.done{background:var(--green)} .tag.now{background:var(--blue)} .tag.ahead{background:var(--grey)}
@@ -72,7 +72,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6.5vw,50px);l
 
 /* Gauge, like the durability bar */
 .gauge{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin:8px 0 14px}
-.bar{height:12px;background:#e3d8c3;border:1px solid var(--card-line);border-radius:3px;overflow:hidden}
+.bar{height:12px;background:var(--bar-bg);border:1px solid var(--card-line);border-radius:3px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--blue)}
 .read{font-family:var(--display);font-weight:700;font-size:20px;color:var(--card-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .read small{display:block;font-weight:500;font-size:12px;color:var(--card-dim);letter-spacing:.04em}
@@ -118,7 +118,8 @@ ul.plain li{margin:6px 0}
 .l-done{border:2px solid var(--green)} .l-now{border:2px solid var(--amber)} .l-ahead{border:2px solid var(--grey)}
 .l-recent{width:auto;height:auto;font-family:var(--mono);font-size:12px;color:var(--recent);font-weight:600}
 code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px solid var(--line);padding:1px 5px;border-radius:3px}
-.card code{background:#efe5d2;border-color:var(--card-line);color:var(--card-ink)}
+.card code{background:var(--code-bg);border-color:var(--card-line);color:var(--card-ink)}
+.card .tag.ahead{background:var(--grey);color:#fff}
 </style>
 
 <div class="wrap">
@@ -126,13 +127,13 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <div>
     <div class="eyebrow">ARLO · Arc Raiders Loot Overlay</div>
     <h1>ARLO Overlay Roadmap</h1>
-    <p class="sub">Seven phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 11 October 2026.</p>
+    <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 11 October 2026.</p>
   </div>
-  <div class="capacity"><b>1 / 7</b>phases extracted</div>
+  <div class="capacity"><b>1 / 8</b>phases extracted</div>
 </header>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>1 / 7</b><span>phases extracted</span><small>phase 0 done</small></div>
+  <div><b>1 / 8</b><span>phases extracted</span><small>phase 0 done</small></div>
   <div><b>~65%</b><span>of phase 1 done</span><small>6 of 11 steps, weighted by effort</small></div>
   <div><b>157</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>125</b><span>captures from your first run</span><small>7 held a card, all 7 read right</small></div>
@@ -259,6 +260,21 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase">
+    <div class="slot">4b</div>
+    <article class="card" data-tab="Phase 4b · added 11 Oct">
+      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phases 3 and 4</span><span class="when recent">added 11 Oct</span></div>
+      <h2>Blueprint tracker</h2>
+      <p>Your Collections screen shows 20 of 91 blueprints found and 71 blank boxes. Your words: <em>"The blank boxes should be greyed out images of the actual blueprint. On hover it shows the name and best places to find it based on public data."</em> Reading that screen once also tells ARLO which blueprints you own, so the weapon rule stops guessing.</p>
+      <ul class="steps">
+        <li class="next"><span class="tick">▸</span><span class="what">The data<small>The 91 blueprints, the order of the grid, and where each one drops, from public sources</small></span><span class="when recent">started 11 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Read the Collections screen<small>Found versus empty cells, mapped to blueprints, ownership stored locally</small></span><span class="when"></span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Hover assist<small>Name and best places to find it, in the popup</small></span><span class="when"></span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Greyed icons in the empty cells<small>Needs the overlay surface from phase 4</small></span><span class="when"></span></li>
+      </ul>
+    </article>
+  </li>
+
+  <li class="phase">
     <div class="slot">5</div>
     <article class="card" data-tab="Phase 5">
       <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phase 3</span></div>
@@ -306,6 +322,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>11 Oct</time><span>Recognition question answered. Roman numerals built and accepted. Needs data built and accepted. 146 tests.</span></li>
   <li><time>11 Oct</time><span>New data loaded into the database, catalog refreshed to 1,109 items, weekly job fixed. Overlay layer experiment built and ran on the desktop. 157 tests. The external reviewer's quota is spent until Monday early morning.</span></li>
   <li><time>11 Oct</time><span>Your first capture session: 125 captures, 7 held a card and all 7 read right. The other 99 held no card, so "find the card anywhere" was added and started. Your Anvil IV screenshot added the weapon rule and the catalog-name fix to phase 2.</span></li>
+  <li><time>11 Oct</time><span>Verdict engine built with the weapon rule, 176 tests, your progress file moved out of the tracked database. Blueprint tracker added as phase 4b from your Collections screenshot, and its data research started.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
