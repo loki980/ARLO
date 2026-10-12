@@ -90,7 +90,13 @@ Ahead, in order:
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
     Fix: key everything on the resolved catalog name, never re-map a window
-    for the same item. Added 12 Oct, in the current build.
+    for the same item. Added 12 Oct, done 12 Oct, reviewed. Awaiting
+    Jeffrey's confirmation in game.
+13. Search the whole screen for the card. The labeled capture library (320
+    captures, 113 with a card) showed 56 cards missing their title row
+    because the cursor-centred window cut tall weapon cards at the top. The
+    search window now defaults to the full screen. Added 12 Oct, done 12 Oct,
+    reviewed. Awaiting Jeffrey's confirmation in game.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -176,6 +182,12 @@ Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
    chances. The 3 unnamed slots get resolved from the screen by elimination.
    Findings in the handoff folder, to be folded into the design spec when
    step 2 starts.
+   Data pipeline done 12 Oct: the updater writes blueprints.csv and
+   blueprint_grid.csv (91 each, slots 26, 40, 56 unknown), the database
+   loads them, ownership lives in arlo_user.db, icons are cached on demand.
+   Reviewed and merged. Known fragility: the grid parser counts every line of
+   the wiki template as a slot, so a named parameter added by an editor would
+   shift later slots.
 2. Read the Collections screen: the BLUEPRINTS tab and FOUND count, the
    lattice, found versus empty cells, cells mapped to blueprints by the grid
    order (or learned from the found icons when no public order exists), and
