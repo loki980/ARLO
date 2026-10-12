@@ -5,13 +5,22 @@ SQLite operations for item recommendations with Pydantic models.
 
 import csv
 import difflib
+import re
 import sqlite3
 from pathlib import Path
+from typing import NamedTuple
 
 from pydantic import BaseModel
 from pydantic import Field
 
 from .config import get_settings
+from .config import logger
+
+HOME = "home"
+FIELD = "field"
+
+# "2x Metal Parts", "2 X Metal Parts", "2xMetal Parts"
+_COUNTED_ENTRY = re.compile(r"(\d+)\s*[xX]\s*(.*)")
 
 
 def _match_key(name: str) -> str:
@@ -33,6 +42,43 @@ class Item(BaseModel):
     keep_for: str | None = Field(default=None, max_length=500)
     sell_price: int | None = Field(default=None)
     stack_size: int | None = Field(default=None)
+
+
+class RecycleOutput(NamedTuple):
+    """One component an item recycles into, at home or in the field."""
+
+    component: str
+    quantity: int
+    location: str
+
+
+def parse_recycle_for(text: str | None) -> list[tuple[str, int]]:
+    """Parse a recycle_for string into (component, quantity) pairs.
+
+    Entries are comma-separated "Nx Name". The x may be upper or lower case
+    with optional whitespace around it, and an entry without a count means
+    one. Malformed entries are skipped with a debug log, never raised.
+    """
+    if not text:
+        return []
+
+    outputs: list[tuple[str, int]] = []
+    for raw in text.split(","):
+        entry = raw.strip()
+        if not entry:
+            continue
+        match = _COUNTED_ENTRY.fullmatch(entry)
+        if match:
+            quantity, component = int(match.group(1)), match.group(2).strip()
+        elif entry[0].isalpha():
+            component, quantity = entry, 1
+        else:
+            component, quantity = "", 0  # e.g. a count without the x
+        if quantity <= 0 or not any(c.isalpha() for c in component):
+            logger.debug(f"Skipping malformed recycle_for entry: {entry!r}")
+            continue
+        outputs.append((component, quantity))
+    return outputs
 
 
 class Database:
@@ -78,7 +124,76 @@ class Database:
             if "stack_size" not in existing_cols:
                 conn.execute("ALTER TABLE items ADD COLUMN stack_size INTEGER")
 
+            # Structured recycle outputs. Home rows are derived from
+            # items.recycle_for, field rows come from elsewhere and are kept.
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS recycle_outputs (
+                    item TEXT COLLATE NOCASE,
+                    component TEXT COLLATE NOCASE,
+                    quantity INTEGER,
+                    location TEXT CHECK (location IN ('home', 'field')),
+                    PRIMARY KEY (item, component, location)
+                )
+            """)
+            has_home = conn.execute(
+                "SELECT 1 FROM recycle_outputs WHERE location = ? LIMIT 1", (HOME,)
+            ).fetchone()
+            has_items = conn.execute("SELECT 1 FROM items LIMIT 1").fetchone()
+            if not has_home and has_items:
+                self._rebuild_home_outputs(conn)
+
             conn.commit()
+
+    @staticmethod
+    def _rebuild_home_outputs(conn: sqlite3.Connection) -> None:
+        """Replace all home recycle rows with ones parsed from items.recycle_for."""
+        conn.execute("DELETE FROM recycle_outputs WHERE location = ?", (HOME,))
+        for row in conn.execute("SELECT name, recycle_for FROM items").fetchall():
+            for component, quantity in parse_recycle_for(row["recycle_for"]):
+                conn.execute(
+                    """
+                    INSERT INTO recycle_outputs (item, component, quantity, location)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(item, component, location) DO UPDATE SET
+                        quantity = quantity + excluded.quantity
+                    """,
+                    (row["name"], component, quantity, HOME),
+                )
+
+    def recycle_outputs(self, name: str) -> list[RecycleOutput]:
+        """All recycle outputs for an item, home rows first, in source order."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT component, quantity, location FROM recycle_outputs
+                WHERE item = ? COLLATE NOCASE
+                ORDER BY location = 'field', rowid
+                """,
+                (name.strip(),),
+            ).fetchall()
+        return [
+            RecycleOutput(row["component"], row["quantity"], row["location"])
+            for row in rows
+        ]
+
+    def home_only_outputs(self, name: str) -> list[RecycleOutput]:
+        """Home outputs the field does not give, or gives fewer of.
+
+        A component the field yields at least as many of is dropped. One it
+        yields fewer of keeps the difference.
+        """
+        outputs = self.recycle_outputs(name)
+        field = {
+            o.component.lower(): o.quantity for o in outputs if o.location == FIELD
+        }
+        extras: list[RecycleOutput] = []
+        for output in outputs:
+            if output.location != HOME:
+                continue
+            remaining = output.quantity - field.get(output.component.lower(), 0)
+            if remaining > 0:
+                extras.append(output._replace(quantity=remaining))
+        return extras
 
     def lookup(self, name: str) -> Item | None:
         """Look up an item by name (case-insensitive, with fuzzy matching)."""
@@ -200,6 +315,7 @@ class Database:
                     )
                     count += 1
 
+            self._rebuild_home_outputs(conn)
             conn.commit()
 
         return count
