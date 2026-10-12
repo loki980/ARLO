@@ -57,7 +57,7 @@ class ScannerState(Enum):
 
 
 class DebugOverlay:
-    """Semi-transparent overlay showing the tooltip capture area."""
+    """Semi-transparent overlay showing the card search window."""
 
     def __init__(self, root: tk.Tk, settings):
         self.root = root
@@ -78,14 +78,20 @@ class DebugOverlay:
         """Update overlay position to follow cursor."""
         try:
             from arc_helper.ocr import get_cursor_position
+            from arc_helper.ocr import search_window_bbox
             from arc_helper.screen import phys_to_tk
 
             cursor = get_cursor_position()
+            left, top, right, bottom = search_window_bbox(
+                cursor,
+                self.settings.tooltip_search.width,
+                self.settings.tooltip_search.height,
+            )
 
-            x = phys_to_tk(cursor.x + self.settings.tooltip_capture.offset_x)
-            y = phys_to_tk(cursor.y + self.settings.tooltip_capture.offset_y)
-            w = phys_to_tk(self.settings.tooltip_capture.width)
-            h = phys_to_tk(self.settings.tooltip_capture.height)
+            x = phys_to_tk(left)
+            y = phys_to_tk(top)
+            w = phys_to_tk(right - left)
+            h = phys_to_tk(bottom - top)
 
             self.window.geometry(f"{w}x{h}+{x}+{y}")
         except Exception:  # noqa: BLE001
