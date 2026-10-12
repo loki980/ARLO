@@ -364,9 +364,10 @@ class Database:
             ]
 
     def clear(self) -> None:
-        """Delete all items from the database."""
+        """Delete all items and the home recycle rows derived from them."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DELETE FROM items")
+            conn.execute("DELETE FROM recycle_outputs WHERE location = ?", (HOME,))
             conn.commit()
 
 

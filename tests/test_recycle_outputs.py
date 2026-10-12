@@ -67,6 +67,16 @@ def test_init_rebuilds_home_rows_and_keeps_field_rows(tmp_path):
     ]
 
 
+def test_clear_drops_home_rows_and_keeps_field_rows(tmp_path):
+    _db_with_items(tmp_path, [("Battery", "2x Metal Parts")])
+    db = Database(db_path=tmp_path / "items.db")
+    _add_field(db, [("Battery", "Metal Parts", 1)])
+
+    db.clear()
+
+    assert db.recycle_outputs("Battery") == [RecycleOutput("Metal Parts", 1, "field")]
+
+
 def test_reload_rebuilds_home_rows_and_keeps_field_rows(tmp_path):
     csv_path = tmp_path / "items.csv"
     csv_path.write_text(
