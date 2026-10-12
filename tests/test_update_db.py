@@ -55,10 +55,13 @@ class FakeResponse:
         return self._payload
 
 
-def _fake_get(arctracker_response):
+def _fake_get(arctracker_response, *, metaforge_fails=False):
     """Route requests.get by URL. arctracker_response is a FakeResponse or an exception."""
 
     def fake_get(url, **_kwargs):
+        if metaforge_fails and url.startswith(update_db.METAFORGE_API_BASE):
+            msg = "metaforge down"
+            raise requests.ConnectionError(msg)
         if url == update_db.ARCTRACKER_ITEMS_URL:
             if isinstance(arctracker_response, Exception):
                 raise arctracker_response
@@ -75,7 +78,9 @@ def _fake_get(arctracker_response):
     return fake_get
 
 
-def _run_main(monkeypatch, tmp_path, arctracker_response):
+def _run_main(
+    monkeypatch, tmp_path, arctracker_response, *, metaforge_fails=False, entry="main"
+):
     items_csv = tmp_path / "items.csv"
     outputs_csv = tmp_path / "recycle_outputs.csv"
     with items_csv.open("w", newline="", encoding="utf-8") as f:
@@ -83,12 +88,18 @@ def _run_main(monkeypatch, tmp_path, arctracker_response):
         writer.writerow(
             ["name", "action", "recycle_for", "keep_for", "sell_price", "stack_size"]
         )
-        writer.writerow(["Power Bank", "Keep", "9x Old Text", "", "1000", "3"])
+        writer.writerow(["Power Bank", "Keep", "9x Old Text", "Manual", "1000", "3"])
     monkeypatch.setattr(update_db, "ITEMS_CSV", items_csv)
+    monkeypatch.setattr(update_db, "ITEMS_DB", tmp_path / "items.db")
+    monkeypatch.setattr(update_db, "LAST_UPDATE_FILE", tmp_path / ".last_update")
     monkeypatch.setattr(update_db, "RECYCLE_OUTPUTS_CSV", outputs_csv)
-    monkeypatch.setattr(update_db.requests, "get", _fake_get(arctracker_response))
+    fake_get = _fake_get(arctracker_response, metaforge_fails=metaforge_fails)
+    monkeypatch.setattr(update_db.requests, "get", fake_get)
     monkeypatch.setattr(sys, "argv", ["update_db.py", "--merge", "--csv-only"])
-    update_db.main()
+    if entry == "main":
+        update_db.main()
+    else:
+        assert update_db.auto_update(force=True)
     with items_csv.open(encoding="utf-8") as f:
         rows = {r["name"]: r for r in csv.DictReader(f)}
     return rows, outputs_csv
@@ -176,6 +187,22 @@ def test_arctracker_failure_falls_back_to_wiki(monkeypatch, tmp_path, capsys, fa
     assert rows["Power Bank"]["recycle_for"] == "9x Old Text"
     assert rows["Old Lamp"]["recycle_for"] == "1x Metal Parts"
     assert not outputs_csv.exists()
+
+
+@pytest.mark.parametrize("entry", ["main", "auto_update"])
+def test_metaforge_failure_still_uses_arctracker(monkeypatch, tmp_path, entry):
+    payload = FakeResponse(_fixture("arctracker_items.json"))
+    rows, outputs_csv = _run_main(
+        monkeypatch, tmp_path, payload, metaforge_fails=True, entry=entry
+    )
+    # wiki fallback items get arctracker home outputs, manual fields stay
+    assert rows["Power Bank"]["recycle_for"] == "2x Battery, 2x Wires"
+    assert rows["Power Bank"]["action"] == "Keep"
+    assert rows["Power Bank"]["keep_for"] == "Manual"
+    assert rows["Old Lamp"]["recycle_for"] == "1x Metal Parts"
+    with outputs_csv.open(encoding="utf-8") as f:
+        power_bank = [r for r in csv.DictReader(f) if r["item"] == "Power Bank"]
+    assert len(power_bank) == 3
 
 
 def _drop_rubber_parts(payload):

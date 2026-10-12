@@ -362,6 +362,17 @@ def _recycle_fields(
     return recycle_map.get(name.lower(), ""), from_arctracker
 
 
+def apply_arctracker_recycle(
+    items: list[GameItem], arc_items: dict[str, ArcTrackerItem]
+) -> None:
+    """Give wiki fallback items the arctracker home outputs where they exist."""
+    for item in items:
+        record = arc_items.get(item.name.lower())
+        if record and record.recycles_into:
+            item.recycles_to = format_recycle_for(record.recycles_into)
+            item.recycles_from_arctracker = True
+
+
 # =============================================================================
 # MetaForge quests
 # =============================================================================
@@ -950,6 +961,7 @@ Examples:
         except Exception as e:  # noqa: BLE001
             print(f"\nHybrid fetch failed ({e}), falling back to wiki only...")
             items = fetch_items_from_wiki()
+            apply_arctracker_recycle(items, arc_items)
             source_name = "Arc Raiders Wiki (fallback)"
 
     if not items:
@@ -1081,6 +1093,7 @@ def auto_update(*, force: bool = False) -> bool:
             except Exception:  # noqa: BLE001
                 print("  All sources unavailable, skipping update.")
                 return False
+            apply_arctracker_recycle(items, arc_items)
 
         if not items:
             return False
