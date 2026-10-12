@@ -176,6 +176,12 @@ class Scanner:
     _running: bool = False
     _scan_thread: Thread | None = None
 
+    # Held by stop() and pause() while they leave ACTIVE and queue the chip
+    # hide, and by _queue_chips around its final state check and enqueue, so
+    # a layout OCR pass still running during the transition cannot queue
+    # chips after the hide. The OCR pass itself runs outside the lock.
+    _chips_lock: threading.Lock = field(default_factory=threading.Lock)
+
     def start(self) -> None:
         """Start the scanner in a background thread."""
         if self._running:
@@ -190,9 +196,10 @@ class Scanner:
 
     def stop(self) -> None:
         """Stop the scanner."""
-        self._running = False
-        self.state = ScannerState.STOPPED
-        self._hide_chips()
+        with self._chips_lock:
+            self._running = False
+            self.state = ScannerState.STOPPED
+            self._hide_chips()
         if self._scan_thread:
             self._scan_thread.join(timeout=2.0)
         self.hotkey.stop()
@@ -200,10 +207,11 @@ class Scanner:
 
     def pause(self) -> None:
         """Pause scanning."""
-        was_active = self.state == ScannerState.ACTIVE
-        self.state = ScannerState.PAUSED
-        if was_active:
-            self._hide_chips()
+        with self._chips_lock:
+            was_active = self.state == ScannerState.ACTIVE
+            self.state = ScannerState.PAUSED
+            if was_active:
+                self._hide_chips()
 
     def resume(self) -> None:
         """Resume scanning."""
@@ -357,7 +365,10 @@ class Scanner:
             self.db.recycle_outputs(recommendation.name),
             self.db.home_only_outputs(recommendation.name),
         )
-        self.ui_queue.put(("chips", layout, payload))
+        with self._chips_lock:
+            # stop() or pause() may have hidden the chips during the OCR pass
+            if self._running and self.state == ScannerState.ACTIVE:
+                self.ui_queue.put(("chips", layout, payload))
 
     def _hide_chips(self) -> None:
         """Queue hiding the tooltip chips for the main (GUI) thread."""
