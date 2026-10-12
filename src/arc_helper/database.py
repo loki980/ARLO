@@ -7,6 +7,7 @@ import csv
 import difflib
 import re
 import sqlite3
+import string
 from pathlib import Path
 from typing import NamedTuple
 
@@ -26,6 +27,9 @@ FIELD = "field"
 
 # "2x Metal Parts", "2 X Metal Parts", "2xMetal Parts"
 _COUNTED_ENTRY = re.compile(r"(\d+)\s*[xX]\s*(.*)")
+
+# SQLite's NOCASE collation folds ASCII letters only
+_NOCASE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
 # A stroke-count tier vote at least this confident overrides the read tier
 TIER_VOTE_MIN_CONFIDENCE = 0.7
@@ -152,20 +156,51 @@ class Database:
             conn.commit()
 
     @staticmethod
-    def _rebuild_home_outputs(conn: sqlite3.Connection) -> None:
-        """Replace all home recycle rows with ones parsed from items.recycle_for."""
-        conn.execute("DELETE FROM recycle_outputs WHERE location = ?", (HOME,))
+    def _derived_home_outputs(conn: sqlite3.Connection) -> list[tuple[str, str, int]]:
+        """Home rows as a rebuild would write them, in insertion order.
+
+        Repeated components of one item add up, matched with the same ASCII
+        case folding as the table's NOCASE key, and keep their first spelling.
+        """
+        rows: dict[tuple[str, str], list] = {}
         for row in conn.execute("SELECT name, recycle_for FROM items").fetchall():
             for component, quantity in parse_recycle_for(row["recycle_for"]):
-                conn.execute(
-                    """
-                    INSERT INTO recycle_outputs (item, component, quantity, location)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(item, component, location) DO UPDATE SET
-                        quantity = quantity + excluded.quantity
-                    """,
-                    (row["name"], component, quantity, HOME),
-                )
+                key = (row["name"].translate(_NOCASE), component.translate(_NOCASE))
+                if key in rows:
+                    rows[key][2] += quantity
+                else:
+                    rows[key] = [row["name"], component, quantity]
+        return [
+            (item, component, quantity) for item, component, quantity in rows.values()
+        ]
+
+    @classmethod
+    def _rebuild_home_outputs(cls, conn: sqlite3.Connection) -> None:
+        """Replace all home recycle rows with ones parsed from items.recycle_for.
+
+        Writes nothing when the stored home rows already match, so opening
+        an unchanged database leaves the file untouched.
+        """
+        stored = [
+            (row["item"], row["component"], row["quantity"])
+            for row in conn.execute(
+                "SELECT item, component, quantity FROM recycle_outputs "
+                "WHERE location = ? ORDER BY rowid",
+                (HOME,),
+            )
+        ]
+        derived = cls._derived_home_outputs(conn)
+        if stored == derived:
+            return
+        conn.execute("DELETE FROM recycle_outputs WHERE location = ?", (HOME,))
+        conn.executemany(
+            "INSERT INTO recycle_outputs (item, component, quantity, location) "
+            "VALUES (?, ?, ?, ?)",
+            [
+                (item, component, quantity, HOME)
+                for item, component, quantity in derived
+            ],
+        )
 
     def _build_tier_index(self) -> None:
         """Map each tiered base, in tier_key form, to {tier: catalog name}."""

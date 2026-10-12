@@ -123,3 +123,16 @@ def test_home_only_field_lower_quantity_returns_difference(tmp_path):
     db = Database(db_path=tmp_path / "items.db")
     _add_field(db, [("Battery", "Metal Parts", 2), ("Battery", "Wires", 1)])
     assert db.home_only_outputs("Battery") == [RecycleOutput("Wires", 3, "home")]
+
+
+def test_reopening_unchanged_database_leaves_file_untouched(tmp_path):
+    _db_with_items(tmp_path, [("Battery", "2x Metal Parts, 1x wires, 3x Wires")])
+    path = tmp_path / "items.db"
+    db = Database(db_path=path)  # derives the home rows from the insert
+    _add_field(db, [("Battery", "Metal Parts", 1)])
+    Database(db_path=path)
+    before = path.read_bytes()
+
+    Database(db_path=path)
+
+    assert path.read_bytes() == before
