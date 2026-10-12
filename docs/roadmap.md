@@ -75,8 +75,22 @@ Ahead, in order:
 9. A capture run for tiers I to III so the stroke thresholds are tuned on
    every numeral.
 10. Decide the recycle chip label, "home only" or "field only", from step 8.
-11. OCR engine trial (PaddleOCR PP-OCRv5 under onnxruntime), only if accuracy
-    still falls short after step 9. Decided 11 Oct as an option.
+11. Replace the card title reader on evidence. Brought forward 12 Oct after
+    Jeffrey's second live test: "Burletta IV, Anvil I ... both don't get
+    detected. Are you sure an overhaul on the image recognition isn't
+    warranted here?" The Rattler III capture settled it: the card was found,
+    the plain read dropped the numeral and the uppercase read fused III into
+    H, and 49 of the last 60 captures read as nothing. Steps: label the
+    capture library by eye (started 12 Oct), then a bake-off of three
+    readers (today's Tesseract, Tesseract with the title line isolated by
+    geometry, PaddleOCR under onnxruntime) on the labeled set, the winner
+    behind an OCR_ENGINE setting, and the catalog matcher tolerant of
+    partial reads. Changed 12 Oct.
+12. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
+    has increased." Raw reads of one item vary between scans and each
+    variant counted as a new item, re-showing both windows at scan speed.
+    Fix: key everything on the resolved catalog name, never re-map a window
+    for the same item. Added 12 Oct, in the current build.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
