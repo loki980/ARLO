@@ -30,11 +30,13 @@ Items are numbered in build order. Each has the decision date and its state.
    disabled 2026-04-02, every sync since fell back to the wiki). Use the
    arctracker.io public API for items with recycle and salvage split, fix the
    MetaForge quest parser (it read a field that does not exist), write
-   `recycle_outputs.csv`. Decided 2026-10-11. Built 2026-10-11, in review.
+   `recycle_outputs.csv`. Decided 2026-10-11. Built, reviewed (two rounds,
+   accepted) and merged to the `overlay-extension` branch 2026-10-11.
 3. **Phase 1, chips on the tooltip.** Price chip on the "Can be found in" row,
    home-only recycle extras beside the "Recycles into" icons, `recycle_outputs`
-   table with a home and field column. Decided 2026-10-11. Built 2026-10-11,
-   round 2 and review pending, then a live check on the 4K Wayland setup.
+   table with a home and field column. Decided 2026-10-11. Built, reviewed
+   (two rounds, accepted) and on the `overlay-extension` branch 2026-10-11.
+   Awaiting the live check on the 4K Wayland setup before merging to master.
 4. **Load `recycle_outputs.csv` into the table** so the field column fills from
    the feed and the home rows stop being derived from `recycle_for`. Add the CSV
    to the weekly workflow. Decided 2026-10-11. Not started.

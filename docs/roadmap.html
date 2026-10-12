@@ -90,9 +90,9 @@ a{color:var(--accent)}
 <p class="asof">Status as of 2026-10-11, late evening. This page updates as work lands.</p>
 <div class="status">
   <div><div class="big">3 / 3</div><div class="lab">Investigations done</div></div>
-  <div><div class="big">2</div><div class="lab">Builds running now</div></div>
-  <div><div class="big">0 / 6</div><div class="lab">Phases shipped</div></div>
-  <div><div class="big">51</div><div class="lab">Tests green on master</div></div>
+  <div><div class="big">2 / 2</div><div class="lab">Builds reviewed and merged</div></div>
+  <div><div class="big">1 / 6</div><div class="lab">Phases awaiting live check</div></div>
+  <div><div class="big">91</div><div class="lab">Tests green on the branch</div></div>
 </div>
 
 <h2>What you will see in game</h2>
@@ -130,9 +130,9 @@ a{color:var(--accent)}
 
 <h2>Happening right now</h2>
 <div class="now">
-  <p><b>Phase 1 is built and in review.</b> Four commits, 70 tests green, and both tooltip labels found on your real screenshot. One refinement is landing now: the cursor capture is narrower than the tooltip, so the price chip anchors to the end of the "Can be found in" label instead of the tooltip's far edge when the edge is cut off.</p>
-  <p><b>The data feed is repaired and in review.</b> The dead feed is gone, the quest parser reads the right field, and a new recycle table came out of the real run with 1,327 rows that keep home and field apart. Power Bank reads exactly as the game does: 2 Battery and 2 Wires at home, 2 Battery in the field.</p>
-  <p><b>After review:</b> merge both, then a live check with you at the keyboard and the game open.</p>
+  <p><b>Phase 1 is ready for you to try.</b> Check out the <code>overlay-extension</code> branch, run ARLO, open your stash, and hover an item that recycles. The price chip should sit on the "Can be found in" row and the recycle chip under the icons. Both passed two rounds of independent review and 91 tests, including a run against your own screenshot.</p>
+  <p><b>The data feed is repaired on the same branch.</b> The dead feed is gone, the quest parser reads the right field, and the recycle table came out of a real run with 1,327 rows keeping home and field apart. Power Bank reads exactly as the game does: 2 Battery and 2 Wires at home, 2 Battery in the field.</p>
+  <p><b>One line is yours to add</b> in .env.example, since agents are not allowed to touch env files: <code>TOOLTIP_CHIPS=true</code>.</p>
 </div>
 
 <h2>Five things we learned today</h2>
@@ -147,7 +147,7 @@ a{color:var(--accent)}
 <h2>The plan, phase by phase</h2>
 <ol class="ladder">
   <li class="done"><h3>0 · Investigate <span class="pill done">done</span></h3><p>Codebase survey, ARC Tracker teardown, and a data-source study with evidence for every claim. The design spec is in the repo under docs.</p></li>
-  <li class="doing"><h3>1 · Chips on the tooltip <span class="pill doing">building</span></h3><p>Price on the found-in row, home-only recycle extras on the icon row. New recycle table with a home and field column. Updater repaired in parallel so the field column fills itself.</p><p class="dep">Needs nothing. Ships the first visible win.</p></li>
+  <li class="doing"><h3>1 · Chips on the tooltip <span class="pill doing">live check</span></h3><p>Price on the found-in row, home-only recycle extras on the icon row. New recycle table with a home and field column. Updater repaired alongside so the field column can fill itself. Built, reviewed twice, merged to the overlay-extension branch.</p><p class="dep">Waiting on one thing: you, with the game open.</p></li>
   <li><h3>2 · Verdicts with reasons</h3><p>Structured needs from quests, projects, and every workshop bench (Scrappy, Gunsmith, Research Station, Outpost included). A verdict engine replaces thirty hand-written action strings. The popup gets its overhaul.</p><p class="dep">Needs phase 1's data plumbing.</p></li>
   <li><h3>3 · Read the grid</h3><p>Fit the slot lattice, identify each icon by hash with hover-to-learn filling gaps, read stack counts. Only while the stash is open and the screen is still.</p><p class="dep">Needs phase 1.</p></li>
   <li><h3>4 · Badges on every cell</h3><p>Spike the transparent overlay surface first. Then owned over needed on each cell, colored by verdict, hidden while you scroll.</p><p class="dep">Needs phases 2 and 3.</p></li>
@@ -187,6 +187,7 @@ a{color:var(--accent)}
   <li><time>10-11</time>Design spec written to the repo. Phase 1 build started. Updater repair started in a second worktree.</li>
   <li><time>10-11</time>Phase 1 built: tooltip geometry, chips, recycle table, 19 new tests. Round 2 for the clipped-capture placement rule.</li>
   <li><time>10-11</time>Updater repaired: ARC Tracker public API as the recycle source, quest parser fixed, recycle_outputs.csv generated. The run also showed MetaForge now lists 1,109 items against 606 in the shipped database, and that Anvil and Arpeggio tiers look swapped between the wiki and the API, which wants an in-game check.</li>
+  <li><time>10-11</time>Both builds through two rounds of external review (Codex), both accepted. Merged onto one branch, 91 tests green. Roadmap plan and page source committed to the repo with a project CLAUDE.md pointing at them.</li>
 </ul>
 </details>
 </div>
