@@ -1,0 +1,78 @@
+{
+ "arctracker_items": {"items": [
+  {"id": "snitch_scanner", "name": {"de": "Spitzel-Scanner", "en": "Snitch Scanner"}},
+  {"id": "surveyor_vault", "name": {"en": "Surveyor Vault"}},
+  {"id": "sentinel_firing_core", "name": {"en": "Sentinel Firing Core"}},
+  {"id": "metal_parts", "name": {"en": "Metal Parts"}},
+  {"id": "plastic_parts", "name": {"en": "Plastic Parts"}},
+  {"id": "arc_alloy", "name": {"en": "ARC Alloy"}},
+  {"id": "magnet", "name": {"en": "Magnet"}},
+  {"id": "rusted_gear", "name": {"en": "Rusted Gear"}},
+  {"id": "advanced_mechanical_components", "name": {"en": "Advanced Mechanical Components"}},
+  {"id": "radial_press", "name": {"en": "Radial Press"}},
+  {"id": "magnetic_accelerator", "name": {"en": "Magnetic Accelerator"}},
+  {"id": "emperor_modulator", "name": {"en": "Emperor Modulator"}}
+ ]},
+ "arctracker_quests": {"quests": {
+  "wires_crossed": {"id": "wires_crossed", "name": "Wires Crossed", "requiredItemIds": [
+   {"itemId": "snitch_scanner", "quantity": 1},
+   {"itemId": "surveyor_vault", "quantity": 1},
+   {"itemId": "sentinel_firing_core", "quantity": 1}
+  ]}
+ }},
+ "arctracker_projects": {"projects": {
+  "expedition_project_s5": {
+   "id": "expedition_project_s5",
+   "name": {"de": "Expedition (Expedition 5)", "en": "Expedition (Expedition 5)"},
+   "startDate": 1783425600,
+   "endDate": 1790074800,
+   "phases": [
+    {"phase": 1, "requirementItemIds": [
+     {"itemId": "metal_parts", "quantity": 150},
+     {"itemId": "plastic_parts", "quantity": 100},
+     {"itemId": "arc_alloy", "quantity": 80},
+     {"itemId": "magnet", "quantity": 15}
+    ]},
+    {"phase": 5, "requirementItemIds": [], "requirementCategories": [
+     {"category": "Combat Items", "valueRequired": 200000}
+    ]}
+   ]
+  }
+ }},
+ "metaforge_items": [
+  {"id": "sentinel-part", "name": "Sentinel Firing Core"},
+  {"id": "rusted-gear", "name": "Rusted Gear"},
+  {"id": "advanced-mechanical-components", "name": "Advanced Mechanical Components"},
+  {"id": "radial-press", "name": "Radial Press"},
+  {"id": "magnetic-accelerator", "name": "Magnetic Accelerator"},
+  {"id": "emperor-modulator", "name": "Emperor Modulator"}
+ ],
+ "metaforge_hideout": [
+  {"id": "weapon-bench", "name": "Gunsmith", "maxLevel": 4, "levels": {
+   "3": {"requiredItems": [
+    {"id": "rusted-gear", "quantity": 3},
+    {"id": "advanced-mechanical-components", "quantity": 5},
+    {"id": "sentinel-part", "quantity": 4}
+   ]},
+   "4": {"requiredItems": [
+    {"id": "radial-press", "quantity": 3},
+    {"id": "magnetic-accelerator", "quantity": 3},
+    {"id": "emperor-modulator", "quantity": 1}
+   ]}
+  }}
+ ],
+ "arctracker_hideout": {"hideoutModules": {
+  "weapon_bench": {"id": "weapon_bench", "name": "Gunsmith", "maxLevel": 4, "levels": [
+   {"level": 3, "requirementItemIds": [
+    {"itemId": "rusted_gear", "quantity": 3},
+    {"itemId": "advanced_mechanical_components", "quantity": 5},
+    {"itemId": "sentinel_firing_core", "quantity": 4}
+   ]},
+   {"level": 4, "requirementItemIds": [
+    {"itemId": "radial_press", "quantity": 3},
+    {"itemId": "magnetic_accelerator", "quantity": 3},
+    {"itemId": "emperor_modulator", "quantity": 1}
+   ]}
+  ]}
+ }}
+}

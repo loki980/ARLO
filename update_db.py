@@ -4,7 +4,9 @@ Hybrid Database Updater for ARLO (Arc Raiders Loot Overlay).
 
 Combines data from three sources for best results:
   - MetaForge API: items, sell prices, stack sizes, quests
-  - arctracker.io API: recycle (home) and salvage (field) outputs
+  - arctracker.io API: recycle (home) and salvage (field) outputs, quest and
+    project needs for needs.csv
+  - MetaForge hideout: workshop level needs for needs.csv
   - Arc Raiders Wiki: workshop upgrades, expedition requirements, project uses,
     and recycle outputs for items arctracker does not cover
 
@@ -22,12 +24,15 @@ from __future__ import annotations
 import argparse
 import contextlib
 import csv
+import logging
 import re
 import sqlite3
 import sys
 import time
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -50,6 +55,10 @@ except ImportError:
 METAFORGE_API_BASE = "https://metaforge.app/api/arc-raiders"
 ARCTRACKER_ITEMS_URL = "https://arctracker.io/api/items"
 ARCTRACKER_TIMEOUT = 60  # one call of about 4 MB
+ARCTRACKER_QUESTS_URL = "https://arctracker.io/api/quests"
+ARCTRACKER_PROJECTS_URL = "https://arctracker.io/api/projects"
+ARCTRACKER_HIDEOUT_URL = "https://arctracker.io/api/hideout"
+METAFORGE_HIDEOUT_URL = f"{METAFORGE_API_BASE}/hideout"
 
 WIKI_URL = "https://arcraiders.wiki/wiki/Loot"
 SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -57,11 +66,23 @@ ITEMS_CSV = SCRIPT_DIR / "items.csv"
 ITEMS_DB = SCRIPT_DIR / "items.db"
 RECYCLE_OUTPUTS_CSV = SCRIPT_DIR / "recycle_outputs.csv"
 RECYCLE_OUTPUTS_FIELDS = ["item", "component", "quantity", "location"]
+NEEDS_CSV = SCRIPT_DIR / "needs.csv"
+NEEDS_FIELDS = [
+    "item",
+    "source_kind",
+    "source_name",
+    "tier",
+    "quantity",
+    "starts",
+    "ends",
+]
 
 USER_AGENT = "ARLO/1.0 (Arc Raiders Loot Overlay - https://github.com/Soygen/ARLO)"
 
 QUICK_USE_CATEGORIES = {"Quick Use", "Shield", "Augment", "Mods", "Ammunition", "Key"}
 MATERIAL_CATEGORIES = {"Basic Material", "Refined Material", "Topside Material"}
+
+log = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -451,6 +472,319 @@ def _normalize_category(item_type: str) -> str:
 
 
 # =============================================================================
+# Needs: quests, projects and workshop levels (needs.csv)
+# =============================================================================
+
+
+class NameResolver:
+    """Map source item ids to English names and count the ids that do not resolve."""
+
+    def __init__(self, id_to_name: dict[str, str]) -> None:
+        self.id_to_name = id_to_name
+        self.unresolved = 0
+
+    def name(self, item_id: str, fallback_name=None) -> str:
+        """Return the English name by id, then by the entry's own name, else ''."""
+        name = self.id_to_name.get(item_id) or _english_name(fallback_name)
+        if not name:
+            self.unresolved += 1
+            log.debug("needs: skipping unresolved item id %r", item_id)
+        return name
+
+
+def _requirement_totals(entries, id_key: str, resolver: NameResolver) -> dict[str, int]:
+    """Sum requirement entries into an English name -> quantity map."""
+    totals: dict[str, int] = {}
+    if not isinstance(entries, list):
+        return totals
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        qty = _int_or_zero(entry.get("quantity"))
+        if qty <= 0:
+            continue
+        name = resolver.name(str(entry.get(id_key) or ""), entry.get("name"))
+        if name:
+            totals[name] = totals.get(name, 0) + qty
+    return totals
+
+
+def _need_rows(
+    totals: dict[str, int],
+    source_kind: str,
+    source_name: str,
+    tier: int | str = "",
+    starts: str = "",
+    ends: str = "",
+) -> list[dict[str, str]]:
+    return [
+        {
+            "item": item,
+            "source_kind": source_kind,
+            "source_name": source_name,
+            "tier": str(tier),
+            "quantity": str(qty),
+            "starts": starts,
+            "ends": ends,
+        }
+        for item, qty in totals.items()
+    ]
+
+
+def _iso_date(timestamp) -> str:
+    """Convert a Unix timestamp in seconds to an ISO date, '' when absent."""
+    if isinstance(timestamp, bool) or not isinstance(timestamp, (int, float)):
+        return ""
+    if timestamp <= 0:
+        return ""
+    return datetime.fromtimestamp(timestamp, tz=UTC).date().isoformat()
+
+
+def _project_name(raw_name) -> str:
+    """English project name, with 'Expedition Project (Expedition 1)' as 'Expedition 1'."""
+    name = _english_name(raw_name)
+    match = re.search(r"\(Expedition (\d+)\)$", name)
+    return f"Expedition {match.group(1)}" if match else name
+
+
+def _records(data, key: str):
+    """Return the records under key as a list. The live API keys them by id."""
+    records = data.get(key) if isinstance(data, dict) else None
+    if isinstance(records, dict):
+        return list(records.values())
+    return records
+
+
+def parse_quest_needs(data, resolver: NameResolver) -> list[dict[str, str]]:
+    """Build quest rows from an arctracker /api/quests payload."""
+    quests = _records(data, "quests")
+    if not isinstance(quests, list):
+        msg = "arctracker quests payload has no quests list"
+        raise TypeError(msg)
+    rows: list[dict[str, str]] = []
+    for quest in quests:
+        if not isinstance(quest, dict):
+            continue
+        name = _english_name(quest.get("name"))
+        if name:
+            totals = _requirement_totals(
+                quest.get("requiredItemIds"), "itemId", resolver
+            )
+            rows.extend(_need_rows(totals, "quest", name))
+    return rows
+
+
+def parse_project_needs(data, resolver: NameResolver) -> list[dict[str, str]]:
+    """Build project rows from an arctracker /api/projects payload.
+
+    The tier is the phase number. Coin-value phases (requirementCategories)
+    have no requirementItemIds and so produce no rows.
+    """
+    projects = _records(data, "projects")
+    if not isinstance(projects, list):
+        msg = "arctracker projects payload has no projects list"
+        raise TypeError(msg)
+    rows: list[dict[str, str]] = []
+    for project in projects:
+        if not isinstance(project, dict):
+            continue
+        name = _project_name(project.get("name"))
+        if not name:
+            continue
+        starts = _iso_date(project.get("startDate"))
+        ends = _iso_date(project.get("endDate"))
+        for phase in project.get("phases") or []:
+            if not isinstance(phase, dict):
+                continue
+            totals = _requirement_totals(
+                phase.get("requirementItemIds"), "itemId", resolver
+            )
+            tier = _int_or_zero(phase.get("phase"))
+            rows.extend(_need_rows(totals, "project", name, tier, starts, ends))
+    return rows
+
+
+def _station_levels(levels):
+    """Yield (level number, level record) from a dict keyed by level or a list."""
+    if isinstance(levels, dict):
+        for key, level in levels.items():
+            yield _int_or_zero(key), level
+    elif isinstance(levels, list):
+        for level in levels:
+            if isinstance(level, dict):
+                yield _int_or_zero(level.get("level")), level
+
+
+WorkshopLevels = dict[tuple[str, int], dict[str, int]]
+
+
+def _parse_stations(
+    stations, items_key: str, id_key: str, resolver: NameResolver
+) -> WorkshopLevels:
+    """Return (station name, level) -> {item name: quantity}, empty levels kept."""
+    levels: WorkshopLevels = {}
+    for station in stations:
+        if not isinstance(station, dict):
+            continue
+        name = _english_name(station.get("name"))
+        if not name:
+            continue
+        for level_no, level in _station_levels(station.get("levels")):
+            if level_no <= 0:
+                continue
+            entries = level.get(items_key) if isinstance(level, dict) else None
+            levels[name, level_no] = _requirement_totals(entries, id_key, resolver)
+    return levels
+
+
+def parse_metaforge_hideout(data, resolver: NameResolver) -> WorkshopLevels:
+    """Parse the MetaForge /hideout station list (levels keyed '1', '2', ...)."""
+    stations = data.get("data") if isinstance(data, dict) else data
+    if not isinstance(stations, list):
+        msg = "MetaForge hideout payload has no station list"
+        raise TypeError(msg)
+    return _parse_stations(stations, "requiredItems", "id", resolver)
+
+
+def parse_arctracker_hideout(data, resolver: NameResolver) -> WorkshopLevels:
+    """Parse the arctracker /api/hideout module map (levels as a list)."""
+    modules = _records(data, "hideoutModules")
+    if not isinstance(modules, list):
+        msg = "arctracker hideout payload has no hideoutModules map"
+        raise TypeError(msg)
+    return _parse_stations(modules, "requirementItemIds", "itemId", resolver)
+
+
+def workshop_rows(levels: WorkshopLevels) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for (station, level_no), totals in levels.items():
+        rows.extend(_need_rows(totals, "workshop", station, level_no))
+    return rows
+
+
+def cross_check_workshop(metaforge: WorkshopLevels, arctracker: WorkshopLevels) -> int:
+    """Warn once per station level both sources list with different needs.
+
+    Stations and items match on lowercase English name. Levels only one
+    source has (Outpost, Scrappy 6, Stash) are not compared. Returns the
+    number of warnings.
+    """
+
+    def lowered(levels: WorkshopLevels) -> dict[tuple[str, int], dict[str, int]]:
+        return {
+            (station.lower(), level_no): {k.lower(): v for k, v in totals.items()}
+            for (station, level_no), totals in levels.items()
+        }
+
+    mf_levels = lowered(metaforge)
+    arc_levels = lowered(arctracker)
+    names = {(s.lower(), n): s for s, n in metaforge}
+    warnings = 0
+    for key in sorted(mf_levels.keys() & arc_levels.keys()):
+        mf_totals, arc_totals = mf_levels[key], arc_levels[key]
+        if mf_totals == arc_totals:
+            continue
+        diffs = [
+            f"{item} MetaForge {mf_totals.get(item, 0)} arctracker {arc_totals.get(item, 0)}"
+            for item in sorted(mf_totals.keys() | arc_totals.keys())
+            if mf_totals.get(item, 0) != arc_totals.get(item, 0)
+        ]
+        print(
+            f"  WARNING: workshop {names[key]} {key[1]} differs between sources: "
+            + ", ".join(diffs)
+        )
+        warnings += 1
+    return warnings
+
+
+def _fetch_needs_source(label: str, url: str, parse):
+    """Fetch and parse one needs source. Returns None after one warning on failure."""
+    try:
+        return parse(_api_get(url))
+    except (requests.RequestException, ValueError, TypeError, AttributeError) as e:
+        print(f"  WARNING: {label} unavailable ({e})")
+        return None
+
+
+def write_needs_csv(rows: list[dict[str, str]], csv_path: Path) -> None:
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=NEEDS_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _needs_sort_key(row: dict[str, str]) -> tuple:
+    tier = int(row["tier"]) if row["tier"] else -1
+    return (row["source_kind"], row["source_name"].lower(), tier, row["item"].lower())
+
+
+def update_needs_csv(
+    arc_items: dict[str, ArcTrackerItem],
+    metaforge_items: list[dict],
+    csv_path: Path,
+) -> bool:
+    """Rebuild needs.csv from arctracker quests and projects and MetaForge hideout.
+
+    Item ids resolve to English names through the arctracker and MetaForge
+    item lists. When an item list or one of the three sources is missing, the
+    existing file is left untouched so a partial fetch never deletes rows.
+    """
+    if not arc_items or not metaforge_items:
+        print("  needs.csv left unchanged: item names unavailable")
+        return False
+
+    print("Fetching quest, project and workshop needs ...")
+    arc_names = NameResolver({r.id: r.name for r in arc_items.values() if r.id})
+    mf_names = NameResolver(
+        {
+            str(raw["id"]): _english_name(raw.get("name"))
+            for raw in metaforge_items
+            if isinstance(raw, dict)
+            and raw.get("id")
+            and _english_name(raw.get("name"))
+        }
+    )
+
+    quests = _fetch_needs_source(
+        "arctracker quests",
+        ARCTRACKER_QUESTS_URL,
+        lambda d: parse_quest_needs(d, arc_names),
+    )
+    projects = _fetch_needs_source(
+        "arctracker projects",
+        ARCTRACKER_PROJECTS_URL,
+        lambda d: parse_project_needs(d, arc_names),
+    )
+    workshop = _fetch_needs_source(
+        "MetaForge hideout",
+        METAFORGE_HIDEOUT_URL,
+        lambda d: parse_metaforge_hideout(d, mf_names),
+    )
+    if quests is None or projects is None or workshop is None:
+        print("  needs.csv left unchanged")
+        return False
+
+    rows = quests + projects + workshop_rows(workshop)
+
+    arc_workshop = _fetch_needs_source(
+        "arctracker hideout (cross-check)",
+        ARCTRACKER_HIDEOUT_URL,
+        lambda d: parse_arctracker_hideout(d, arc_names),
+    )
+    if arc_workshop is not None:
+        cross_check_workshop(workshop, arc_workshop)
+
+    unresolved = arc_names.unresolved + mf_names.unresolved
+    if unresolved:
+        print(f"  Skipped {unresolved} needs entries with an unresolved item id")
+
+    rows.sort(key=_needs_sort_key)
+    write_needs_csv(rows, csv_path)
+    print(f"  Wrote {len(rows)} rows to {csv_path}")
+    return True
+
+
+# =============================================================================
 # Wiki scraper
 # =============================================================================
 
@@ -638,6 +972,7 @@ def fetch_items_from_wiki() -> list[GameItem]:
 
 def fetch_items_hybrid(
     arc_items: dict[str, ArcTrackerItem] | None = None,
+    raw_items: list[dict] | None = None,
 ) -> list[GameItem]:
     """
     Best of both worlds:
@@ -645,10 +980,12 @@ def fetch_items_hybrid(
       - arctracker.io for recycle data, with the wiki for items it lacks
       - Wiki for workshop/project/expedition uses
 
-    Pass arc_items when the caller already fetched them, to avoid a second call.
+    Pass arc_items and raw_items (the MetaForge item list) when the caller
+    already fetched them, to avoid a second call.
     """
     # 1. MetaForge items + quests, arctracker recycle data
-    raw_items = fetch_metaforge_items()
+    if raw_items is None:
+        raw_items = fetch_metaforge_items()
     if arc_items is None:
         arc_items = fetch_arctracker_items()
     # Recycle data used to come from MetaForge's Supabase table
@@ -916,7 +1253,7 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Update items.csv, recycle_outputs.csv and items.db from MetaForge, arctracker.io and the Arc Raiders Wiki.",
+        description="Update items.csv, recycle_outputs.csv, needs.csv and items.db from MetaForge, arctracker.io and the Arc Raiders Wiki.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -946,17 +1283,20 @@ Examples:
     args = parser.parse_args()
 
     arc_items: dict[str, ArcTrackerItem] = {}
+    metaforge_items: list[dict] = []
     if args.source == "wiki":
         items = fetch_items_from_wiki()
         source_name = "Arc Raiders Wiki"
     elif args.source == "api":
         arc_items = fetch_arctracker_items()
-        items = fetch_items_from_metaforge_only(arc_items)
+        metaforge_items = fetch_metaforge_items()
+        items = fetch_items_from_metaforge_only(arc_items, metaforge_items)
         source_name = "MetaForge API"
     else:
         arc_items = fetch_arctracker_items()
         try:
-            items = fetch_items_hybrid(arc_items)
+            metaforge_items = fetch_metaforge_items()
+            items = fetch_items_hybrid(arc_items, metaforge_items)
             source_name = "MetaForge API + Wiki"
         except Exception as e:  # noqa: BLE001
             print(f"\nHybrid fetch failed ({e}), falling back to wiki only...")
@@ -1006,6 +1346,8 @@ Examples:
         write_recycle_outputs_csv(output_rows, RECYCLE_OUTPUTS_CSV)
         print(f"  Wrote {len(output_rows)} rows to {RECYCLE_OUTPUTS_CSV}")
 
+    update_needs_csv(arc_items, metaforge_items, NEEDS_CSV)
+
     if not args.csv_only:
         db_count = rebuild_database(ITEMS_CSV, ITEMS_DB)
         print(f"  Rebuilt {ITEMS_DB} with {db_count} items")
@@ -1015,9 +1357,11 @@ Examples:
 
 def fetch_items_from_metaforge_only(
     arc_items: dict[str, ArcTrackerItem] | None = None,
+    raw_items: list[dict] | None = None,
 ) -> list[GameItem]:
     """MetaForge-only mode (no wiki uses). Recycle data as in hybrid mode."""
-    raw_items = fetch_metaforge_items()
+    if raw_items is None:
+        raw_items = fetch_metaforge_items()
     if arc_items is None:
         arc_items = fetch_arctracker_items()
     recycle_map = build_recycle_map(arc_items)
@@ -1084,8 +1428,10 @@ def auto_update(*, force: bool = False) -> bool:
     try:
         print("Checking for item database updates...")
         arc_items = fetch_arctracker_items()
+        metaforge_items: list[dict] = []
         try:
-            items = fetch_items_hybrid(arc_items)
+            metaforge_items = fetch_metaforge_items()
+            items = fetch_items_hybrid(arc_items, metaforge_items)
         except Exception:  # noqa: BLE001
             print("  Hybrid fetch failed, trying wiki only...")
             try:
@@ -1106,6 +1452,7 @@ def auto_update(*, force: bool = False) -> bool:
             write_recycle_outputs_csv(
                 build_recycle_output_rows(arc_items), RECYCLE_OUTPUTS_CSV
             )
+        update_needs_csv(arc_items, metaforge_items, NEEDS_CSV)
         rebuild_database(ITEMS_CSV, ITEMS_DB)
         _mark_updated()
 
