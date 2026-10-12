@@ -38,6 +38,10 @@ TODO: add screenshots
 
 6. **Click "Save Configuration"** to save to `.env` file
 
+### Tooltip capture is now a fallback
+
+ARLO now finds the item card automatically: each scan searches a window centred on the cursor (`TOOLTIP_SEARCH_WIDTH` by `TOOLTIP_SEARCH_HEIGHT`, see [Configuration](CONFIGURATION.md)) for the cream card nearest the cursor and reads only that card, wherever the game drew it. The tooltip capture box set in step 5 (`TOOLTIP_CAPTURE_*`) is used only when no card is found in that window, so a rough setting is enough.
+
 ### Database Management
 
 The Calibration tool also includes database management features:
