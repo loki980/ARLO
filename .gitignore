@@ -17,4 +17,5 @@ dist
 .vs/
 .screencast_restore_token
 progress.csv
+arlo_user.db
 diag_frame.png

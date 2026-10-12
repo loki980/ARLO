@@ -267,6 +267,11 @@ class Settings(BaseSettings):
         """progress.csv, the player's own progress, next to items.csv."""
         return self.database_path.parent / "progress.csv"
 
+    @property
+    def user_database_path(self) -> Path:
+        """arlo_user.db, the player's own state, next to items.db."""
+        return self.database_path.parent / "arlo_user.db"
+
     # Count needs from projects whose end date has passed
     show_ended_projects: bool = Field(
         default=False, description="Count needs from projects that have ended"

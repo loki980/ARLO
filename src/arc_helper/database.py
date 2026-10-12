@@ -29,6 +29,7 @@ NEED_KINDS = ("quest", "project", "workshop")
 RECYCLE_OUTPUTS_CSV_NAME = "recycle_outputs.csv"
 NEEDS_CSV_NAME = "needs.csv"
 PROGRESS_CSV_NAME = "progress.csv"
+USER_DB_NAME = "arlo_user.db"
 
 # "2x Metal Parts", "2 X Metal Parts", "2xMetal Parts"
 _COUNTED_ENTRY = re.compile(r"(\d+)\s*[xX]\s*(.*)")
@@ -233,11 +234,14 @@ class Database:
         recycle_outputs_csv: Path | None = None,
         needs_csv: Path | None = None,
         progress_csv: Path | None = None,
+        user_db_path: Path | None = None,
     ):
         """Initialize database connection.
 
-        The CSV paths default to the configured ones when db_path is not
-        given, and to the files next to db_path otherwise.
+        The CSV paths and the user database (arlo_user.db, the player's own
+        state) default to the configured ones when db_path is not given, and
+        to the files next to db_path otherwise. The user database is opened
+        only on first use, and items.db is never written for user data.
         """
         if db_path is None:
             settings = get_settings()
@@ -245,14 +249,18 @@ class Database:
             default_outputs = settings.recycle_outputs_csv_path
             default_needs = settings.needs_csv_path
             default_progress = settings.progress_csv_path
+            default_user_db = settings.user_database_path
         else:
             default_outputs = Path(db_path).parent / RECYCLE_OUTPUTS_CSV_NAME
             default_needs = Path(db_path).parent / NEEDS_CSV_NAME
             default_progress = Path(db_path).parent / PROGRESS_CSV_NAME
+            default_user_db = Path(db_path).parent / USER_DB_NAME
         self.db_path = db_path
         self.recycle_outputs_csv = Path(recycle_outputs_csv or default_outputs)
         self.needs_csv = Path(needs_csv or default_needs)
         self.progress_csv = Path(progress_csv or default_progress)
+        self.user_db_path = Path(user_db_path or default_user_db)
+        self._user_db_ready = False
         self._tier_index: dict[str, dict[str, str]] = {}
         self._init_db()
         self._build_tier_index()
@@ -438,37 +446,11 @@ class Database:
             conn.commit()
         return True
 
-    @staticmethod
-    def _has_progress_table(conn: sqlite3.Connection) -> bool:
-        """Whether the progress table exists yet."""
-        return (
-            conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'progress'"
-            ).fetchone()
-            is not None
-        )
-
-    def load_progress_csv(self, path: Path | str) -> bool:
-        """Replace all progress rows with the CSV rows.
-
-        The progress table is created on the first load that has rows to
-        write, so a database that never saw a progress file keeps its bytes.
-        Writes nothing when the stored rows already match. Returns True when
-        the table changed.
-        """
-        rows = read_progress_csv(Path(path))
-        with self._get_connection() as conn:
-            stored: list[tuple] = []
-            if self._has_progress_table(conn):
-                stored = [
-                    tuple(row)
-                    for row in conn.execute(
-                        "SELECT source_kind, source_name, value "
-                        "FROM progress ORDER BY rowid"
-                    )
-                ]
-            if stored == rows:
-                return False
+    def _get_user_connection(self) -> sqlite3.Connection:
+        """Connect to the user database, creating it and its tables once."""
+        conn = sqlite3.connect(self.user_db_path)
+        conn.row_factory = sqlite3.Row
+        if not self._user_db_ready:
             # What the player has finished: workshop level reached, 1 for a
             # done quest, highest project phase done
             conn.execute("""
@@ -481,6 +463,27 @@ class Database:
                     PRIMARY KEY (source_kind, source_name)
                 )
             """)
+            conn.commit()
+            self._user_db_ready = True
+        return conn
+
+    def load_progress_csv(self, path: Path | str) -> bool:
+        """Replace all progress rows in the user database with the CSV rows.
+
+        Writes nothing when the stored rows already match. Returns True when
+        the table changed.
+        """
+        rows = read_progress_csv(Path(path))
+        with self._get_user_connection() as conn:
+            stored = [
+                tuple(row)
+                for row in conn.execute(
+                    "SELECT source_kind, source_name, value "
+                    "FROM progress ORDER BY rowid"
+                )
+            ]
+            if stored == rows:
+                return False
             conn.execute("DELETE FROM progress")
             conn.executemany(
                 "INSERT INTO progress (source_kind, source_name, value) "
@@ -491,10 +494,13 @@ class Database:
         return True
 
     def progress_map(self) -> dict[tuple[str, str], int]:
-        """Recorded progress as {(source_kind, source_name): value}."""
-        with self._get_connection() as conn:
-            if not self._has_progress_table(conn):
-                return {}
+        """Recorded progress as {(source_kind, source_name): value}.
+
+        Empty, without creating the user database, when it does not exist.
+        """
+        if not self.user_db_path.exists():
+            return {}
+        with self._get_user_connection() as conn:
             rows = conn.execute(
                 "SELECT source_kind, source_name, value FROM progress"
             ).fetchall()

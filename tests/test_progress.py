@@ -30,15 +30,26 @@ def test_progress_map_skips_malformed_rows(tmp_path):
     }
 
 
-def test_second_load_of_same_csv_leaves_file_untouched(tmp_path):
+def test_load_creates_user_db_and_leaves_items_db_untouched(tmp_path):
+    db = Database(db_path=tmp_path / "items.db")
+    before = (tmp_path / "items.db").read_bytes()
+    assert not (tmp_path / "arlo_user.db").exists()
+
+    assert db.load_progress_csv(_write_progress(tmp_path))
+
+    assert (tmp_path / "arlo_user.db").exists()
+    assert (tmp_path / "items.db").read_bytes() == before
+
+
+def test_second_load_of_same_csv_leaves_user_db_untouched(tmp_path):
     db = Database(db_path=tmp_path / "items.db")
     path = _write_progress(tmp_path)
     assert db.load_progress_csv(path)
-    before = (tmp_path / "items.db").read_bytes()
+    before = (tmp_path / "arlo_user.db").read_bytes()
 
     assert not db.load_progress_csv(path)
 
-    assert (tmp_path / "items.db").read_bytes() == before
+    assert (tmp_path / "arlo_user.db").read_bytes() == before
 
 
 def test_missing_progress_file_is_fine(tmp_path):
@@ -49,6 +60,7 @@ def test_missing_progress_file_is_fine(tmp_path):
 
     assert db.progress_map() == {}
     assert (tmp_path / "items.db").read_bytes() == before
+    assert not (tmp_path / "arlo_user.db").exists()
 
 
 def test_sync_loads_progress_csv_next_to_database(tmp_path):
