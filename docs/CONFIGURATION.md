@@ -61,7 +61,7 @@ CAPTURE_LIBRARY_DIR=debug/captures  # Folder for the capture library
 
 ### Progress File (progress.csv)
 
-The popup advice counts what quests, projects and workshop levels still need an item. To stop counting what you have already finished, copy `progress.example.csv` to `progress.csv` next to `items.csv` and edit it. `progress.csv` is not tracked, and the app loads it on every launch.
+The popup advice counts what quests, projects and workshop levels still need an item. To stop counting what you have already finished, copy `progress.example.csv` to `progress.csv` next to `items.csv` and edit it. `progress.csv` is not tracked, and the app loads it on every launch into `arlo_user.db`, a second SQLite file next to `items.db` that contains your own state (also not tracked). `items.db` is never written for your progress, so the weekly item database refresh never conflicts with it. `arlo_user.db` is created on the first load. Delete it to forget the loaded progress, and the next launch rebuilds it from `progress.csv`.
 
 ```csv
 source_kind,source_name,value
