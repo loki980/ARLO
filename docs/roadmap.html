@@ -1,10 +1,12 @@
 <title>ARLO Overlay Roadmap</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Layout: a single reading column. Outcomes first as cards with an in-game mock, then a short "now", then the discoveries as a story, then the ladder. Technical detail folds away. Dark-first to match the game. */
+/* Theme: the roadmap as a raider's stash. Phases are item cards in the game's cream tooltip style, stacked down one column like the stash grid. Status reads as a rarity tag. The current phase shows a durability-style gauge. Headline numbers are stack counts. The log is the raid log. */
 :root{
-  --bg:#121417; --panel:#1a1d22; --panel-2:#20242b; --line:#2b2f36; --fg:#e8e6e1; --muted:#9a9890;
-  --accent:#f2b134; --keep:#5ad17a; --sell:#e7c35a; --recycle:#4fd1c5; --warn:#ff7a59;
+  --bg:#13161b; --bg2:#1a1e25; --line:#2c313a; --fg:#e9e6e0; --muted:#9c9a93;
+  --card:#f6eedf; --card-ink:#1c1e22; --card-dim:#5c5a54; --card-line:#d9ccb4; --tab:#e9dcc3;
+  --amber:#f2b134; --green:#3fbf6f; --blue:#2e9bff; --grey:#7d8289; --cyan:#4fd1c5;
+  --recent:#f2b134;
   --display:"Barlow Semi Condensed","Barlow",system-ui,sans-serif;
   --body:"Barlow",system-ui,sans-serif;
   --mono:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
@@ -12,221 +14,306 @@
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
-    --bg:#f6f4ef; --panel:#ffffff; --panel-2:#f0ede6; --line:#dcd8cf; --fg:#1d1f23; --muted:#5f5d57;
-    --accent:#b8780a; --keep:#1f8f45; --sell:#9a7a10; --recycle:#13877e; --warn:#c84f2d;
+    --bg:#efe8da; --bg2:#f7f2e8; --line:#d8cfbd; --fg:#1c1e22; --muted:#5f5d57;
+    --card:#ffffff; --card-ink:#1c1e22; --card-dim:#5f5d57; --card-line:#e1d9c9; --tab:#ebe3d3;
+    --amber:#b8780a; --green:#1f8f45; --blue:#1565c0; --grey:#6b7076; --cyan:#13877e; --recent:#b8780a;
     color-scheme:light;
   }
 }
 :root[data-theme="light"]{
-  --bg:#f6f4ef; --panel:#ffffff; --panel-2:#f0ede6; --line:#dcd8cf; --fg:#1d1f23; --muted:#5f5d57;
-  --accent:#b8780a; --keep:#1f8f45; --sell:#9a7a10; --recycle:#13877e; --warn:#c84f2d;
+  --bg:#efe8da; --bg2:#f7f2e8; --line:#d8cfbd; --fg:#1c1e22; --muted:#5f5d57;
+  --card:#ffffff; --card-ink:#1c1e22; --card-dim:#5f5d57; --card-line:#e1d9c9; --tab:#ebe3d3;
+  --amber:#b8780a; --green:#1f8f45; --blue:#1565c0; --grey:#6b7076; --cyan:#13877e; --recent:#b8780a;
   color-scheme:light;
 }
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.6;margin:0}
-.wrap{max-width:780px;margin-inline:auto;padding-inline:16px;padding-block:36px 72px}
-.eyebrow{font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
-h1{font-family:var(--display);font-weight:700;font-size:clamp(36px,7vw,52px);line-height:1.02;margin:6px 0 14px;text-wrap:balance}
-h2{font-family:var(--display);font-weight:600;font-size:28px;margin:52px 0 14px;text-wrap:balance}
-h3{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 6px;text-wrap:balance}
-p{max-width:62ch;margin:0 0 14px}
-ul{max-width:62ch;padding-left:20px;margin:0 0 14px}
-li{margin:6px 0}
-.lede{color:var(--muted);font-size:20px;line-height:1.45;max-width:58ch}
-.rule{height:3px;width:72px;background:var(--accent);margin:18px 0 26px}
-.asof{color:var(--muted);font-size:14px;margin:0 0 10px}
-.status{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:0 0 8px}
-.status > div{background:var(--panel);padding:14px 16px}
-.status .big{font-family:var(--display);font-weight:700;font-size:26px;color:var(--accent);line-height:1.1;font-variant-numeric:tabular-nums}
-.status .lab{font-family:var(--display);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:4px}
-.pill{display:inline-block;font-family:var(--display);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border:1px solid var(--line);border-radius:3px;color:var(--muted);vertical-align:middle;margin-left:6px;white-space:nowrap}
-.pill.doing{border-color:var(--accent);color:var(--accent)}
-.pill.done{border-color:var(--keep);color:var(--keep)}
-.pill.next{border-color:var(--muted);color:var(--fg)}
-.cards{display:grid;grid-template-columns:1fr;gap:14px;margin:18px 0 8px}
-.card{background:var(--panel);border:1px solid var(--line);padding:18px 20px 14px;display:grid;gap:8px}
-.card p{margin:0}
-.card .when{font-family:var(--display);font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.mock{font-family:var(--mono);font-size:13px;background:var(--bg);border:1px solid var(--line);padding:12px 14px;overflow-x:auto;white-space:pre;line-height:1.5;margin:4px 0 2px}
-.mock .k{color:var(--keep)} .mock .s{color:var(--sell)} .mock .r{color:var(--recycle)} .mock .h{color:var(--accent)} .mock .d{color:var(--muted)} .mock .w{color:var(--warn)}
-.now{border-left:3px solid var(--accent);background:var(--panel);padding:14px 18px;margin:12px 0 10px;max-width:62ch}
-.now p{margin:0 0 10px}
-.now p:last-child{margin-bottom:0}
-.story{display:grid;gap:18px;margin:14px 0}
-.story > div{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start}
-.story .n{font-family:var(--display);font-weight:700;font-size:26px;color:var(--accent);line-height:1;padding-top:3px;font-variant-numeric:tabular-nums}
-.story p{margin:0 0 6px}
-.ladder{list-style:none;padding:0;margin:14px 0 0;max-width:none}
-.ladder > li{position:relative;padding:0 0 28px 26px;border-left:2px solid var(--line);margin:0}
-.ladder > li::before{content:"";position:absolute;left:-7px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
-.ladder > li.done::before{background:var(--keep);border-color:var(--keep)}
-.ladder > li.doing::before{background:var(--accent)}
-.ladder p{margin:0 0 6px}
-.ladder .state{color:var(--muted);font-size:15px}
-details{border:1px solid var(--line);background:var(--panel);padding:10px 16px;margin:14px 0;max-width:none}
-summary{cursor:pointer;font-family:var(--display);font-weight:600;font-size:17px;color:var(--fg)}
-details[open] summary{margin-bottom:10px}
-details p,details ul{max-width:70ch}
-table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 12px}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.tbl{overflow-x:auto}
-code{font-family:var(--mono);font-size:.88em;background:var(--panel-2);border:1px solid var(--line);padding:1px 5px;border-radius:3px}
-.log{font-size:15px;color:var(--muted)}
-.log li{margin:6px 0}
-.log time{font-family:var(--mono);font-size:12px;color:var(--fg);margin-right:8px}
-a{color:var(--accent)}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@media (prefers-reduced-motion: no-preference){ .ladder > li.doing::before{animation:pulse 1.6s ease-in-out infinite} }
-@keyframes pulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 25%,transparent)}}
-@media (min-width:640px){ .cards{grid-template-columns:1fr 1fr} .card.wide{grid-column:1 / -1} }
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.55;margin:0}
+.wrap{max-width:860px;margin-inline:auto;padding-inline:16px;padding-block:32px 72px}
+p{margin:0 0 12px;max-width:66ch}
+a{color:var(--amber)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* Title block, like the stash header */
+.stashhead{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:end;border-bottom:2px solid var(--line);padding-bottom:18px;margin-bottom:18px}
+.eyebrow{font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6.5vw,50px);line-height:1;margin:6px 0 10px;letter-spacing:.01em;text-wrap:balance}
+.sub{color:var(--muted);font-size:17px;max-width:60ch}
+.capacity{font-family:var(--display);font-weight:600;font-size:14px;color:var(--muted);text-align:right;white-space:nowrap}
+.capacity b{display:block;font-size:30px;color:var(--fg);line-height:1;font-variant-numeric:tabular-nums}
+
+/* Stack counts */
+.counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:0 0 30px}
+.counts > div{background:var(--bg2);padding:14px 16px}
+.counts b{display:block;font-family:var(--display);font-weight:700;font-size:28px;color:var(--amber);line-height:1.05;font-variant-numeric:tabular-nums}
+.counts span{display:block;font-family:var(--display);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.counts small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+
+/* The column of cards on a course line */
+.course{position:relative;list-style:none;margin:0;padding:0 0 0 54px}
+.course::before{content:"";position:absolute;left:21px;top:14px;bottom:14px;border-left:3px dashed var(--line)}
+.phase{position:relative;margin:0 0 22px}
+.slot{position:absolute;left:-54px;top:8px;width:44px;height:44px;border:2px solid var(--grey);border-radius:6px;background:var(--bg2);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:18px;color:var(--fg)}
+.slot.done{border-color:var(--green)}
+.slot.done::after{content:"";position:absolute;left:-2px;bottom:-2px;width:14px;height:14px;background:var(--green);clip-path:polygon(0 0,0 100%,100% 100%);border-bottom-left-radius:5px}
+.slot.now{border-color:var(--amber);box-shadow:0 0 0 4px color-mix(in srgb,var(--amber) 22%,transparent)}
+@media (prefers-reduced-motion: no-preference){ .slot.now{animation:glow 1.8s ease-in-out infinite} }
+@keyframes glow{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--amber) 10%,transparent)}}
+
+/* Each phase is an item card */
+.card{background:var(--card);color:var(--card-ink);border:1px solid var(--card-line);border-radius:4px;padding:16px 18px 14px;position:relative}
+.card::before{content:attr(data-tab);position:absolute;left:-1px;top:-24px;background:var(--tab);color:var(--card-ink);font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:4px 12px;border-radius:4px 4px 0 0;border:1px solid var(--card-line);border-bottom:0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px}
+.tag{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#fff;padding:3px 9px;border-radius:2px}
+.tag.done{background:var(--green)} .tag.now{background:var(--blue)} .tag.ahead{background:var(--grey)}
+.dates{font-family:var(--display);font-size:13px;color:var(--card-dim);letter-spacing:.04em}
+.card h2{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.05;margin:0 0 6px;color:var(--card-ink);text-wrap:balance}
+.card p{color:var(--card-ink);margin:0 0 10px}
+.card .why{color:var(--card-dim);font-size:15px}
+
+/* Gauge, like the durability bar */
+.gauge{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin:8px 0 14px}
+.bar{height:12px;background:#e3d8c3;border:1px solid var(--card-line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--blue)}
+.read{font-family:var(--display);font-weight:700;font-size:20px;color:var(--card-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.read small{display:block;font-weight:500;font-size:12px;color:var(--card-dim);letter-spacing:.04em}
+
+/* Step lists */
+.split{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:680px){ .split{grid-template-columns:1fr 1fr} }
+.card h3{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--card-dim);margin:6px 0 6px;border-bottom:1px solid var(--card-line);padding-bottom:4px}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:start;padding:6px 0;border-bottom:1px dotted var(--card-line);font-size:15px}
+.steps li:last-child{border-bottom:0}
+.tick{font-family:var(--mono);font-size:14px;line-height:1.5}
+.done .tick{color:var(--green)} .next .tick{color:var(--blue)} .todo .tick{color:var(--card-dim)}
+.what{min-width:0}
+.what small{display:block;color:var(--card-dim);font-size:13px;line-height:1.35}
+.next .what{font-weight:600}
+.when{font-family:var(--mono);font-size:12px;color:var(--card-dim);white-space:nowrap;padding-top:3px}
+.when.recent{color:var(--recent);font-weight:600}
+.steps li.quote .what{font-style:italic}
+
+/* Collapsed finished phases */
+details{margin-top:4px}
+summary{cursor:pointer;list-style:none;font-family:var(--display);font-weight:600;font-size:14px;color:var(--blue);display:inline-flex;gap:8px;align-items:center;padding:4px 0}
+summary::-webkit-details-marker{display:none}
+summary .chev{display:inline-block;transition:transform .15s}
+details[open] summary .chev{transform:rotate(90deg)}
+details[open] .show{display:none} details:not([open]) .hide{display:none}
+
+/* Will contain */
+.will{margin:0;padding-left:18px;font-size:15px;color:var(--card-ink)}
+.will li{margin:3px 0}
+.will .recent{font-family:var(--mono);font-size:12px;color:var(--recent);font-weight:600;margin-left:6px}
+
+/* Calls and log */
+h2.section{font-family:var(--display);font-weight:600;font-size:24px;margin:40px 0 10px;text-wrap:balance}
+ul.plain{max-width:66ch;padding-left:20px;margin:0 0 14px}
+ul.plain li{margin:6px 0}
+.log{list-style:none;margin:0;padding:0;max-width:72ch}
+.log li{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:6px 0;border-bottom:1px dotted var(--line);font-size:15px;color:var(--muted)}
+.log time{font-family:var(--mono);font-size:12px;color:var(--fg);padding-top:3px}
+.legend{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:14px;color:var(--muted);margin-top:28px;border-top:1px solid var(--line);padding-top:14px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px;font-style:normal}
+.l-done{border:2px solid var(--green)} .l-now{border:2px solid var(--amber)} .l-ahead{border:2px solid var(--grey)}
+.l-recent{width:auto;height:auto;font-family:var(--mono);font-size:12px;color:var(--recent);font-weight:600}
+code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px solid var(--line);padding:1px 5px;border-radius:3px}
+.card code{background:#efe5d2;border-color:var(--card-line);color:var(--card-ink)}
 </style>
 
 <div class="wrap">
-<div class="eyebrow">ARLO · Arc Raiders Loot Overlay</div>
-<h1>Never sell the thing you needed.</h1>
-<p class="lede">ARLO already names the item under your cursor. This roadmap takes it the rest of the way: the price and the home-recycle bonus right on the game's tooltip, a badge on every stash cell, and an overlay that knows what you own and what your next bench upgrade still needs.</p>
-<div class="rule"></div>
-
-<p class="asof">Status as of 2026-10-11, late evening. This page updates as work lands.</p>
-<div class="status">
-  <div><div class="big">3</div><div class="lab">Things ready for you to try</div></div>
-  <div><div class="big">0</div><div class="lab">Pieces being built now</div></div>
-  <div><div class="big">157</div><div class="lab">Automated tests passing</div></div>
-  <div><div class="big">3 of 3</div><div class="lab">Investigations finished</div></div>
-</div>
-
-<h2>What you will see in game</h2>
-<div class="cards">
-  <div class="card wide">
-    <h3>Hover an item and read the whole story <span class="pill doing">ready to try</span></h3>
-    <p>Two small chips appear beside the game's own tooltip. The price sits on the "Can be found in" row. Under "Recycles into", the extra parts you only get from the Speranza recycler light up in amber, so you know when carrying something home beats salvaging it in the field.</p>
-    <div class="mock"><span class="d">CAN BE FOUND IN</span>                     <span class="s">SELLS FOR 250 ₡</span>
-<span class="d">  Technological · Electrical</span>          <span class="d">×15 = 3,750 ₡</span>
-<span class="d">RECYCLES INTO</span>
-<span class="d">  [battery]</span>      <span class="h">HOME ONLY</span>  <span class="r">+2 Wires</span></div>
-    <p class="when">Phase 1. Built and reviewed. Waiting for you to try it in game.</p>
+<header class="stashhead">
+  <div>
+    <div class="eyebrow">ARLO · Arc Raiders Loot Overlay</div>
+    <h1>ARLO Overlay Roadmap</h1>
+    <p class="sub">Seven phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 11 October 2026.</p>
   </div>
-  <div class="card">
-    <h3>Advice with a reason <span class="pill next">next</span></h3>
-    <p>Instead of a bare "Keep", the popup will say "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item, and the color follows the advice.</p>
-    <p class="when">Phase 2. The data for it is being gathered now.</p>
-  </div>
-  <div class="card">
-    <h3>Your stash, annotated <span class="pill">later</span></h3>
-    <p>Open the stash and every cell wears a badge: how many you own over how many you need, green when you are covered, red when short, with the stack's sell value tucked under the icon.</p>
-    <p class="when">Phases 3 and 4. The hard vision work.</p>
-  </div>
-  <div class="card">
-    <h3>ARLO knows what you own <span class="pill">later</span></h3>
-    <p>One slow scroll through the stash teaches ARLO your inventory. From then on it keeps count as you loot and sell, and tells you when a category looks wrong and deserves another scroll.</p>
-    <p class="when">Phase 5. Local only, nothing leaves your machine.</p>
-  </div>
-  <div class="card">
-    <h3>It reads your progress too <span class="pill">later</span></h3>
-    <p>Open a workshop or project page once and ARLO reads which tiers are done, so "keep 3" turns into "keep 1 more". Until then, a small manual setting does the same job.</p>
-    <p class="when">Phase 6. Needs screenshots of your project pages.</p>
-  </div>
-</div>
+  <div class="capacity"><b>1 / 7</b>phases extracted</div>
+</header>
 
-<h2>Happening right now</h2>
-<div class="now">
-  <p><b>Phase 1 is ready for you to try.</b> Run the overlay from the new branch, open your stash, and hover an item that recycles. The price chip should sit on the "Can be found in" row and the recycle chip under the icons. The work passed two rounds of independent review and 91 automated tests, including a run against your own screenshot.</p>
-  <p><b>Roman numerals are fixed as far as we can tell without you.</b> Your June log shows the old mistakes: "ANVIL 1l", "ARPEGGIO |V", and "ARPEGGIO V" nine times for an Arpeggio IV. The new code checks the catalog (there is no Arpeggio V, and the read contains a V, so it must be IV) and counts the strokes in the picture of the numeral. It passed review with no findings. The stroke counter has only seen synthetic shapes so far, which is where you come in: set <code>CAPTURE_LIBRARY=true</code>, hover every tiered weapon you own a few times each, and the folder that fills up becomes the test set we measure and tune against.</p>
-  <p><b>The data for better advice is gathered and loaded.</b> Every quest, expedition project, and workshop level that needs items is now one list of 289 rows inside ARLO's database, including all nine Frozen Trail quests and the Outpost levels. It matches your cheatsheet line for line where we checked. The item catalog also grew from 606 to 1,109 entries, so the Frozen Trail items like Bully Fragmenter and Emperor Modulator are known now. The recycle chip can say "home only" for real: Power Bank's home bonus is 2 Wires.</p>
-  <p><b>The risky part of phase 4 looks fine, and you can confirm it in a minute.</b> A small script draws a transparent, click-through test pattern over the whole screen the same way the popup already works. It ran on your desktop without the game. With the game open, run it and tell me whether the amber rectangle shows over the game and clicks still reach the game.</p>
-  <p><b>Three lines are yours to add</b> in .env.example, since agents are not allowed to touch env files: <code>TOOLTIP_CHIPS=true</code>, <code>CAPTURE_LIBRARY=false</code>, and <code>CAPTURE_LIBRARY_DIR=debug/captures</code>.</p>
-</div>
+<section class="counts" aria-label="Where things stand">
+  <div><b>1 / 7</b><span>phases extracted</span><small>phase 0 done</small></div>
+  <div><b>~65%</b><span>of phase 1 done</span><small>6 of 11 steps, weighted by effort</small></div>
+  <div><b>157</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>125</b><span>captures from your first run</span><small>7 held a card, all 7 read right</small></div>
+</section>
 
-<h2>Five things we learned today</h2>
-<div class="story">
-  <div><div class="n">1</div><div><p><b>ARLO has been flying blind on recycling since April.</b> The database key it used for recycle data was revoked on 2026-04-02. Every weekly update since then quietly fell back to the wiki. Nobody noticed because the wiki mostly agrees. The feed is now replaced.</p></div></div>
-  <div><div class="n">2</div><div><p><b>Quest needs never made it into the database.</b> The quest reader looked for a field the API does not have, so it found nothing, every time. The "After Rain Comes" line you see today came from wiki prose, not from the quest feed. Also fixed.</p></div></div>
-  <div><div class="n">3</div><div><p><b>Your instinct about recycling was right, and it has a name.</b> In a raid the action is called Salvage and it uses its own table, usually a smaller one. Power Bank gives 2 Battery and 2 Wires at home but only 2 Battery in the field. Both tables are public, and three independent sources agree on them for almost every item.</p></div></div>
-  <div><div class="n">4</div><div><p><b>ARC Tracker is a vision pipeline, and we can borrow the shape without the code.</b> A detector finds every slot, a learned model names the icon, a guided stash scroll builds a ledger, and it only scans when the stash is open and still. Their trick we get for free: when the tooltip names an item, remember what its icon looked like. ARLO already reads the tooltip.</p></div></div>
-  <div><div class="n">5</div><div><p><b>Badges on every cell are the one risky piece on Wayland.</b> Dozens of little windows will not do. We need one transparent click-through layer over the game, which the current toolkit cannot draw. A short experiment decides the approach before any badge code is written.</p></div></div>
-</div>
+<ol class="course">
 
-<h2>The plan, phase by phase</h2>
-<ol class="ladder">
-  <li class="done">
-    <h3>0 · Look before building <span class="pill done">done</span></h3>
-    <p>We surveyed ARLO's code, took apart the ARC Tracker app to see how it works, and checked every public data source for prices, recycling, quests, projects, and workshop levels. Every claim in the design has a source behind it.</p>
-    <p class="state">Finished 2026-10-11. The design document is in the repo.</p>
+  <li class="phase">
+    <div class="slot done">0</div>
+    <article class="card" data-tab="Phase 0">
+      <div class="tags"><span class="tag done">Extracted</span><span class="dates">11 Oct</span></div>
+      <h2>Look before building</h2>
+      <p>We surveyed ARLO's code, took apart the ARC Tracker app to learn how it works, and checked every public source for prices, recycling, quests, projects, and workshop levels. Every claim in the design has evidence behind it.</p>
+      <details>
+        <summary><span class="chev">▸</span><span class="show">Show the 4 steps</span><span class="hide">Hide the 4 steps</span></summary>
+        <ul class="steps">
+          <li class="done"><span class="tick">✓</span><span class="what">Code survey<small>How the scanner, popup, database, and capture work today</small></span><span class="when">11 Oct</span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">ARC Tracker teardown<small>A detector plus a learned icon model, OCR only for text. Ideas only, the app is all rights reserved</small></span><span class="when">11 Oct</span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Data sources checked<small>Found the recycle feed dead since April and the quest reader broken. Chose ARC Tracker's public API, MetaForge for workshop levels</small></span><span class="when">11 Oct</span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Design written<small>In the repo under docs, phase 1 in full, later phases outlined</small></span><span class="when">11 Oct</span></li>
+        </ul>
+      </details>
+    </article>
   </li>
-  <li class="doing">
-    <h3>1 · Chips on the tooltip <span class="pill doing">ready to try</span></h3>
-    <p>When you hover an item, the sell price appears on the "Can be found in" row and the recycle bonus you only get at home appears under the "Recycles into" icons. Behind the scenes, ARLO now keeps home and field recycling as two separate lists, and the weekly data update was repaired so those lists stay current on their own.</p>
-    <p class="state">Built, reviewed twice, and waiting for one thing: you, with the game open.</p>
+
+  <li class="phase" id="phase1">
+    <div class="slot now">1</div>
+    <article class="card" data-tab="Phase 1 · topside now">
+      <div class="tags"><span class="tag now">Underway</span><span class="dates">from 11 Oct</span></div>
+      <h2>Hover an item and read the whole story</h2>
+      <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber. Your words: <em>"Next to 'can be found in' on the right hand side, show 'sells for'. Next to 'recycles into' icons, add the additional items the item recycles into."</em></p>
+      <div class="gauge" aria-label="Phase 1 about 65 percent done">
+        <div class="bar"><i style="width:65%"></i></div>
+        <div class="read">~65%<small>6 of 11 steps</small></div>
+      </div>
+      <div class="split">
+        <div>
+          <h3>Done</h3>
+          <ul class="steps">
+            <li class="done"><span class="tick">✓</span><span class="what">The two chips and the geometry that places them<small>Finds the cream card and its labels, anchors the price to the label when the card is cut off</small></span><span class="when">11 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Home and field recycling kept apart<small>Power Bank: 2 Battery and 2 Wires at home, 2 Battery in the field</small></span><span class="when">11 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Weekly data feed repaired<small>Dead feed replaced, quest reader fixed, the weekly job installs what it needs</small></span><span class="when">11 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Roman numerals resolved from the catalog and the picture<small>"ARPEGGIO V" becomes Arpeggio IV, strokes are counted in the numeral itself</small></span><span class="when">11 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">New data loaded, catalog grown to 1,109 items<small>Frozen Trail items known, database stable on open</small></span><span class="when">11 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">First capture session measured<small>7 of 7 captures with a card read right, the vote said IV at 0.88 on the real font</small></span><span class="when">11 Oct</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Ahead, in order</h3>
+          <ul class="steps">
+            <li class="next"><span class="tick">▸</span><span class="what">Find the card anywhere on screen<small>99 of your captures held no card because the fixed box missed it. A search around the cursor replaces the box</small></span><span class="when recent">started 11 Oct</span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Your live check of the chips<small>Hover a Power Bank, tell me where the chips land and what the game's own recycle row shows</small></span><span class="when"></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Capture run for tiers I to III<small>So the stroke counter is tuned on every numeral, not only IV</small></span><span class="when"></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Decide the recycle chip label<small>"home only" if the game shows the field result, "field only" if it shows home</small></span><span class="when"></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">OCR engine trial<small>Only if accuracy still falls short after the captures</small></span><span class="when"></span></li>
+          </ul>
+        </div>
+      </div>
+    </article>
   </li>
-  <li class="doing">
-    <h3>1a · Roman numerals, done right <span class="pill doing">ready to try</span></h3>
-    <p>Tiered weapons like Anvil II or Arpeggio IV are identified correctly even when the text reader drops a stroke. ARLO now knows which tiers exist for each weapon, and it counts the strokes in the picture of the numeral as a second opinion. A capture library lets you record real tooltips by hovering, so we measure the improvement instead of guessing.</p>
-    <p class="state">Built and reviewed. The stroke counter has only seen synthetic shapes, so your captures are the next step.</p>
+
+  <li class="phase" id="phase2">
+    <div class="slot now">2</div>
+    <article class="card" data-tab="Phase 2 · topside now">
+      <div class="tags"><span class="tag now">Underway</span><span class="dates">from 11 Oct</span></div>
+      <h2>Advice with a reason</h2>
+      <p>Instead of a bare "Keep", the popup says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell. Your words: <em>"1 of any kind of weapon shouldn't be recycled, especially if you don't have the blueprint."</em></p>
+      <div class="gauge" aria-label="Phase 2 about 22 percent done">
+        <div class="bar"><i style="width:22%"></i></div>
+        <div class="read">~22%<small>1 of 5 steps</small></div>
+      </div>
+      <div class="split">
+        <div>
+          <h3>Done</h3>
+          <ul class="steps">
+            <li class="done"><span class="tick">✓</span><span class="what">The needs list<small>289 rows: every quest, project phase, and workshop level that wants items, all nine Frozen Trail quests and the Outpost included. Matches your cheatsheet where checked</small></span><span class="when">11 Oct</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Ahead, in order</h3>
+          <ul class="steps">
+            <li class="next"><span class="tick">▸</span><span class="what">The verdict engine, with the weapon rule<small>Active needs minus your progress, a reason naming the sources, keep at least one of every weapon</small></span><span class="when recent">started 11 Oct</span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Popup overhaul<small>Verdict word colored by the verdict, the catalog name instead of the raw read, home recycle outputs on the notes line</small></span><span class="when recent">changed 11 Oct</span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Manual progress file<small>Your bench levels, finished quests, and project phases, until phase 6 reads them</small></span><span class="when"></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
+          </ul>
+        </div>
+      </div>
+    </article>
   </li>
-  <li class="doing">
-    <h3>2 · Advice with a reason <span class="pill doing">half done</span></h3>
-    <p>ARLO now has the list of every quest, expedition project, and workshop level that needs an item, including Scrappy, Gunsmith, the Research Station, and the Outpost. From that it will tell you "Keep 3 for Gunsmith IV, then sell" instead of just "Keep", and the popup gets its overhaul.</p>
-    <p class="state">The data is gathered and reviewed. The advice engine and the new popup come next, after the chips are confirmed working in game.</p>
+
+  <li class="phase">
+    <div class="slot">3</div>
+    <article class="card" data-tab="Phase 3">
+      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phase 1</span></div>
+      <h2>Read the grid</h2>
+      <p>ARLO finds every slot in your open stash and recognizes the icon in each one, without you hovering. Your question about recognition settled the approach: <em>"OpenCV sounds like the frontier option for this work."</em> Answer: OpenCV for the geometry, a learned model for icon identity, OCR stays for text. <span class="when recent">changed 11 Oct</span></p>
+      <h3>Will contain</h3>
+      <ul class="will">
+        <li>A fingerprint baseline first, expected to fail on lookalikes, which is the evidence for the model</li>
+        <li>Slot lattice from edges and contours, frame stillness check</li>
+        <li>An embedding model over a gallery of the item icons, plus crops learned from your hovering</li>
+        <li>Tier numerals on icons by glyph matching, stack counts by OCR</li>
+      </ul>
+    </article>
   </li>
-  <li>
-    <h3>3 · Read the grid</h3>
-    <p>ARLO will find every slot in your open stash and recognize the icon in each one, without you hovering. Slots are found with classic image processing. Icons are recognized by a small learned model that compares each icon against a reference set, including crops learned from your own hovering. A simpler fingerprint approach is tried first as a baseline, and is expected to fail on lookalikes, which is what justifies the model.</p>
-    <p class="state">Not started. Needs phase 1.</p>
+
+  <li class="phase">
+    <div class="slot">4</div>
+    <article class="card" data-tab="Phase 4">
+      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phases 2 and 3</span></div>
+      <h2>Badges on every cell</h2>
+      <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
+      <ul class="steps">
+        <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Your run with the game open<small>Decides the drawing mode. The Wayland-native mode needs one package you would install</small></span><span class="when"></span></li>
+      </ul>
+      <h3>Will contain</h3>
+      <ul class="will">
+        <li>Badge drawing from the verdicts and the grid</li>
+        <li>Hide while the grid moves, redraw when it settles</li>
+      </ul>
+    </article>
   </li>
-  <li class="doing">
-    <h3>4 · Badges on every cell <span class="pill doing">experiment ready</span></h3>
-    <p>Every recognized slot gets a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland. A test script now does that the same way the popup works, and it ran on your desktop. A Wayland-native variant exists too but needs one system package you would install.</p>
-    <p class="state">Experiment built. Your run with the game open decides the approach. The badges themselves need phases 2 and 3.</p>
+
+  <li class="phase">
+    <div class="slot">5</div>
+    <article class="card" data-tab="Phase 5">
+      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phase 3</span></div>
+      <h2>ARLO knows what you own</h2>
+      <p>One slow scroll through the stash teaches ARLO your inventory. Your words: <em>"Maybe when my hotkey opens the inventory, you start watching and updating a local database of my inventory?"</em> Local only, nothing leaves your machine.</p>
+      <h3>Will contain</h3>
+      <ul class="will">
+        <li>Guided stash scroll, anchored on the stash header count so rows are not double counted</li>
+        <li>Deltas from later scans as you loot and sell</li>
+        <li>An "unsure" flag on a category when the numbers stop adding up</li>
+      </ul>
+    </article>
   </li>
-  <li>
-    <h3>5 · The stash ledger</h3>
-    <p>One slow scroll through your stash teaches ARLO what you own. The stash header count anchors the scroll so rows are not double counted. After that, ARLO keeps the count current from what it sees, and flags a category as unsure when the numbers stop adding up.</p>
-    <p class="state">Not started. Needs phase 3.</p>
+
+  <li class="phase">
+    <div class="slot">6</div>
+    <article class="card" data-tab="Phase 6">
+      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phases 2 and 5</span></div>
+      <h2>It reads your progress too</h2>
+      <p>Open a workshop or project page once and ARLO reads which tiers are done, so "keep 3" turns into "keep 1 more". Your words: <em>"You might need to know how the project pages are laid out and infer what progress is made per project."</em></p>
+      <h3>Will contain</h3>
+      <ul class="will">
+        <li>Screenshots of your workshop and project pages at your resolution, from you</li>
+        <li>A reader for the workshop overview and station pages</li>
+        <li>A reader for project pages and the quest list</li>
+      </ul>
+    </article>
   </li>
-  <li>
-    <h3>6 · Progress from the screen</h3>
-    <p>ARLO will read your workshop and project pages when you open them, so the advice counts down as you upgrade. Until then, a manual setting for your current levels does the same job.</p>
-    <p class="state">Not started. Needs phases 2 and 5, plus screenshots of your project pages at your resolution.</p>
-  </li>
+
 </ol>
 
-<h2>Calls that are yours to make</h2>
-<ul>
-  <li><b>Which recycle row does the game show?</b> The chip assumes the tooltip shows the field result and amber marks the home bonus. If the game shows the home result instead, the label flips to "field only" with the same data. One hover on a Power Bank settles it.</li>
-  <li><b>Expeditions 1 to 4 are over.</b> The data has their needs with dates. Show them, hide them, or hide anything that has ended by default?</li>
+<h2 class="section">Calls that are yours to make</h2>
+<ul class="plain">
+  <li><b>Which recycle row does the game show?</b> One hover on a Power Bank settles the chip label.</li>
+  <li><b>Expeditions 1 to 4 are over.</b> Show them, hide them, or hide anything ended by default? Hidden by default until you say.</li>
   <li><b>Some project phases ask for coins, not items.</b> Skip them, or show "fund 50,000 ₡" as a line?</li>
-  <li><b>Project page screenshots</b> at your resolution unlock phase 6. Any time before then is fine.</li>
-  <li><b>One optional package.</b> Installing gtk4-layer-shell lets the overlay experiment try the Wayland-native mode next to the X11 mode. Not required if the X11 mode works over the game.</li>
+  <li><b>One optional package.</b> Installing gtk4-layer-shell lets the overlay experiment try the Wayland-native mode too.</li>
+  <li><b>Three lines in .env.example</b>, which agents cannot touch: <code>TOOLTIP_CHIPS=true</code>, <code>CAPTURE_LIBRARY=false</code>, <code>CAPTURE_LIBRARY_DIR=debug/captures</code>.</li>
 </ul>
 
-<details>
-<summary>Technical notes, for when you want them</summary>
-<p><b>How ARLO works today.</b> A scanner thread reads a fixed screen region for the word INVENTORY every half second. When it sees it, it reads a crop next to the cursor every 0.3 seconds to get the hovered item's name. The crop is masked to the tooltip's cream background, which is why finding the tooltip rectangle was cheap. One click-through popup draws the result in a corner. The database has six columns per item, and quest, project, and workshop needs lived only as wiki prose in one text field. On Wayland the capture keeps the latest full frame in memory, so a full-screen grab costs one crop. 91 tests pass.</p>
-<p><b>What recognition each tool uses.</b> ARLO uses Tesseract OCR for everything and no image library. ARC Tracker 2.3.2 uses a YOLO11 slot detector and a DINOv2 embedding gallery of 1,416 crops over 915 items for icons, a separate weapon tier classifier, glyph reading for stack counts, and rarity from the colored disc, with OCR only for tooltip titles and progress pages. OpenCV is in its bundle as plumbing: letterboxing, batch preparation, slot bounds, and finding the tooltip card. The decision for ARLO: OpenCV for geometry and gating, an embedding model for icon identity, OCR for text.</p>
-<p><b>Data sources chosen.</b> ARC Tracker's public JSON API for items (price, stack, rarity, recycle and salvage maps, stable icon URLs), quests (all nine Frozen Trail quests with structured needs), and projects (Expedition 1 to 5 with dates). MetaForge for workshop levels, the only source with Outpost 1 to 4. The wiki stays as fallback. Twelve recycle rows disagree between the APIs and the wiki, and Anvil and Arpeggio tiers look swapped between them, which wants an in-game check.</p>
-<p><b>Roman numerals.</b> Rarity was checked as a tier signal and rejected: Anvil I through IV are all Rare, because rarity belongs to the base weapon. The fix uses the catalog of 112 tiered names (some bases also exist untiered, such as Rascal) and a stroke count from the numeral's own pixels.</p>
-<div class="tbl"><table>
-<tr><th>Need</th><th>Source</th><th>Note</th></tr>
-<tr><td>Price, stack, rarity, recycle, salvage, icons</td><td>arctracker.io /api/items</td><td>One call, stable ids, MIT data set</td></tr>
-<tr><td>Quest needs</td><td>arctracker.io /api/quests</td><td>Only source with Frozen Trail quest items</td></tr>
-<tr><td>Workshop levels</td><td>MetaForge /hideout</td><td>Only source with Outpost</td></tr>
-<tr><td>Projects</td><td>arctracker.io /api/projects</td><td>Expedition 1 to 5 with start and end dates</td></tr>
-</table></div>
-</details>
-
-<details>
-<summary>Log</summary>
+<h2 class="section">Raid log</h2>
 <ul class="log">
-  <li><time>10-11</time>Brought the checkout up to date with upstream. Unpacked the ARC Tracker 2.3.2 installer. Started three investigations.</li>
-  <li><time>10-11</time>Finished the code survey. Needs were unstructured, the popup could already be moved, and full-frame capture on Wayland is cheap.</li>
-  <li><time>10-11</time>Finished the ARC Tracker teardown. Mapped its vision pipeline, its badges, and its stash ledger. Flagged the Wayland overlay layer as the main risk.</li>
-  <li><time>10-11</time>Finished the data-source research. Found the dead recycle feed and the broken quest reader. Confirmed recycle versus salvage in three sources. Chose ARC Tracker's public API as the main source.</li>
-  <li><time>10-11</time>Wrote the design document. Started building phase 1 and the data feed repair side by side.</li>
-  <li><time>10-11</time>Phase 1 built with 19 new tests. The data feed repaired. Both passed two rounds of external review and were merged onto one branch with 91 tests passing. The roadmap plan and this page are now kept in the repo.</li>
-  <li><time>10-11</time>Answered the recognition question and reshaped phase 3 around it. Added the Roman numeral item, mined the evidence from the June log, and started building it. Started gathering the needs data for phase 2.</li>
-  <li><time>10-11</time>Roman numerals built with 38 new tests and accepted in review with no findings. The needs data built, accepted with no findings, and merged. The branch now has 146 passing tests and two things for you to try: the tooltip chips and the capture library.</li>
-  <li><time>10-11</time>The new recycle and needs data now load into the database, the catalog refreshed to 1,109 items, and the weekly update was fixed to keep all of it current. Accepted in review. The overlay-surface experiment for phase 4 built and ran on the desktop. 157 tests pass. The external reviewer's quota is spent until Monday early morning.</li>
+  <li><time>11 Oct</time><span>Checkout brought up to date with upstream. ARC Tracker installer unpacked. Three investigations launched and finished the same day.</span></li>
+  <li><time>11 Oct</time><span>Design written. Phase 1 chips and the data feed repair built side by side, each through two rounds of external review, then merged. 91 tests.</span></li>
+  <li><time>11 Oct</time><span>Recognition question answered. Roman numerals built and accepted. Needs data built and accepted. 146 tests.</span></li>
+  <li><time>11 Oct</time><span>New data loaded into the database, catalog refreshed to 1,109 items, weekly job fixed. Overlay layer experiment built and ran on the desktop. 157 tests. The external reviewer's quota is spent until Monday early morning.</span></li>
+  <li><time>11 Oct</time><span>Your first capture session: 125 captures, 7 held a card and all 7 read right. The other 99 held no card, so "find the card anywhere" was added and started. Your Anvil IV screenshot added the weapon rule and the catalog-name fix to phase 2.</span></li>
 </ul>
-</details>
+
+<div class="legend" aria-label="Key">
+  <span><i class="l-done"></i>Green corner: phase extracted</span>
+  <span><i class="l-now"></i>Amber glow: topside now</span>
+  <span><i class="l-ahead"></i>Grey slot: next raid</span>
+  <span><i class="l-recent">11 Oct</i>Amber date: added, moved, changed or started in the last 14 days</span>
+  <span>Click "Show the steps" on an extracted phase to see what it took</span>
+  <span>Percent done is weighted by effort, the step count sits beside it</span>
+</div>
 </div>
