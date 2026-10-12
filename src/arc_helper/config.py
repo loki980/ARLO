@@ -284,6 +284,21 @@ class Settings(BaseSettings):
         return self.database_path.parent / "needs.csv"
 
     @property
+    def blueprints_csv_path(self) -> Path:
+        """blueprints.csv, the blueprint catalog, next to the database."""
+        return self.database_path.parent / "blueprints.csv"
+
+    @property
+    def blueprint_grid_csv_path(self) -> Path:
+        """blueprint_grid.csv, the Collections grid order, next to the database."""
+        return self.database_path.parent / "blueprint_grid.csv"
+
+    # Downloaded blueprint icons, never committed
+    icon_cache_dir: Path = Field(
+        default_factory=lambda: APP_DIR / "cache" / "icons" / "blueprints"
+    )
+
+    @property
     def progress_csv_path(self) -> Path:
         """progress.csv, the player's own progress, next to items.csv."""
         return self.database_path.parent / "progress.csv"

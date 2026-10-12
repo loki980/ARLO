@@ -8,6 +8,8 @@ import difflib
 import re
 import sqlite3
 import string
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -29,6 +31,8 @@ NEED_KINDS = ("quest", "project", "workshop")
 RECYCLE_OUTPUTS_CSV_NAME = "recycle_outputs.csv"
 NEEDS_CSV_NAME = "needs.csv"
 PROGRESS_CSV_NAME = "progress.csv"
+BLUEPRINTS_CSV_NAME = "blueprints.csv"
+BLUEPRINT_GRID_CSV_NAME = "blueprint_grid.csv"
 USER_DB_NAME = "arlo_user.db"
 
 # "2x Metal Parts", "2 X Metal Parts", "2xMetal Parts"
@@ -82,6 +86,24 @@ class Need(NamedTuple):
     quantity: int
     starts: str | None
     ends: str | None
+
+
+class Blueprint(NamedTuple):
+    """One catalog blueprint, with where the wiki says it is found."""
+
+    name: str
+    item_id: str | None
+    unlocks: str | None
+    icon_url: str | None
+    map: str | None
+    map_condition: str | None
+    scavengable: str | None
+    containers: str | None
+    quest_reward: str | None
+    trials_reward: str | None
+
+
+BLUEPRINT_COLUMNS = ", ".join(Blueprint._fields)
 
 
 def _optional_int(text: str | None) -> int | None:
@@ -195,6 +217,53 @@ def read_progress_csv(path: Path) -> list[tuple[str, str, int]]:
     return rows
 
 
+def read_blueprints_csv(path: Path) -> list[Blueprint]:
+    """Parse blueprints.csv into Blueprint rows.
+
+    Rows without a name and repeats of a name already seen are skipped with
+    a debug log. Empty cells become None.
+    """
+    rows: list[Blueprint] = []
+    seen: set[str] = set()
+    with Path(path).open(encoding="utf-8", newline="") as f:
+        for raw in csv.DictReader(f):
+            name = (raw.get("name") or "").strip()
+            key = name.translate(_NOCASE)
+            if not name or key in seen:
+                logger.debug(f"Skipping blueprints.csv row: {raw!r}")
+                continue
+            seen.add(key)
+            rows.append(
+                Blueprint(
+                    name,
+                    *(_optional_text(raw.get(f)) for f in Blueprint._fields[1:]),
+                )
+            )
+    return rows
+
+
+def read_blueprint_grid_csv(path: Path) -> list[tuple[int, str | None]]:
+    """Parse blueprint_grid.csv into (grid_index, name or None) rows.
+
+    Rows whose grid_index is not a positive integer and repeats of an index
+    already seen are skipped with a debug log.
+    """
+    rows: list[tuple[int, str | None]] = []
+    seen: set[int] = set()
+    with Path(path).open(encoding="utf-8", newline="") as f:
+        for raw in csv.DictReader(f):
+            try:
+                index = int((raw.get("grid_index") or "").strip())
+            except ValueError:
+                index = 0
+            if index < 1 or index in seen:
+                logger.debug(f"Skipping blueprint_grid.csv row: {raw!r}")
+                continue
+            seen.add(index)
+            rows.append((index, _optional_text(raw.get("name"))))
+    return rows
+
+
 def parse_recycle_for(text: str | None) -> list[tuple[str, int]]:
     """Parse a recycle_for string into (component, quantity) pairs.
 
@@ -235,6 +304,8 @@ class Database:
         needs_csv: Path | None = None,
         progress_csv: Path | None = None,
         user_db_path: Path | None = None,
+        blueprints_csv: Path | None = None,
+        blueprint_grid_csv: Path | None = None,
     ):
         """Initialize database connection.
 
@@ -250,16 +321,22 @@ class Database:
             default_needs = settings.needs_csv_path
             default_progress = settings.progress_csv_path
             default_user_db = settings.user_database_path
+            default_blueprints = settings.blueprints_csv_path
+            default_grid = settings.blueprint_grid_csv_path
         else:
             default_outputs = Path(db_path).parent / RECYCLE_OUTPUTS_CSV_NAME
             default_needs = Path(db_path).parent / NEEDS_CSV_NAME
             default_progress = Path(db_path).parent / PROGRESS_CSV_NAME
             default_user_db = Path(db_path).parent / USER_DB_NAME
+            default_blueprints = Path(db_path).parent / BLUEPRINTS_CSV_NAME
+            default_grid = Path(db_path).parent / BLUEPRINT_GRID_CSV_NAME
         self.db_path = db_path
         self.recycle_outputs_csv = Path(recycle_outputs_csv or default_outputs)
         self.needs_csv = Path(needs_csv or default_needs)
         self.progress_csv = Path(progress_csv or default_progress)
         self.user_db_path = Path(user_db_path or default_user_db)
+        self.blueprints_csv = Path(blueprints_csv or default_blueprints)
+        self.blueprint_grid_csv = Path(blueprint_grid_csv or default_grid)
         self._user_db_ready = False
         self._tier_index: dict[str, dict[str, str]] = {}
         self._init_db()
@@ -333,6 +410,28 @@ class Database:
                     starts TEXT NULL,
                     ends TEXT NULL,
                     PRIMARY KEY (item, source_kind, source_name, tier)
+                )
+            """)
+
+            # Blueprint catalog and Collections grid order, from the CSVs
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS blueprints (
+                    name TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
+                    item_id TEXT,
+                    unlocks TEXT,
+                    icon_url TEXT,
+                    map TEXT,
+                    map_condition TEXT,
+                    scavengable TEXT,
+                    containers TEXT,
+                    quest_reward TEXT,
+                    trials_reward TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS blueprint_grid (
+                    grid_index INTEGER PRIMARY KEY,
+                    name TEXT NULL COLLATE NOCASE
                 )
             """)
 
@@ -463,6 +562,13 @@ class Database:
                     PRIMARY KEY (source_kind, source_name)
                 )
             """)
+            # Blueprints the player has found, with when ARLO recorded it
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS blueprint_owned (
+                    name TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
+                    found_at TEXT NOT NULL
+                )
+            """)
             conn.commit()
             self._user_db_ready = True
         return conn
@@ -506,12 +612,121 @@ class Database:
             ).fetchall()
         return {(row[0], row[1]): row[2] for row in rows}
 
+    def load_blueprints_csv(self, path: Path | str) -> bool:
+        """Replace all blueprints rows with the CSV rows.
+
+        Writes nothing when the stored rows already match. Returns True when
+        the table changed.
+        """
+        rows = read_blueprints_csv(Path(path))
+        placeholders = ", ".join("?" * len(Blueprint._fields))
+        with self._get_connection() as conn:
+            stored = [
+                Blueprint._make(row)
+                for row in conn.execute(
+                    f"SELECT {BLUEPRINT_COLUMNS} FROM blueprints ORDER BY rowid"
+                )
+            ]
+            if stored == rows:
+                return False
+            conn.execute("DELETE FROM blueprints")
+            conn.executemany(
+                f"INSERT INTO blueprints ({BLUEPRINT_COLUMNS}) VALUES ({placeholders})",
+                rows,
+            )
+            conn.commit()
+        return True
+
+    def load_blueprint_grid_csv(self, path: Path | str) -> bool:
+        """Replace all blueprint_grid rows with the CSV rows.
+
+        Writes nothing when the stored rows already match. Returns True when
+        the table changed.
+        """
+        rows = read_blueprint_grid_csv(Path(path))
+        with self._get_connection() as conn:
+            stored = [
+                tuple(row)
+                for row in conn.execute(
+                    "SELECT grid_index, name FROM blueprint_grid ORDER BY rowid"
+                )
+            ]
+            if stored == rows:
+                return False
+            conn.execute("DELETE FROM blueprint_grid")
+            conn.executemany(
+                "INSERT INTO blueprint_grid (grid_index, name) VALUES (?, ?)", rows
+            )
+            conn.commit()
+        return True
+
+    def blueprint_catalog(self) -> list[Blueprint]:
+        """Every catalog blueprint, in CSV order (sorted by name)."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                f"SELECT {BLUEPRINT_COLUMNS} FROM blueprints ORDER BY rowid"
+            ).fetchall()
+        return [Blueprint._make(row) for row in rows]
+
+    def blueprint_at(self, grid_index: int) -> str | None:
+        """Catalog name in a Collections grid slot, None for unknown or absent."""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT name FROM blueprint_grid WHERE grid_index = ?", (grid_index,)
+            ).fetchone()
+        return row["name"] if row else None
+
+    def grid_index_of(self, name: str) -> int | None:
+        """Collections grid slot of a blueprint (ASCII case ignored), or None."""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT grid_index FROM blueprint_grid "
+                "WHERE name = ? COLLATE NOCASE ORDER BY grid_index LIMIT 1",
+                (name.strip(),),
+            ).fetchone()
+        return row["grid_index"] if row else None
+
+    def set_blueprint_owned(self, name: str, *, owned: bool) -> None:
+        """Record in the user database that a blueprint is found, or forget it.
+
+        Marking an already owned blueprint keeps its first found_at.
+        """
+        name = name.strip()
+        with self._get_user_connection() as conn:
+            if owned:
+                conn.execute(
+                    "INSERT OR IGNORE INTO blueprint_owned (name, found_at) "
+                    "VALUES (?, ?)",
+                    (name, datetime.now(UTC).isoformat(timespec="seconds")),
+                )
+            else:
+                conn.execute(
+                    "DELETE FROM blueprint_owned WHERE name = ? COLLATE NOCASE",
+                    (name,),
+                )
+            conn.commit()
+
+    def owned_blueprints(self) -> set[str]:
+        """Names of the blueprints marked found.
+
+        Empty, without creating the user database, when it does not exist.
+        """
+        if not self.user_db_path.exists():
+            return set()
+        with self._get_user_connection() as conn:
+            rows = conn.execute("SELECT name FROM blueprint_owned").fetchall()
+        return {row[0] for row in rows}
+
     def sync_from_csvs(self) -> None:
-        """Load recycle_outputs.csv, needs.csv and progress.csv, if they exist."""
+        """Load the recycle, needs, blueprint and progress CSVs that exist."""
         if self.recycle_outputs_csv.exists():
             self.load_recycle_outputs_csv(self.recycle_outputs_csv)
         if self.needs_csv.exists():
             self.load_needs_csv(self.needs_csv)
+        if self.blueprints_csv.exists():
+            self.load_blueprints_csv(self.blueprints_csv)
+        if self.blueprint_grid_csv.exists():
+            self.load_blueprint_grid_csv(self.blueprint_grid_csv)
         if self.progress_csv.exists():
             self.load_progress_csv(self.progress_csv)
 
