@@ -230,3 +230,6 @@ pages, project pages and the quest list.
 - The ruff baseline on master has 9 lint errors and 7 unformatted files
   outside the new code.
 - 158 items have no rarity because the API gives none.
+- The capture library should record the cursor position with each image
+  (sidecar or file name) so the evaluation script picks the same card the
+  live scanner did now that captures are full screen. Added 12 Oct.
