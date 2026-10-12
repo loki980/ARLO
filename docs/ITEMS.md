@@ -47,6 +47,27 @@ make update-db-merge    # Merge mode
 make update-db-dry      # Dry run preview
 ```
 
+### Item Needs (needs.csv)
+
+`needs.csv` sits next to `items.csv` and lists which quests, projects and workshop levels need which items, and how many. The updater regenerates it on every run, from `main()` and from the on-launch auto-update, and it is committed like `items.csv`. Each row is one item for one source:
+
+| Column | Description |
+|--------|-------------|
+| `item` | English item name |
+| `source_kind` | `quest`, `project` or `workshop` |
+| `source_name` | English quest, project or station name. Expeditions are named `Expedition 1` to `Expedition 5` |
+| `tier` | Workshop level or project phase number, empty for quests |
+| `quantity` | How many of the item that source needs |
+| `starts`, `ends` | ISO start and end dates for projects that have them, empty otherwise |
+
+Rows are sorted by `source_kind`, `source_name`, `tier` and `item`. Where each kind comes from:
+
+- **quest**: arctracker.io quests API (`https://arctracker.io/api/quests`), the `requiredItemIds` of each quest
+- **project**: arctracker.io projects API (`https://arctracker.io/api/projects`), the `requirementItemIds` of each phase. Coin-value phases have no item rows.
+- **workshop**: MetaForge hideout API (`/api/arc-raiders/hideout`), the only source with Outpost levels. Item ids are resolved to names through the MetaForge items list. The updater compares each station level with the arctracker.io hideout API (`https://arctracker.io/api/hideout`) and logs a warning where they disagree, without changing the rows.
+
+Item ids that do not resolve to an English name are skipped and counted. If any of the three sources fails, the updater logs a warning and leaves the existing `needs.csv` untouched. The wiki is not used for `needs.csv`.
+
 ### How Action Generation Works
 
 The updater auto-generates action recommendations based on item category and uses:
