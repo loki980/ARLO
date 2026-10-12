@@ -10,7 +10,9 @@ from .clickthrough import make_click_through
 from .config import get_dpi_scale
 from .config import get_screen_resolution
 from .config import get_settings
+from .database import HOME
 from .database import Item
+from .database import RecycleOutput
 from .screen import get_backend
 from .screen import phys_to_tk
 from .tooltip_layout import PRICE_CHIP
@@ -18,6 +20,8 @@ from .tooltip_layout import RECYCLE_CHIP
 from .tooltip_layout import Size
 from .tooltip_layout import TooltipLayout
 from .tooltip_layout import place_chips
+from .verdict import Verdict
+from .verdict import verdict_from_action
 
 # Action colors
 ACTION_COLORS: dict[str, str] = {
@@ -40,6 +44,32 @@ TEXT_INFO = "#c4a0ff"
 # in the neutral info color.
 RECYCLE_LABEL_HOME_ONLY = "HOME ONLY"
 RECYCLE_LABEL_HOME_RECYCLER = "HOME RECYCLER"
+
+
+def popup_title(item_name: str, recommendation: Item | None) -> str:
+    """The catalog name for a known item, the raw read for an unknown one."""
+    return recommendation.name if recommendation is not None else item_name
+
+
+def action_word(kind: str) -> str:
+    """The popup's action line for a verdict kind: KEEP, KEEP SOME, SELL."""
+    return kind.replace("_", " ").upper()
+
+
+def action_color(kind: str) -> str:
+    """ACTION_COLORS entry for a verdict kind. keep_some draws as KEEP."""
+    word = "KEEP" if kind == "keep_some" else kind.upper()
+    return ACTION_COLORS.get(word, ACTION_COLORS["UNKNOWN"])
+
+
+def popup_notes(recommendation: Item, home_outputs: list[RecycleOutput] | None) -> str:
+    """Home recycle outputs as 'Recycles into: N Name', else keep_for text."""
+    home = [o for o in home_outputs or [] if o.location == HOME]
+    if home:
+        return "Recycles into: " + ", ".join(
+            f"{o.quantity} {o.component}" for o in home
+        )
+    return recommendation.keep_for or ""
 
 
 class OverlayWindow:
@@ -130,6 +160,18 @@ class OverlayWindow:
         )
         self.action_label.pack(anchor="w", pady=(self._scale(4), 0))
 
+        # Reason line under the action (why keep, sell or recycle)
+        self.reason_label = tk.Label(
+            self.frame,
+            text="",
+            font=("Segoe UI", info_size),
+            fg="white",
+            bg=BG_PANEL,
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        self.reason_label.pack(anchor="w")
+
         # Sell price / stack size info line
         self.info_label = tk.Label(
             self.frame,
@@ -161,8 +203,19 @@ class OverlayWindow:
         )
         # Only packed when there's detail text (see show())
 
-    def show(self, item_name: str, recommendation: Item | None) -> None:
-        """Show the overlay with item info."""
+    def show(
+        self,
+        item_name: str,
+        recommendation: Item | None,
+        verdict: Verdict | None = None,
+        home_outputs: list[RecycleOutput] | None = None,
+    ) -> None:
+        """Show the overlay with item info.
+
+        verdict picks the action word, its color and the reason line. When
+        None it is derived from the item's action string. home_outputs are
+        the item's recycle_outputs rows for the notes line.
+        """
         # Skip redraw if same item already showing
         if self._current_item == item_name and self.is_visible():
             if self._hide_after_id:
@@ -176,53 +229,36 @@ class OverlayWindow:
         if self._hide_after_id:
             self.window.after_cancel(self._hide_after_id)
 
+        if verdict is None:
+            verdict = verdict_from_action(recommendation)
+
         # Update content
-        self.name_label.config(text=item_name)
+        self.name_label.config(text=popup_title(item_name, recommendation))
 
+        color = action_color(verdict.kind)
+        self.action_label.config(text=f"\u2192 {action_word(verdict.kind)}", fg=color)
+        self.accent_bar.config(bg=color)
+        self.reason_label.config(text=verdict.reason)
+
+        info_text = detail_text = ""
         if recommendation:
-            action_str = recommendation.action
-            action_upper = action_str.upper()
-
-            # Pick color: check for keywords in multi-word actions
-            color = "#FFFFFF"
-            for keyword, c in ACTION_COLORS.items():
-                if keyword in action_upper:
-                    color = c
-                    break
-
-            self.action_label.config(text=f"\u2192 {action_str}", fg=color)
-            self.accent_bar.config(bg=color)
-
             # Info line
             info_parts: list[str] = []
             if recommendation.sell_price is not None:
                 info_parts.append(f"Sell: {recommendation.sell_price:,}\u20a1")
             if recommendation.stack_size is not None:
                 info_parts.append(f"Stack: {recommendation.stack_size}")
-            self.info_label.config(text="    \u00b7    ".join(info_parts))
+            info_text = "    \u00b7    ".join(info_parts)
+            detail_text = popup_notes(recommendation, home_outputs)
+        self.info_label.config(text=info_text)
 
-            # Detail text
-            detail_text = ""
-            if "RECYCLE" in action_upper and recommendation.recycle_for:
-                detail_text = f"Recycles into: {recommendation.recycle_for}"
-            elif recommendation.keep_for:
-                detail_text = recommendation.keep_for
-
-            # Show or hide separator and notes based on content
-            self.separator.pack_forget()
-            self.notes_label.pack_forget()
-            if detail_text:
-                self.separator.pack(fill="x", pady=(self._scale(8), self._scale(6)))
-                self.notes_label.pack(anchor="w")
-                self.notes_label.config(text=detail_text)
-        else:
-            self.action_label.config(text="\u2192 UNKNOWN", fg=ACTION_COLORS["UNKNOWN"])
-            self.accent_bar.config(bg=ACTION_COLORS["UNKNOWN"])
-            self.info_label.config(text="")
-            self.separator.pack_forget()
-            self.notes_label.pack_forget()
-            self.notes_label.pack(anchor="w", pady=(self._scale(4), 0))
-            self.notes_label.config(text="Item not in database")
+        # Show or hide separator and notes based on content
+        self.separator.pack_forget()
+        self.notes_label.pack_forget()
+        if detail_text:
+            self.separator.pack(fill="x", pady=(self._scale(8), self._scale(6)))
+            self.notes_label.pack(anchor="w")
+            self.notes_label.config(text=detail_text)
 
         # Position and show
         self.window.geometry(
@@ -240,6 +276,7 @@ class OverlayWindow:
         ]
         max_width = max(*widths, self._scale(280))
         self.notes_label.config(wraplength=max_width)
+        self.reason_label.config(wraplength=max_width)
 
         # Auto-hide
         hide_ms = int(self.settings.overlay.display_time * 1000)

@@ -3,6 +3,7 @@ ARLO - Main Application.
 Coordinates OCR scanning and overlay display.
 """
 
+import datetime
 import queue
 import sys
 import threading
@@ -40,6 +41,8 @@ from arc_helper.overlay import StatusWindow
 from arc_helper.overlay import TooltipChips
 from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
+from arc_helper.verdict import Verdict
+from arc_helper.verdict import compute_verdict
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
 
@@ -332,8 +335,10 @@ class Scanner:
             # Log to missing items file for easier database updates
             self.db.log_missing_item(item_name)
 
+        verdict = self._verdict_for(recommendation, settings.show_ended_projects)
+
         # Show overlay (must be done on main thread)
-        self._show_overlay(item_name, recommendation)
+        self._show_overlay(item_name, recommendation, verdict)
 
         if settings.overlay.tooltip_chips:
             self._queue_chips(recommendation)
@@ -342,9 +347,36 @@ class Scanner:
         self._last_shown_item = item_name
         self._last_shown_time = current_time
 
-    def _show_overlay(self, item_name: str, recommendation: Item | None) -> None:
+    def _verdict_for(self, recommendation: Item | None, show_ended: bool) -> Verdict:  # noqa: FBT001
+        """Advice for the item from its needs and the recorded progress.
+
+        The owned count is unknown until the stash ledger exists. Project end
+        dates compare against the local date.
+        """
+        today = datetime.datetime.now().astimezone().date()
+        if recommendation is None:
+            return compute_verdict(None, [], {}, None, today, show_ended)
+        home = [
+            o
+            for o in self.db.recycle_outputs(recommendation.name)
+            if o.location == HOME
+        ]
+        return compute_verdict(
+            recommendation,
+            self.db.needs_for(recommendation.name),
+            self.db.progress_map(),
+            None,
+            today,
+            show_ended,
+            blueprint=self.db.blueprint_for(recommendation.name),
+            home_outputs=home,
+        )
+
+    def _show_overlay(
+        self, item_name: str, recommendation: Item | None, verdict: Verdict
+    ) -> None:
         """Queue an overlay update for the main (GUI) thread to apply."""
-        self.ui_queue.put(("overlay", item_name, recommendation))
+        self.ui_queue.put(("overlay", item_name, recommendation, verdict))
 
     def _queue_chips(self, recommendation: Item | None) -> None:
         """Locate the tooltip and queue the chips for the current item.
@@ -439,7 +471,13 @@ class Application:
                 if msg[0] == "status":
                     self._apply_status(msg[1])
                 elif msg[0] == "overlay":
-                    self.overlay.show(msg[1], msg[2])
+                    _, item_name, recommendation, verdict = msg
+                    home_outputs = (
+                        self.db.recycle_outputs(recommendation.name)
+                        if recommendation is not None
+                        else None
+                    )
+                    self.overlay.show(item_name, recommendation, verdict, home_outputs)
                 elif msg[0] == "chips" and self.chips is not None:
                     self.chips.show(msg[1], **msg[2])
                 elif msg[0] == "chips_hide" and self.chips is not None:
