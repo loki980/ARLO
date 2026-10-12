@@ -19,11 +19,17 @@ from arc_helper.tooltip_layout import Size
 from arc_helper.tooltip_layout import Word
 from arc_helper.tooltip_layout import find_cream_rect
 from arc_helper.tooltip_layout import find_label_rows
+from arc_helper.tooltip_layout import find_tooltip_card
 from arc_helper.tooltip_layout import place_chips
 from arc_helper.tooltip_layout import to_screen
 
 CREAM = (249, 238, 223)
 FIXTURE = Path(__file__).parent / "fixtures" / "battery_tooltip_capture.png"
+# Real 1031x1174 captures from the loadout screen. In the first the Anvil IV
+# card sits right of the loadout column over the backpack grid, cut off on
+# the right and bottom. The second has no card at all.
+ANVIL_FIXTURE = Path(__file__).parent / "fixtures" / "anvil_iv_loadout_capture.png"
+NO_CARD_FIXTURE = Path(__file__).parent / "fixtures" / "loadout_no_card_capture.png"
 
 
 def _line(text: str, line: int, left: int, top: int) -> list[Word]:
@@ -51,6 +57,44 @@ def test_cream_touching_right_edge_is_flagged_clipped():
 
 def test_no_cream_returns_none():
     assert find_cream_rect(np.full((200, 300, 3), 30, dtype=np.uint8)) is None
+
+
+def _fixture_rgb(path: Path) -> np.ndarray:
+    with Image.open(path) as image:
+        return np.array(image.convert("RGB"))
+
+
+def test_card_found_in_real_loadout_capture():
+    # Cursor over the loadout weapon, left of the card
+    card = find_tooltip_card(_fixture_rgb(ANVIL_FIXTURE), Point(300, 700))
+    assert card is not None
+    assert 450 <= card.left <= 520
+    # The darker ACTIONS tab is outside the cream bounds, so the card starts
+    # below it, at the cream body
+    assert 440 <= card.top <= 480
+    # The ANVIL IV name sits at about x 530 to 740, y 565 to 605
+    assert card.left < 530
+    assert card.right > 740
+    assert card.top < 565
+    assert card.bottom > 605
+
+
+def test_no_card_in_real_loadout_capture():
+    assert find_tooltip_card(_fixture_rgb(NO_CARD_FIXTURE), Point(300, 700)) is None
+
+
+def test_card_nearest_cursor_wins():
+    frame = np.zeros((600, 1200, 3), dtype=np.uint8)
+    frame[50:550, 700:1150] = CREAM  # large panel, far from the cursor
+    frame[100:400, 100:400] = CREAM  # card beside the cursor
+    assert find_tooltip_card(frame, Point(450, 250)) == Rect(100, 100, 400, 400)
+
+
+def test_cream_outline_is_not_a_card():
+    frame = np.zeros((400, 400, 3), dtype=np.uint8)
+    frame[50:350, 50:350] = CREAM
+    frame[60:340, 60:340] = 0  # only a 10 px frame stays cream
+    assert find_tooltip_card(frame, Point(200, 200)) is None
 
 
 def test_label_rows_tolerate_ocr_typo_and_divide_by_scale():

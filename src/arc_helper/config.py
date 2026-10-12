@@ -185,6 +185,24 @@ class TooltipCaptureSettings(BaseSettings):
     offset_y: int = Field(default=0, description="Y offset from cursor")
 
 
+class TooltipSearchSettings(BaseSettings):
+    """Window centred on the cursor that is searched for the item card."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="TOOLTIP_SEARCH_",
+        env_file=APP_DIR / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    width: int = Field(
+        default=2400, description="Width of the card search window (physical px)"
+    )
+    height: int = Field(
+        default=1600, description="Height of the card search window (physical px)"
+    )
+
+
 class OverlaySettings(BaseSettings):
     """Settings for the overlay window."""
 
@@ -242,6 +260,9 @@ class Settings(BaseSettings):
     tooltip_region: TooltipRegion = Field(default_factory=TooltipRegion)
     tooltip_capture: TooltipCaptureSettings = Field(
         default_factory=TooltipCaptureSettings
+    )
+    tooltip_search: TooltipSearchSettings = Field(
+        default_factory=TooltipSearchSettings
     )
     overlay: OverlaySettings = Field(default_factory=OverlaySettings)
     scan: ScanSettings = Field(default_factory=ScanSettings)
@@ -328,6 +349,10 @@ class Settings(BaseSettings):
             f"TOOLTIP_CAPTURE_HEIGHT={self.tooltip_capture.height}",
             f"TOOLTIP_CAPTURE_OFFSET_X={self.tooltip_capture.offset_x}",
             f"TOOLTIP_CAPTURE_OFFSET_Y={self.tooltip_capture.offset_y}",
+            "",
+            "# Item card search window, centred on the cursor",
+            f"TOOLTIP_SEARCH_WIDTH={self.tooltip_search.width}",
+            f"TOOLTIP_SEARCH_HEIGHT={self.tooltip_search.height}",
             "",
             "# Overlay settings",
             f"OVERLAY_X={self.overlay.x}",
