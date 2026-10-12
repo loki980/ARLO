@@ -200,7 +200,10 @@ class Scanner:
 
     def pause(self) -> None:
         """Pause scanning."""
+        was_active = self.state == ScannerState.ACTIVE
         self.state = ScannerState.PAUSED
+        if was_active:
+            self._hide_chips()
 
     def resume(self) -> None:
         """Resume scanning."""
