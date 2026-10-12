@@ -90,9 +90,9 @@ a{color:var(--accent)}
 
 <p class="asof">Status as of 2026-10-11, late evening. This page updates as work lands.</p>
 <div class="status">
-  <div><div class="big">2</div><div class="lab">Things ready for you to try</div></div>
+  <div><div class="big">3</div><div class="lab">Things ready for you to try</div></div>
   <div><div class="big">0</div><div class="lab">Pieces being built now</div></div>
-  <div><div class="big">146</div><div class="lab">Automated tests passing</div></div>
+  <div><div class="big">157</div><div class="lab">Automated tests passing</div></div>
   <div><div class="big">3 of 3</div><div class="lab">Investigations finished</div></div>
 </div>
 
@@ -133,7 +133,8 @@ a{color:var(--accent)}
 <div class="now">
   <p><b>Phase 1 is ready for you to try.</b> Run the overlay from the new branch, open your stash, and hover an item that recycles. The price chip should sit on the "Can be found in" row and the recycle chip under the icons. The work passed two rounds of independent review and 91 automated tests, including a run against your own screenshot.</p>
   <p><b>Roman numerals are fixed as far as we can tell without you.</b> Your June log shows the old mistakes: "ANVIL 1l", "ARPEGGIO |V", and "ARPEGGIO V" nine times for an Arpeggio IV. The new code checks the catalog (there is no Arpeggio V, and the read contains a V, so it must be IV) and counts the strokes in the picture of the numeral. It passed review with no findings. The stroke counter has only seen synthetic shapes so far, which is where you come in: set <code>CAPTURE_LIBRARY=true</code>, hover every tiered weapon you own a few times each, and the folder that fills up becomes the test set we measure and tune against.</p>
-  <p><b>The data for better advice is gathered.</b> Every quest, expedition project, and workshop level that needs items is now one list of 289 rows, including all nine Frozen Trail quests and the Outpost levels. It matches your cheatsheet line for line where we checked. Phase 2 reasons over it next.</p>
+  <p><b>The data for better advice is gathered and loaded.</b> Every quest, expedition project, and workshop level that needs items is now one list of 289 rows inside ARLO's database, including all nine Frozen Trail quests and the Outpost levels. It matches your cheatsheet line for line where we checked. The item catalog also grew from 606 to 1,109 entries, so the Frozen Trail items like Bully Fragmenter and Emperor Modulator are known now. The recycle chip can say "home only" for real: Power Bank's home bonus is 2 Wires.</p>
+  <p><b>The risky part of phase 4 looks fine, and you can confirm it in a minute.</b> A small script draws a transparent, click-through test pattern over the whole screen the same way the popup already works. It ran on your desktop without the game. With the game open, run it and tell me whether the amber rectangle shows over the game and clicks still reach the game.</p>
   <p><b>Three lines are yours to add</b> in .env.example, since agents are not allowed to touch env files: <code>TOOLTIP_CHIPS=true</code>, <code>CAPTURE_LIBRARY=false</code>, and <code>CAPTURE_LIBRARY_DIR=debug/captures</code>.</p>
 </div>
 
@@ -173,10 +174,10 @@ a{color:var(--accent)}
     <p>ARLO will find every slot in your open stash and recognize the icon in each one, without you hovering. Slots are found with classic image processing. Icons are recognized by a small learned model that compares each icon against a reference set, including crops learned from your own hovering. A simpler fingerprint approach is tried first as a baseline, and is expected to fail on lookalikes, which is what justifies the model.</p>
     <p class="state">Not started. Needs phase 1.</p>
   </li>
-  <li>
-    <h3>4 · Badges on every cell</h3>
-    <p>Every recognized slot gets a badge: owned over needed, colored by the advice, hidden while you scroll. First a short experiment proves we can draw one transparent click-through layer over the game on Wayland, because that is the risky part.</p>
-    <p class="state">Not started. Needs phases 2 and 3.</p>
+  <li class="doing">
+    <h3>4 · Badges on every cell <span class="pill doing">experiment ready</span></h3>
+    <p>Every recognized slot gets a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland. A test script now does that the same way the popup works, and it ran on your desktop. A Wayland-native variant exists too but needs one system package you would install.</p>
+    <p class="state">Experiment built. Your run with the game open decides the approach. The badges themselves need phases 2 and 3.</p>
   </li>
   <li>
     <h3>5 · The stash ledger</h3>
@@ -196,6 +197,7 @@ a{color:var(--accent)}
   <li><b>Expeditions 1 to 4 are over.</b> The data has their needs with dates. Show them, hide them, or hide anything that has ended by default?</li>
   <li><b>Some project phases ask for coins, not items.</b> Skip them, or show "fund 50,000 ₡" as a line?</li>
   <li><b>Project page screenshots</b> at your resolution unlock phase 6. Any time before then is fine.</li>
+  <li><b>One optional package.</b> Installing gtk4-layer-shell lets the overlay experiment try the Wayland-native mode next to the X11 mode. Not required if the X11 mode works over the game.</li>
 </ul>
 
 <details>
@@ -224,6 +226,7 @@ a{color:var(--accent)}
   <li><time>10-11</time>Phase 1 built with 19 new tests. The data feed repaired. Both passed two rounds of external review and were merged onto one branch with 91 tests passing. The roadmap plan and this page are now kept in the repo.</li>
   <li><time>10-11</time>Answered the recognition question and reshaped phase 3 around it. Added the Roman numeral item, mined the evidence from the June log, and started building it. Started gathering the needs data for phase 2.</li>
   <li><time>10-11</time>Roman numerals built with 38 new tests and accepted in review with no findings. The needs data built, accepted with no findings, and merged. The branch now has 146 passing tests and two things for you to try: the tooltip chips and the capture library.</li>
+  <li><time>10-11</time>The new recycle and needs data now load into the database, the catalog refreshed to 1,109 items, and the weekly update was fixed to keep all of it current. Accepted in review. The overlay-surface experiment for phase 4 built and ran on the desktop. 157 tests pass. The external reviewer's quota is spent until Monday early morning.</li>
 </ul>
 </details>
 </div>

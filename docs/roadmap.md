@@ -37,9 +37,14 @@ Items are numbered in build order. Each has the decision date and its state.
    table with a home and field column. Decided 2026-10-11. Built, reviewed
    (two rounds, accepted) and on the `overlay-extension` branch 2026-10-11.
    Awaiting the live check on the 4K Wayland setup before merging to master.
-4. **Load `recycle_outputs.csv` into the table** so the field column fills from
-   the feed and the home rows stop being derived from `recycle_for`. Add the CSV
-   to the weekly workflow. Decided 2026-10-11. Not started.
+4. **Load `recycle_outputs.csv` and `needs.csv` into the database** so the
+   chips show home-only extras and phase 2 can query needs. Decided
+   2026-10-11. Done 2026-10-11, reviewed and merged: both CSVs load on app
+   start and in the updater with compare-before-write, items gained rarity
+   and category, the weekly workflow installs the project and stages the
+   CSVs, and the committed item data was refreshed from the APIs (1,109
+   items, 504 new including the Frozen Trail items, no existing action
+   changed). `items.db` is byte-stable on open.
 5. **Phase 2, verdicts with reasons.** `needs` and `progress` tables filled
    from arctracker quests and projects plus MetaForge workshop levels (the only
    source with Outpost). A verdict engine replaces the free-text actions. Popup
@@ -63,7 +68,13 @@ Items are numbered in build order. Each has the decision date and its state.
 7. **Phase 4, badges on every cell.** Spike a full-screen click-through
    surface with per-pixel transparency first (Tk cannot do it), then owned over
    needed on each cell, colored by verdict, hidden while scrolling. Decided
-   2026-10-11. Not started. Carries the Wayland risk.
+   2026-10-11. Spike done 2026-10-11: `scripts/spike_overlay_surface.py`
+   with findings in `docs/spikes/2026-10-11-overlay-surface.md`. The X11
+   mode (GTK3 RGBA override-redirect window under XWayland, input shape
+   emptied like the popup) ran on the live Plasma session: depth 32, on top,
+   zero input rectangles. The layer-shell mode needs `gtk4-layer-shell`,
+   which is not installed. Decision pending Jeffrey's run with the game
+   open. The badge work itself is not started.
 8. **Phase 5, the stash ledger.** Guided stash scroll anchored on the header
    total, deltas afterwards, unsure flags. Local only. Decided 2026-10-11. Not
    started.
@@ -98,15 +109,18 @@ Items are numbered in build order. Each has the decision date and its state.
 - In-game check of recycle rows where the APIs and the wiki disagree (Anvil I
   to IV and Arpeggio I to IV look swapped, plus Wasp Driver and Synthesized
   Fuel).
+- Whether to install `gtk4-layer-shell` (`sudo pacman -S gtk4-layer-shell`)
+  so the Wayland-native overlay mode can be tried alongside the X11 mode.
+- Four catalog names appear twice ignoring case (Colorful Shoes and three
+  others). The database keeps the last row. Leave it, or dedupe in the
+  updater.
 
 ## Known follow-ups
 
 - Add `TOOLTIP_CHIPS=true`, `CAPTURE_LIBRARY=false` and
   `CAPTURE_LIBRARY_DIR=debug/captures` to `.env.example` (blocked for agents
   by permission settings).
-- The tracked `items.db` predates the `recycle_outputs` table, so the first
-  open on a fresh checkout creates it and dirties the file once. Rebuilding
-  and committing `items.db` with the updater removes that.
+- 158 items have no rarity because the API gives none.
 - The ruff baseline on master has 9 lint errors and 7 unformatted files
   outside the new code.
 - MetaForge now lists 1,109 items against 606 in the shipped database. The
