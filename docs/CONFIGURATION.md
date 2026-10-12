@@ -40,6 +40,7 @@ OVERLAY_Y=100                    # Overlay Y position on screen
 OVERLAY_DISPLAY_TIME=4.0         # How long the overlay stays visible (seconds)
 OVERLAY_COOLDOWN=2.0             # Minimum time between showing same item (seconds)
 TOOLTIP_CHIPS=true               # Show sell price and home recycle chips beside the game tooltip
+SHOW_ENDED_PROJECTS=false        # Count needs from projects whose end date has passed
 
 # =============================================================================
 # SCANNING SETTINGS - How often the app scans the screen
@@ -57,6 +58,27 @@ SHOW_CAPTURE_AREA=false          # Show red rectangle around capture area
 CAPTURE_LIBRARY=false            # Save raw tooltip captures for offline OCR evaluation
 CAPTURE_LIBRARY_DIR=debug/captures  # Folder for the capture library
 ```
+
+### Progress File (progress.csv)
+
+The popup advice counts what quests, projects and workshop levels still need an item. To stop counting what you have already finished, copy `progress.example.csv` to `progress.csv` next to `items.csv` and edit it. `progress.csv` is not tracked, and the app loads it on every launch.
+
+```csv
+source_kind,source_name,value
+workshop,Gunsmith,3
+quest,After Rain Comes,1
+project,Expedition 5,2
+```
+
+| Column | Description |
+|--------|-------------|
+| `source_kind` | `workshop`, `quest` or `project` |
+| `source_name` | The station, quest or project name as it appears in `needs.csv` (case does not matter) |
+| `value` | For `workshop`, the level the station has reached: needs for that level and below stop counting. For `quest`, `1` when the quest is done. For `project`, the highest phase done: that phase and earlier ones stop counting |
+
+A station without a row counts as level 0, so every level still counts. Rows with an unknown `source_kind`, an empty name or a value that is not a whole number are skipped. The file is CSV only, so it cannot contain comments.
+
+Projects that have an end date before today (Expedition 1 to 5, for example) are left out of the advice by default. Set `SHOW_ENDED_PROJECTS=true` in `.env` to count them again.
 
 ### Debug Mode
 

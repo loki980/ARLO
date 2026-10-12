@@ -73,6 +73,17 @@ Rows are sorted by `source_kind`, `source_name`, `tier` and `item`. Where each k
 
 Item ids that do not resolve to an English name are skipped and counted. If any of the three sources fails, the updater logs a warning and leaves the existing `needs.csv` untouched. The wiki is not used for `needs.csv`.
 
+### How Verdicts Are Formed
+
+The popup shows a verdict (KEEP, KEEP SOME, SELL, RECYCLE, USE or UNKNOWN) with a reason under it, and the verdict picks the color. The rules apply in order:
+
+1. **Weapons** (category `Weapon`, or a tiered name such as Anvil IV whose base has a `<base> Blueprint` entry) are always kept: "Weapon, keep at least one", plus "more until you own the Anvil Blueprint" when the catalog has a `<base> Blueprint` entry.
+2. **Active needs** from `needs.csv` decide next. A quest counts until `progress.csv` marks it done, a project phase until that phase is done or the project has ended (see `SHOW_ENDED_PROJECTS` in [CONFIGURATION.md](CONFIGURATION.md)), and a workshop level while it is above the level recorded for that station. The verdict is KEEP with the summed quantity, naming up to three sources by quantity, then what to do with the rest: "3 for Gunsmith IV, then sell". The rest is recycled when the item has home recycle outputs and sells for under 2,000, and sold otherwise.
+3. **No active needs**: the item's `action` string decides, by the first of sell, recycle, keep or use that appears in it. "Keep until upgrade is complete; sell once done" is KEEP.
+4. **Unknown items** show UNKNOWN.
+
+`progress.csv` is loaded into a `progress` table (`source_kind`, `source_name`, `value`) in `items.db`, created on the first load that has rows. KEEP SOME ("You have 5, need 2, recycle the rest") needs a stash count, which nothing supplies yet.
+
 ### How Action Generation Works
 
 The updater auto-generates action recommendations based on item category and uses:
