@@ -1,0 +1,290 @@
+item,source_kind,source_name,tier,quantity,starts,ends
+Explosive Compound,project,Ascending The Mountain,1,10,2026-09-08,2026-10-07
+Headphones,project,Ascending The Mountain,1,2,2026-09-08,2026-10-07
+Mechanical Components,project,Ascending The Mountain,1,10,2026-09-08,2026-10-07
+Pop Trigger,project,Ascending The Mountain,1,6,2026-09-08,2026-10-07
+Rocket Thruster,project,Ascending The Mountain,2,1,2026-09-08,2026-10-07
+Sentinel Firing Core,project,Ascending The Mountain,2,2,2026-09-08,2026-10-07
+Voltage Converter,project,Ascending The Mountain,2,8,2026-09-08,2026-10-07
+Wires,project,Ascending The Mountain,2,20,2026-09-08,2026-10-07
+Breathtaking Snow Globe,project,Ascending The Mountain,3,3,2026-09-08,2026-10-07
+Crash Mat,project,Ascending The Mountain,3,10,2026-09-08,2026-10-07
+Ruined Parachute,project,Ascending The Mountain,3,2,2026-09-08,2026-10-07
+Shredder Gyro,project,Ascending The Mountain,3,5,2026-09-08,2026-10-07
+Advanced Electrical Components,project,Ascending The Mountain,4,15,2026-09-08,2026-10-07
+Broken Guidance System,project,Ascending The Mountain,4,3,2026-09-08,2026-10-07
+Sensors,project,Ascending The Mountain,4,30,2026-09-08,2026-10-07
+Vaporizer Regulator,project,Ascending The Mountain,4,3,2026-09-08,2026-10-07
+ARC Alloy,project,Expedition 1,1,80,2025-10-30,2025-12-17
+Metal Parts,project,Expedition 1,1,150,2025-10-30,2025-12-17
+Rubber Parts,project,Expedition 1,1,200,2025-10-30,2025-12-17
+Steel Spring,project,Expedition 1,1,15,2025-10-30,2025-12-17
+Cooling Fan,project,Expedition 1,2,5,2025-10-30,2025-12-17
+Durable Cloth,project,Expedition 1,2,35,2025-10-30,2025-12-17
+Electrical Components,project,Expedition 1,2,30,2025-10-30,2025-12-17
+Wires,project,Expedition 1,2,30,2025-10-30,2025-12-17
+Battery,project,Expedition 1,3,30,2025-10-30,2025-12-17
+Exodus Modules,project,Expedition 1,3,1,2025-10-30,2025-12-17
+Light Bulb,project,Expedition 1,3,5,2025-10-30,2025-12-17
+Sensors,project,Expedition 1,3,20,2025-10-30,2025-12-17
+Advanced Electrical Components,project,Expedition 1,4,5,2025-10-30,2025-12-17
+Humidifier,project,Expedition 1,4,5,2025-10-30,2025-12-17
+Leaper Pulse Unit,project,Expedition 1,4,3,2025-10-30,2025-12-17
+Magnetic Accelerator,project,Expedition 1,4,3,2025-10-30,2025-12-17
+ARC Alloy,project,Expedition 2,1,80,2025-12-22,2026-02-25
+Metal Parts,project,Expedition 2,1,150,2025-12-22,2026-02-25
+Plastic Parts,project,Expedition 2,1,200,2025-12-22,2026-02-25
+Steel Spring,project,Expedition 2,1,15,2025-12-22,2026-02-25
+Cooling Coil,project,Expedition 2,2,4,2025-12-22,2026-02-25
+Durable Cloth,project,Expedition 2,2,35,2025-12-22,2026-02-25
+Electrical Components,project,Expedition 2,2,20,2025-12-22,2026-02-25
+Wires,project,Expedition 2,2,25,2025-12-22,2026-02-25
+Battery,project,Expedition 2,3,30,2025-12-22,2026-02-25
+Exodus Modules,project,Expedition 2,3,1,2025-12-22,2026-02-25
+Light Bulb,project,Expedition 2,3,4,2025-12-22,2026-02-25
+Shredder Gyro,project,Expedition 2,3,10,2025-12-22,2026-02-25
+Advanced Electrical Components,project,Expedition 2,4,5,2025-12-22,2026-02-25
+Frequency Modulation Box,project,Expedition 2,4,5,2025-12-22,2026-02-25
+Ion Sputter,project,Expedition 2,4,3,2025-12-22,2026-02-25
+Leaper Pulse Unit,project,Expedition 2,4,3,2025-12-22,2026-02-25
+ARC Alloy,project,Expedition 3,1,80,2026-03-02,2026-04-28
+Chemicals,project,Expedition 3,1,100,2026-03-02,2026-04-28
+Metal Parts,project,Expedition 3,1,150,2026-03-02,2026-04-28
+Steel Spring,project,Expedition 3,1,15,2026-03-02,2026-04-28
+Durable Cloth,project,Expedition 3,2,30,2026-03-02,2026-04-28
+Electrical Components,project,Expedition 3,2,20,2026-03-02,2026-04-28
+Industrial Charger,project,Expedition 3,2,3,2026-03-02,2026-04-28
+Wires,project,Expedition 3,2,25,2026-03-02,2026-04-28
+Battery,project,Expedition 3,3,25,2026-03-02,2026-04-28
+Coffee Pot,project,Expedition 3,3,1,2026-03-02,2026-04-28
+Exodus Modules,project,Expedition 3,3,1,2026-03-02,2026-04-28
+Firefly Burner,project,Expedition 3,3,5,2026-03-02,2026-04-28
+Advanced Electrical Components,project,Expedition 3,4,5,2026-03-02,2026-04-28
+Bombardier Cell,project,Expedition 3,4,2,2026-03-02,2026-04-28
+Breathtaking Snow Globe,project,Expedition 3,4,3,2026-03-02,2026-04-28
+Broken Guidance System,project,Expedition 3,4,1,2026-03-02,2026-04-28
+ARC Alloy,project,Expedition 4,1,80,2026-04-29,2026-07-07
+Canister,project,Expedition 4,1,15,2026-04-29,2026-07-07
+Chemicals,project,Expedition 4,1,100,2026-04-29,2026-07-07
+Metal Parts,project,Expedition 4,1,150,2026-04-29,2026-07-07
+Durable Cloth,project,Expedition 4,2,30,2026-04-29,2026-07-07
+Electrical Components,project,Expedition 4,2,20,2026-04-29,2026-07-07
+Industrial Charger,project,Expedition 4,2,3,2026-04-29,2026-07-07
+Oil,project,Expedition 4,2,25,2026-04-29,2026-07-07
+ARC Motion Core,project,Expedition 4,3,20,2026-04-29,2026-07-07
+Exodus Modules,project,Expedition 4,3,2,2026-04-29,2026-07-07
+Speaker Component,project,Expedition 4,3,15,2026-04-29,2026-07-07
+Turbine Compressor,project,Expedition 4,3,5,2026-04-29,2026-07-07
+"""Sirena Dorata"" Ship Model",project,Expedition 4,4,2,2026-04-29,2026-07-07
+Advanced Electrical Components,project,Expedition 4,4,5,2026-04-29,2026-07-07
+Portable TV,project,Expedition 4,4,1,2026-04-29,2026-07-07
+Vaporizer Regulator,project,Expedition 4,4,3,2026-04-29,2026-07-07
+ARC Alloy,project,Expedition 5,1,80,2026-07-07,2026-09-22
+Magnet,project,Expedition 5,1,15,2026-07-07,2026-09-22
+Metal Parts,project,Expedition 5,1,150,2026-07-07,2026-09-22
+Plastic Parts,project,Expedition 5,1,100,2026-07-07,2026-09-22
+Duct Tape,project,Expedition 5,2,25,2026-07-07,2026-09-22
+Durable Cloth,project,Expedition 5,2,30,2026-07-07,2026-09-22
+Mechanical Components,project,Expedition 5,2,20,2026-07-07,2026-09-22
+Voltage Converter,project,Expedition 5,2,10,2026-07-07,2026-09-22
+ARC Circuitry,project,Expedition 5,3,20,2026-07-07,2026-09-22
+Bastion Cell,project,Expedition 5,3,5,2026-07-07,2026-09-22
+Magnetic Accelerator,project,Expedition 5,3,3,2026-07-07,2026-09-22
+Speaker Component,project,Expedition 5,3,15,2026-07-07,2026-09-22
+Advanced Mechanical Components,project,Expedition 5,4,5,2026-07-07,2026-09-22
+Lance's Mixtape (5th edition),project,Expedition 5,4,2,2026-07-07,2026-09-22
+Radio,project,Expedition 5,4,2,2026-07-07,2026-09-22
+Rocketeer Driver,project,Expedition 5,4,3,2026-07-07,2026-09-22
+Advanced ARC Powercell,project,Phantom Targets (Part 2),1,10,2026-08-18,2026-09-07
+Glitched ARC Phased Array,project,Phantom Targets (Part 2),1,10,2026-08-18,2026-09-07
+Glitched ARC Power Converter,project,Phantom Targets (Part 2),1,10,2026-08-18,2026-09-07
+Glitched ARC Transmitter,project,Phantom Targets (Part 2),1,10,2026-08-18,2026-09-07
+ARC Circuitry,project,Phantom Targets (Part 2),2,10,2026-08-18,2026-09-07
+ARC Thermo Lining,project,Phantom Targets (Part 2),2,10,2026-08-18,2026-09-07
+Glitched ARC Circuitry,project,Phantom Targets (Part 2),2,10,2026-08-18,2026-09-07
+Glitched ARC Light Ring,project,Phantom Targets (Part 2),2,10,2026-08-18,2026-09-07
+Advanced Electrical Components,project,Sheltered Retreat,2,3,2026-08-18,2049-12-31
+ARC Alloy,project,Sheltered Retreat,2,10,2026-08-18,2049-12-31
+Planks,project,Sheltered Retreat,2,3,2026-08-18,2049-12-31
+SheetMetal,project,Sheltered Retreat,2,5,2026-08-18,2049-12-31
+Pop Trigger,project,Trophy Display,1,15,2025-08-25,2049-12-31
+Rusted Bolts,project,Trophy Display,1,3,2025-08-25,2049-12-31
+Surveyor Vault,project,Trophy Display,1,5,2025-08-25,2049-12-31
+Tick Pod,project,Trophy Display,1,15,2025-08-25,2049-12-31
+Expired Respirator,project,Trophy Display,2,3,2025-08-25,2049-12-31
+Hornet Driver,project,Trophy Display,2,15,2025-08-25,2049-12-31
+Spotter Relay,project,Trophy Display,2,10,2025-08-25,2049-12-31
+Wasp Driver,project,Trophy Display,2,20,2025-08-25,2049-12-31
+ARC Performance Steel,project,Trophy Display,3,10,2025-08-25,2049-12-31
+Bastion Cell,project,Trophy Display,3,5,2025-08-25,2049-12-31
+Leaper Pulse Unit,project,Trophy Display,3,10,2025-08-25,2049-12-31
+Shredder Gyro,project,Trophy Display,3,5,2025-08-25,2049-12-31
+ARC Synthetic Resin,project,Trophy Display,4,10,2025-08-25,2049-12-31
+Magnetic Accelerator,project,Trophy Display,4,10,2025-08-25,2049-12-31
+Queen Reactor,project,Trophy Display,4,3,2025-08-25,2049-12-31
+Rocketeer Driver,project,Trophy Display,4,8,2025-08-25,2049-12-31
+Bombardier Cell,project,Trophy Display,5,8,2025-08-25,2049-12-31
+Exodus Modules,project,Trophy Display,5,5,2025-08-25,2049-12-31
+Geiger Counter,project,Trophy Display,5,3,2025-08-25,2049-12-31
+Matriarch Reactor,project,Trophy Display,5,3,2025-08-25,2049-12-31
+Dusty Film Reel,quest,A Dead End,,1,,
+LiDAR Scanner,quest,A Lay of the Land,,1,,
+Possibly Toxic Plant,quest,A New Type of Plant,,1,,
+Broken Compass,quest,A Path Not Yours,,1,,
+ARC Powercell,quest,A Prime Specimen,,2,,
+ESR Analyzer,quest,A Reveal in Ruins,,1,,
+Battery,quest,After Rain Comes,,2,,
+Wires,quest,After Rain Comes,,5,,
+Bully Fragmenter,quest,"Bait, Fetch, Blast",,1,,
+Emperor Modulator,quest,Belly of the Beast,,1,,
+Wires,quest,Belly of the Beast,,1,,
+Bombardier Cell,quest,Bombing Run,,1,,
+First Wave Compass,quest,Broken Monument,,1,,
+First Wave Rations,quest,Broken Monument,,1,,
+First Wave Tape,quest,Broken Monument,,1,,
+Library Book,quest,Building a Library,,3,,
+Celeste's Journal,quest,Celeste’s Journals,,2,,
+Battery,quest,Clamoring for Attention,,1,,
+Wires,quest,Clamoring for Attention,,3,,
+Equatorial Sundial,quest,Clean Hands,,1,,
+ARC Alloy,quest,Clearer Skies,,3,,
+Old World Books,quest,Cold Storage,,1,,
+Comet Igniter,quest,Collision Course,,1,,
+Spotter Relay,quest,Combat Recon,,1,,
+Antiseptic,quest,Doctor's Orders,,2,,
+Durable Cloth,quest,Doctor's Orders,,1,,
+Great Mullein,quest,Doctor's Orders,,1,,
+Syringe,quest,Doctor's Orders,,1,,
+Scout Patrol Note,quest,Dust on the Wires,,1,,
+Major Aiva's Patch,quest,Echoes of Victory Ridge,,1,,
+Project Pathos Empathy Core,quest,Empathetic Prototypes,,1,,
+Espresso Machine Parts,quest,Espresso,,1,,
+Wires,quest,Eyes on the Prize,,3,,
+Wires,quest,Flickering Threat,,4,,
+Secret Meeting Info,quest,Furtive Meetings,,1,,
+Leaper Pulse Unit,quest,Into the Fray,,1,,
+Official Shutdown Documentation,quest,Last Entry,,1,,
+Surveyor Vault,quest,Mixed Signals,,1,,
+Portable TV,quest,Movie Night,,1,,
+Stack of Movie Tapes,quest,Movie Night,,1,,
+Matriarch Reactor,quest,Nothing Gained,,1,,
+Queen Reactor,quest,Nothing Gained,,1,,
+ARC Circuitry,quest,Nothing Ventured,,6,,
+ARC Motion Core,quest,Nothing Ventured,,6,,
+Comet Igniter,quest,Nothing Ventured,,3,,
+Rocketeer Driver,quest,Nothing Ventured,,3,,
+Rocketeer Driver,quest,Out of the Shadows,,1,,
+Dodger's Note,quest,Outstanding Balance,,1,,
+Spotter Relay,quest,Ruins and Reverberations,,1,,
+Precision Gimbal,quest,Safe Harbor,,1,,
+Bastion Cell,quest,Settled in Full,,1,,
+ARC Alloy,quest,Shoring Up Defenses,,1,,
+ARC Conductive Coupler,quest,Sizing Things Up,,1,,
+Flow Controller,quest,Snap and Salvage,,1,,
+Magnetron,quest,Snap and Salvage,,1,,
+Project Heartwood Blueprints,quest,Stable Housing,,1,,
+Industrial Battery,quest,Taking Stock,,3,,
+Fireball Burner,quest,Test Case,,1,,
+Firefly Burner,quest,Test Case,,1,,
+Hornet Driver,quest,Test Case,,1,,
+Purification System Blueprint,quest,The Clean Dream,,1,,
+Bicycle Pump,quest,The League,,1,,
+Deflated Football,quest,The League,,1,,
+Major Aiva's Mementos,quest,The Major’s Footlocker,,1,,
+Experimental Seed Sample,quest,The Root of the Matter,,1,,
+ARC Performance Steel,quest,To The Skies,,1,,
+ARC Synthetic Resin,quest,To The Skies,,1,,
+ARC Thermo Lining,quest,To The Skies,,1,,
+Pop Trigger,quest,To The Skies,,1,,
+Skulker Targeter,quest,Tracks of the Beast,,1,,
+Battery,quest,Trash Into Treasure,,1,,
+Wires,quest,Trash Into Treasure,,6,,
+Power Rod,quest,Tribute to Toledo,,1,,
+Moisture Meter,quest,Unexpected Initiative,,1,,
+Nutrient Meter,quest,Unexpected Initiative,,1,,
+Sentinel Firing Core,quest,Wires Crossed,,1,,
+Snitch Scanner,quest,Wires Crossed,,1,,
+Surveyor Vault,quest,Wires Crossed,,1,,
+Ion Sputter,quest,With a View,,1,,
+Rotary Encoder,quest,With a View,,1,,
+ARC Alloy,workshop,Explosives Station,1,6,,
+Chemicals,workshop,Explosives Station,1,50,,
+Crude Explosives,workshop,Explosives Station,2,5,,
+Pop Trigger,workshop,Explosives Station,2,5,,
+Synthesized Fuel,workshop,Explosives Station,2,3,,
+Explosive Compound,workshop,Explosives Station,3,5,,
+Laboratory Reagents,workshop,Explosives Station,3,3,,
+Rocketeer Driver,workshop,Explosives Station,3,3,,
+Fabric,workshop,Gear Bench,1,30,,
+Plastic Parts,workshop,Gear Bench,1,25,,
+Electrical Components,workshop,Gear Bench,2,5,,
+Hornet Driver,workshop,Gear Bench,2,5,,
+Power Cable,workshop,Gear Bench,2,3,,
+Advanced Electrical Components,workshop,Gear Bench,3,5,,
+Bastion Cell,workshop,Gear Bench,3,6,,
+Industrial Battery,workshop,Gear Bench,3,3,,
+Metal Parts,workshop,Gunsmith,1,20,,
+Rubber Parts,workshop,Gunsmith,1,30,,
+Mechanical Components,workshop,Gunsmith,2,5,,
+Rusted Tools,workshop,Gunsmith,2,3,,
+Wasp Driver,workshop,Gunsmith,2,8,,
+Advanced Mechanical Components,workshop,Gunsmith,3,5,,
+Rusted Gear,workshop,Gunsmith,3,3,,
+Sentinel Firing Core,workshop,Gunsmith,3,4,,
+Emperor Modulator,workshop,Gunsmith,4,1,,
+Magnetic Accelerator,workshop,Gunsmith,4,3,,
+Radial Press,workshop,Gunsmith,4,3,,
+ARC Alloy,workshop,Medical Lab,1,6,,
+Fabric,workshop,Medical Lab,1,50,,
+Cracked Bioscanner,workshop,Medical Lab,2,2,,
+Durable Cloth,workshop,Medical Lab,2,5,,
+Tick Pod,workshop,Medical Lab,2,8,,
+Antiseptic,workshop,Medical Lab,3,8,,
+Rusted Shut Medical Kit,workshop,Medical Lab,3,3,,
+Surveyor Vault,workshop,Medical Lab,3,5,,
+Cable Stripper,workshop,Outpost,2,3,,
+Sheet Metal,workshop,Outpost,2,20,,
+Steel Cable,workshop,Outpost,2,3,,
+Epoxy Bucket,workshop,Outpost,3,3,,
+Hand Drill,workshop,Outpost,3,3,,
+Planks,workshop,Outpost,3,35,,
+Insulation Roll,workshop,Outpost,4,3,,
+Laser Level,workshop,Outpost,4,3,,
+Sheet Metal,workshop,Outpost,4,40,,
+ARC Powercell,workshop,Refiner,1,5,,
+Metal Parts,workshop,Refiner,1,60,,
+ARC Motion Core,workshop,Refiner,2,5,,
+Fireball Burner,workshop,Refiner,2,8,,
+Toaster,workshop,Refiner,2,3,,
+ARC Circuitry,workshop,Refiner,3,10,,
+Bombardier Cell,workshop,Refiner,3,6,,
+Motor,workshop,Refiner,3,3,,
+Battered Paperback,workshop,Research Station,1,5,,
+Mini Pump,workshop,Research Station,1,3,,
+Planks,workshop,Research Station,1,35,,
+Calculator,workshop,Research Station,2,3,,
+Raider Logbook,workshop,Research Station,2,3,,
+Skulker Targeter,workshop,Research Station,2,5,,
+Bully Fragmenter,workshop,Research Station,3,6,,
+Differential Microphone,workshop,Research Station,3,3,,
+Exodus Technical Handbook,workshop,Research Station,3,3,,
+ARC Data Module,workshop,Research Station,4,3,,
+Frigate Inductor,workshop,Research Station,4,1,,
+Thermal Shaker,workshop,Research Station,4,3,,
+Dog Collar,workshop,Scrappy,2,1,,
+Apricot,workshop,Scrappy,3,3,,
+Lemon,workshop,Scrappy,3,3,,
+Cat Bed,workshop,Scrappy,4,1,,
+Olives,workshop,Scrappy,4,6,,
+Prickly Pear,workshop,Scrappy,4,6,,
+Apricot,workshop,Scrappy,5,12,,
+Mushroom,workshop,Scrappy,5,12,,
+Very Comfortable Pillow,workshop,Scrappy,5,3,,
+ARC Alloy,workshop,Utility Station,1,6,,
+Plastic Parts,workshop,Utility Station,1,50,,
+Damaged Heat Sink,workshop,Utility Station,2,2,,
+Electrical Components,workshop,Utility Station,2,5,,
+Snitch Scanner,workshop,Utility Station,2,6,,
+Advanced Electrical Components,workshop,Utility Station,3,5,,
+Fried Motherboard,workshop,Utility Station,3,3,,
+Leaper Pulse Unit,workshop,Utility Station,3,4,,
