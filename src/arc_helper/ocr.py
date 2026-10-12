@@ -171,9 +171,10 @@ class OCREngine:
         if image is None or origin is None:
             return None
 
-        cream = find_cream_rect(np.array(image.convert("RGB")))
-        if cream is None:
+        region = find_cream_rect(np.array(image.convert("RGB")))
+        if region is None:
             return None
+        cream = region.rect
 
         scale = 2
         crop = image.crop((cream.left, cream.top, cream.right, cream.bottom))
@@ -213,7 +214,9 @@ class OCREngine:
             name: to_screen(rect, crop_origin)
             for name, rect in find_label_rows(words, scale).items()
         }
-        return TooltipLayout(tooltip=to_screen(cream, origin), labels=labels)
+        return TooltipLayout(
+            tooltip=to_screen(cream, origin), labels=labels, clipped=region.clipped
+        )
 
     def check_trigger_any(self, regions: list[RegionMixin]) -> bool:
         """

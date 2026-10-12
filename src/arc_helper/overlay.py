@@ -383,6 +383,7 @@ class TooltipChips:
             sizes,
             Size(screen_w, screen_h),
             round(self.PAD * tk_scale),
+            layout.clipped,
         )
 
         for key, window in self.windows.items():

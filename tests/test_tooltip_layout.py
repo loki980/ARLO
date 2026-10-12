@@ -11,6 +11,8 @@ from arc_helper.tooltip_layout import FOUND_IN
 from arc_helper.tooltip_layout import PRICE_CHIP
 from arc_helper.tooltip_layout import RECYCLE_CHIP
 from arc_helper.tooltip_layout import RECYCLES_INTO
+from arc_helper.tooltip_layout import CreamRegion
+from arc_helper.tooltip_layout import Edges
 from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import Size
@@ -37,7 +39,14 @@ def test_cream_rect_on_dark_frame():
     frame = np.zeros((200, 300, 3), dtype=np.uint8)
     frame[40:160, 100:280] = CREAM
     frame[40:160, 96:100] = (40, 200, 60)  # colored border, not cream
-    assert find_cream_rect(frame) == Rect(100, 40, 280, 160)
+    assert find_cream_rect(frame) == CreamRegion(Rect(100, 40, 280, 160), Edges())
+
+
+def test_cream_touching_right_edge_is_flagged_clipped():
+    frame = np.zeros((200, 300, 3), dtype=np.uint8)
+    frame[40:160, 100:300] = CREAM  # runs into the last column
+    region = find_cream_rect(frame)
+    assert region == CreamRegion(Rect(100, 40, 300, 160), Edges(right=True))
 
 
 def test_no_cream_returns_none():
@@ -90,6 +99,30 @@ def test_price_chip_clamped_at_right_screen_edge():
     assert positions[PRICE_CHIP] == Point(3840 - 400, 800)
 
 
+def test_wide_price_chip_never_covers_the_label():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
+    # Right-aligned, a 450 px chip would start at 1140, over the label
+    positions = place_chips(
+        tooltip, labels, {PRICE_CHIP: Size(450, 60)}, Size(3840, 2160), pad=10
+    )
+    assert positions[PRICE_CHIP] == Point(1300 + 10, 800)
+
+
+def test_clipped_tooltip_anchors_price_chip_after_label():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
+    positions = place_chips(
+        tooltip,
+        labels,
+        {PRICE_CHIP: Size(200, 60)},
+        Size(3840, 2160),
+        pad=10,
+        clipped=Edges(right=True),
+    )
+    assert positions[PRICE_CHIP] == Point(1300 + 10, 800)
+
+
 def test_missing_label_yields_no_chip():
     tooltip = Rect(1000, 500, 1600, 1500)
     labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
@@ -119,4 +152,5 @@ def test_real_tooltip_capture_finds_both_labels():
     assert layout is not None
     assert layout.tooltip.left > 2394  # border columns trimmed
     assert set(layout.labels) == {FOUND_IN, RECYCLES_INTO}
+    assert layout.clipped.right  # the capture is narrower than the tooltip
     assert layout.labels[FOUND_IN].bottom < layout.labels[RECYCLES_INTO].top

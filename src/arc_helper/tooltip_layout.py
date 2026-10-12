@@ -77,19 +77,45 @@ class Word(NamedTuple):
     line: int
 
 
+class Edges(NamedTuple):
+    """Which capture edges the cream region touches (so may be cut off)."""
+
+    left: bool = False
+    top: bool = False
+    right: bool = False
+    bottom: bool = False
+
+
+NOT_CLIPPED = Edges()
+
+
+class CreamRegion(NamedTuple):
+    """The cream rectangle in capture coordinates and its clipped edges."""
+
+    rect: Rect
+    clipped: Edges
+
+
 class TooltipLayout(NamedTuple):
-    """Tooltip rectangle and found label rows, in physical screen pixels."""
+    """Tooltip rectangle and found label rows, in physical screen pixels.
+
+    clipped marks tooltip edges that coincide with the capture edge, where
+    the real tooltip may extend further than the rectangle.
+    """
 
     tooltip: Rect
     labels: dict[str, Rect]
+    clipped: Edges = NOT_CLIPPED
 
 
-def find_cream_rect(rgb: np.ndarray) -> Rect | None:
-    """Return the cream tooltip rectangle in capture coordinates, or None.
+def find_cream_rect(rgb: np.ndarray) -> CreamRegion | None:
+    """Return the cream tooltip region in capture coordinates, or None.
 
     Rows count as tooltip when over 50 percent cream, columns when over 30
     percent cream. A second pass keeps only columns over 50 percent cream
-    inside that box, which trims the colored borders.
+    inside that box, which trims the colored borders. The result also says
+    which capture edges the region touches, since a capture narrower than
+    the tooltip cuts it off there.
     """
     if rgb.ndim != 3 or rgb.shape[0] == 0 or rgb.shape[1] == 0:
         return None
@@ -111,7 +137,15 @@ def find_cream_rect(rgb: np.ndarray) -> Rect | None:
     if len(tight_cols) == 0:
         return None
 
-    return Rect(left + int(tight_cols[0]), top, left + int(tight_cols[-1]) + 1, bottom)
+    rect = Rect(left + int(tight_cols[0]), top, left + int(tight_cols[-1]) + 1, bottom)
+    height, width = mask.shape
+    clipped = Edges(
+        left=rect.left == 0,
+        top=rect.top == 0,
+        right=rect.right == width,
+        bottom=rect.bottom == height,
+    )
+    return CreamRegion(rect, clipped)
 
 
 def _label_key(text: str) -> str:
@@ -177,20 +211,29 @@ def place_chips(
     chip_sizes: dict[str, Size],
     screen: Size,
     pad: int,
+    clipped: Edges = NOT_CLIPPED,
 ) -> dict[str, Point]:
     """Top-left screen positions for the chips, keyed like chip_sizes.
 
-    The price chip is right-aligned inside the tooltip on the found-in row.
+    The price chip is right-aligned inside the tooltip on the found-in row,
+    but never starts left of the label's right edge plus pad. When the
+    tooltip's right edge is clipped by the capture, that edge is not the
+    real one, so the price chip anchors just right of the label instead.
     The recycle chip sits on the icon row under the recycles-into label,
-    45 percent across the tooltip. Both are clamped to the screen. A chip
-    without its label, or without a size, gets no entry.
+    45 percent across the tooltip. Both are clamped to the screen last, so
+    the screen edge wins over the label rule. A chip without its label, or
+    without a size, gets no entry.
     """
     positions: dict[str, Point] = {}
 
     found_in = labels.get(FOUND_IN)
     price = chip_sizes.get(PRICE_CHIP)
     if found_in is not None and price is not None:
-        x = tooltip.right - pad - price.width
+        after_label = found_in.right + pad
+        if clipped.right:
+            x = after_label
+        else:
+            x = max(tooltip.right - pad - price.width, after_label)
         y = found_in.top
         positions[PRICE_CHIP] = Point(
             _clamp(x, price.width, screen.width),
