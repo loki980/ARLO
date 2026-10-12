@@ -318,6 +318,8 @@ class Settings(BaseSettings):
             "# Debug settings",
             f"DEBUG_MODE={str(self.debug_mode).lower()}",
             f"SHOW_CAPTURE_AREA={str(self.show_capture_area).lower()}",
+            f"CAPTURE_LIBRARY={str(self.capture_library).lower()}",
+            f"CAPTURE_LIBRARY_DIR={self.capture_library_dir}",
             "",
             "# Platform settings",
             f"SCREEN_BACKEND={self.screen_backend}",
