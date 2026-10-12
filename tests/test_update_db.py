@@ -55,13 +55,36 @@ class FakeResponse:
         return self._payload
 
 
-def _fake_get(arctracker_response, *, metaforge_fails=False):
-    """Route requests.get by URL. arctracker_response is a FakeResponse or an exception."""
+def _needs_routes(needs):
+    """Needs source URL -> fixture payload."""
+    return {
+        update_db.ARCTRACKER_QUESTS_URL: needs["arctracker_quests"],
+        update_db.ARCTRACKER_PROJECTS_URL: needs["arctracker_projects"],
+        update_db.METAFORGE_HIDEOUT_URL: needs["metaforge_hideout"],
+        update_db.ARCTRACKER_HIDEOUT_URL: needs["arctracker_hideout"],
+    }
+
+
+def _fake_get(arctracker_response, *, metaforge_fails=False, needs=None, failures=None):
+    """Route requests.get by URL. arctracker_response is a FakeResponse or an exception.
+
+    needs is the needs_sources.json fixture. failures maps a URL to the
+    FakeResponse or exception that replaces its normal answer.
+    """
+    needs = needs or _fixture("needs_sources.json")
+    routes = _needs_routes(needs)
+    failures = failures or {}
 
     def fake_get(url, **_kwargs):
+        if url in failures:
+            if isinstance(failures[url], Exception):
+                raise failures[url]
+            return failures[url]
         if metaforge_fails and url.startswith(update_db.METAFORGE_API_BASE):
             msg = "metaforge down"
             raise requests.ConnectionError(msg)
+        if url in routes:
+            return FakeResponse(routes[url])
         if url == update_db.ARCTRACKER_ITEMS_URL:
             if isinstance(arctracker_response, Exception):
                 raise arctracker_response
@@ -69,7 +92,8 @@ def _fake_get(arctracker_response, *, metaforge_fails=False):
         if url == update_db.WIKI_URL:
             return FakeResponse(text=WIKI_HTML)
         if "/items?" in url:
-            return FakeResponse(METAFORGE_ITEMS)
+            data = METAFORGE_ITEMS["data"] + needs["metaforge_items"]
+            return FakeResponse({**METAFORGE_ITEMS, "data": data})
         if "/quests?" in url:
             return FakeResponse(_fixture("metaforge_quests_after_rain_comes.json"))
         msg = f"unexpected URL {url}"
@@ -93,6 +117,7 @@ def _run_main(
     monkeypatch.setattr(update_db, "ITEMS_DB", tmp_path / "items.db")
     monkeypatch.setattr(update_db, "LAST_UPDATE_FILE", tmp_path / ".last_update")
     monkeypatch.setattr(update_db, "RECYCLE_OUTPUTS_CSV", outputs_csv)
+    monkeypatch.setattr(update_db, "NEEDS_CSV", tmp_path / "needs.csv")
     fake_get = _fake_get(arctracker_response, metaforge_fails=metaforge_fails)
     monkeypatch.setattr(update_db.requests, "get", fake_get)
     monkeypatch.setattr(sys, "argv", ["update_db.py", "--merge", "--csv-only"])
@@ -231,3 +256,148 @@ def test_unresolved_component_rejects_payload(monkeypatch, tmp_path, capsys, cor
     assert not outputs_csv.exists()
     assert "rubber_parts" not in (tmp_path / "items.csv").read_text(encoding="utf-8")
     assert rows["Power Bank"]["recycle_for"] == "9x Old Text"
+
+
+# needs.csv
+
+
+def _resolvers(needs):
+    arc = update_db.parse_arctracker_items(needs["arctracker_items"])
+    arc_names = update_db.NameResolver({r.id: r.name for r in arc.values()})
+    mf_names = update_db.NameResolver(
+        {i["id"]: i["name"] for i in needs["metaforge_items"]}
+    )
+    return arc_names, mf_names
+
+
+def _short(rows):
+    return [(r["item"], r["source_name"], r["tier"], r["quantity"]) for r in rows]
+
+
+def test_wires_crossed_quest_rows():
+    needs = _fixture("needs_sources.json")
+    arc_names, _ = _resolvers(needs)
+    rows = update_db.parse_quest_needs(needs["arctracker_quests"], arc_names)
+    assert _short(rows) == [
+        ("Snitch Scanner", "Wires Crossed", "", "1"),
+        ("Surveyor Vault", "Wires Crossed", "", "1"),
+        ("Sentinel Firing Core", "Wires Crossed", "", "1"),
+    ]
+    assert {r["source_kind"] for r in rows} == {"quest"}
+
+
+def test_expedition_phase_rows_have_tier_and_dates():
+    needs = _fixture("needs_sources.json")
+    arc_names, _ = _resolvers(needs)
+    rows = update_db.parse_project_needs(needs["arctracker_projects"], arc_names)
+    # phase 5 only has requirementCategories (coin value), so no rows for it
+    assert _short(rows) == [
+        ("Metal Parts", "Expedition 5", "1", "150"),
+        ("Plastic Parts", "Expedition 5", "1", "100"),
+        ("ARC Alloy", "Expedition 5", "1", "80"),
+        ("Magnet", "Expedition 5", "1", "15"),
+    ]
+    assert {(r["starts"], r["ends"]) for r in rows} == {("2026-07-07", "2026-09-22")}
+
+
+def test_gunsmith_level_4_rows_resolve_metaforge_ids():
+    needs = _fixture("needs_sources.json")
+    _, mf_names = _resolvers(needs)
+    levels = update_db.parse_metaforge_hideout(needs["metaforge_hideout"], mf_names)
+    rows = update_db.workshop_rows(levels)
+    assert [r for r in _short(rows) if r[2] == "4"] == [
+        ("Radial Press", "Gunsmith", "4", "3"),
+        ("Magnetic Accelerator", "Gunsmith", "4", "3"),
+        ("Emperor Modulator", "Gunsmith", "4", "1"),
+    ]
+    # MetaForge id sentinel-part resolves to its English name
+    assert ("Sentinel Firing Core", "Gunsmith", "3", "4") in _short(rows)
+
+
+def test_cross_check_warns_once_per_disagreeing_level(capsys):
+    needs = _fixture("needs_sources.json")
+    arc_names, mf_names = _resolvers(needs)
+    mf = update_db.parse_metaforge_hideout(needs["metaforge_hideout"], mf_names)
+    modules = needs["arctracker_hideout"]["hideoutModules"]
+    agreeing = update_db.parse_arctracker_hideout(
+        needs["arctracker_hideout"], arc_names
+    )
+    assert update_db.cross_check_workshop(mf, agreeing) == 0
+    modules["weapon_bench"]["levels"][1]["requirementItemIds"][0]["quantity"] = 2
+    arc = update_db.parse_arctracker_hideout(needs["arctracker_hideout"], arc_names)
+    assert update_db.cross_check_workshop(mf, arc) == 1
+    out = capsys.readouterr().out
+    assert out.count("WARNING") == 1
+    assert "Gunsmith 4" in out
+    assert "radial press MetaForge 3 arctracker 2" in out
+
+
+def test_unknown_item_id_is_skipped_and_counted():
+    needs = _fixture("needs_sources.json")
+    arc_names, _ = _resolvers(needs)
+    quest = needs["arctracker_quests"]["quests"]["wires_crossed"]
+    quest["requiredItemIds"].append({"itemId": "mystery_part", "quantity": 2})
+    rows = update_db.parse_quest_needs(needs["arctracker_quests"], arc_names)
+    assert len(rows) == 3
+    assert all("mystery" not in value for r in rows for value in r.values())
+    assert arc_names.unresolved == 1
+
+
+def _needs_inputs():
+    needs = _fixture("needs_sources.json")
+    arc = update_db.parse_arctracker_items(needs["arctracker_items"])
+    return arc, needs["metaforge_items"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        update_db.ARCTRACKER_QUESTS_URL,
+        update_db.ARCTRACKER_PROJECTS_URL,
+        update_db.METAFORGE_HIDEOUT_URL,
+    ],
+    ids=["quests", "projects", "hideout"],
+)
+@pytest.mark.parametrize(
+    "failure",
+    [
+        requests.ConnectionError("connection refused"),
+        FakeResponse(status=503),
+        FakeResponse(text="<html>not json</html>"),
+    ],
+    ids=["connection-error", "non-200", "invalid-json"],
+)
+def test_needs_source_failure_keeps_existing_csv(
+    monkeypatch, tmp_path, capsys, url, failure
+):
+    needs_csv = tmp_path / "needs.csv"
+    needs_csv.write_text("old,rows\n", encoding="utf-8")
+    fake_get = _fake_get(FakeResponse({}), failures={url: failure})
+    monkeypatch.setattr(update_db.requests, "get", fake_get)
+    arc, mf_items = _needs_inputs()
+    assert not update_db.update_needs_csv(arc, mf_items, needs_csv)
+    out = capsys.readouterr().out
+    assert out.count("WARNING") == 1
+    assert needs_csv.read_text(encoding="utf-8") == "old,rows\n"
+
+
+@pytest.mark.parametrize("entry", ["main", "auto_update"])
+def test_update_writes_sorted_needs_csv(monkeypatch, tmp_path, entry):
+    payload = _fixture("arctracker_items.json")
+    payload["items"] += _fixture("needs_sources.json")["arctracker_items"]["items"]
+    _run_main(monkeypatch, tmp_path, FakeResponse(payload), entry=entry)
+    with (tmp_path / "needs.csv").open(encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == [
+            "item", "source_kind", "source_name", "tier", "quantity", "starts", "ends",
+        ]  # fmt: skip
+        rows = [
+            (r["source_kind"], r["source_name"], r["tier"], r["item"]) for r in reader
+        ]
+    assert rows[0] == ("project", "Expedition 5", "1", "ARC Alloy")
+    assert ("quest", "Wires Crossed", "", "Snitch Scanner") in rows
+    assert ("workshop", "Gunsmith", "4", "Radial Press") in rows
+    assert len(rows) == 4 + 3 + 6
+    assert rows == sorted(
+        rows, key=lambda r: (r[0], r[1].lower(), int(r[2] or -1), r[3].lower())
+    )
