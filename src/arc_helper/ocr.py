@@ -202,9 +202,8 @@ class OCREngine:
         the captured image and the cursor position.
         """
         cursor = get_cursor_position()
-        left, top, _, _ = search_window_bbox(
-            cursor, self.search_width, self.search_height
-        )
+        left = cursor.x - self.search_width // 2
+        top = cursor.y - self.search_height // 2
         image = self._grab_clamped(
             cursor, left, top, self.search_width, self.search_height
         )

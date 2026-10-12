@@ -7,8 +7,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
+import arc_helper.ocr as ocr_module
 from arc_helper.ocr import CARD_CROP_MARGIN
+from arc_helper.ocr import OCREngine
 from arc_helper.ocr import crop_card
+from arc_helper.ocr import search_window_bbox
 from arc_helper.tooltip_layout import FOUND_IN
 from arc_helper.tooltip_layout import PRICE_CHIP
 from arc_helper.tooltip_layout import RECYCLE_CHIP
@@ -100,6 +103,25 @@ def test_crop_card_adds_margin_and_clamps_to_image():
     )
     with Image.open(NO_CARD_FIXTURE) as image:
         assert crop_card(image.convert("RGB"), Point(515, 587)) is None
+
+
+def test_search_window_near_screen_edge_matches_debug_box(monkeypatch):
+    grabbed = []
+
+    def grab(bbox):
+        grabbed.append(bbox)
+        return Image.new("RGB", (bbox[2] - bbox[0], bbox[3] - bbox[1]))
+
+    cursor = Point(1000, 500)
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (3840, 2160))
+    monkeypatch.setattr(ocr_module, "get_cursor_position", lambda: cursor)
+    monkeypatch.setattr(ocr_module, "grab_screen", grab)
+    engine = OCREngine()
+    engine.search_width, engine.search_height = 2400, 1600
+    engine.capture_search_window()
+    # The window is cut at the left and top edges, never shifted inwards
+    assert grabbed == [search_window_bbox(cursor, 2400, 1600)]
+    assert grabbed == [(0, 0, 2200, 1300)]
 
 
 def test_card_nearest_cursor_wins():
