@@ -319,21 +319,26 @@ class Scanner:
         settings = get_settings()
         current_time = time.time()
 
+        # Look up first: raw reads of one item vary between scans (ANVIL IV,
+        # ANVILIV), so the cooldown and the popup key on the catalog name
+        recommendation = self.db.lookup(
+            item_name, tier_vote=get_ocr_engine().last_tier_vote
+        )
+        shown_name = recommendation.name if recommendation else item_name
+        same_item = shown_name == self._last_shown_item
+
         # Check cooldown - don't spam the same item
         if (
-            item_name == self._last_shown_item
+            same_item
             and current_time - self._last_shown_time < settings.overlay.cooldown
         ):
             # Still hovered: keep the popup and chips from auto-hiding
-            self.ui_queue.put(("touch", item_name))
+            self.ui_queue.put(("touch", shown_name))
             return
 
         self.stats.items_detected += 1
         self.stats.last_item = item_name
         self.stats.last_item_time = current_time
-
-        # Look up in database
-        recommendation = self.db.lookup(item_name, tier_vote=get_ocr_engine().last_tier_vote)
 
         if recommendation:
             self.stats.items_found_in_db += 1
@@ -346,13 +351,13 @@ class Scanner:
         verdict = self._verdict_for(recommendation, settings.show_ended_projects)
 
         # Show overlay (must be done on main thread)
-        self._show_overlay(item_name, recommendation, verdict)
+        self._show_overlay(shown_name, recommendation, verdict)
 
         if settings.overlay.tooltip_chips:
-            self._queue_chips(recommendation)
+            self._queue_chips(recommendation, same_item=same_item)
 
         # Update cooldown tracking
-        self._last_shown_item = item_name
+        self._last_shown_item = shown_name
         self._last_shown_time = current_time
 
     def _verdict_for(self, recommendation: Item | None, show_ended: bool) -> Verdict:  # noqa: FBT001
@@ -386,16 +391,23 @@ class Scanner:
         """Queue an overlay update for the main (GUI) thread to apply."""
         self.ui_queue.put(("overlay", item_name, recommendation, verdict))
 
-    def _queue_chips(self, recommendation: Item | None) -> None:
+    def _queue_chips(
+        self, recommendation: Item | None, *, same_item: bool = False
+    ) -> None:
         """Locate the tooltip and queue the chips for the current item.
 
         Runs the extra layout OCR pass, so it is only called once the
         cooldown check passed. Unknown items and missing tooltips hide the
-        chips, so they never sit beside another item's tooltip.
+        chips, so they never sit beside another item's tooltip. When the
+        item is unchanged and only this scan's layout read failed, the
+        chips stay where they are and their timer is restarted.
         """
         layout = None
         if recommendation is not None:
             layout = get_ocr_engine().layout_from_last_capture()
+        if recommendation is not None and layout is None and same_item:
+            self.ui_queue.put(("touch", recommendation.name))
+            return
         if recommendation is None or layout is None:
             self._hide_chips()
             return
@@ -408,7 +420,7 @@ class Scanner:
         with self._chips_lock:
             # stop() or pause() may have hidden the chips during the OCR pass
             if self._running and self.state == ScannerState.ACTIVE:
-                self.ui_queue.put(("chips", layout, payload))
+                self.ui_queue.put(("chips", recommendation.name, layout, payload))
 
     def _hide_chips(self) -> None:
         """Queue hiding the tooltip chips for the main (GUI) thread."""
@@ -491,7 +503,7 @@ class Application:
                     if self.chips is not None:
                         self.chips.touch()
                 elif msg[0] == "chips" and self.chips is not None:
-                    self.chips.show(msg[1], **msg[2])
+                    self.chips.show(msg[1], msg[2], **msg[3])
                 elif msg[0] == "chips_hide" and self.chips is not None:
                     self.chips.hide()
         except queue.Empty:

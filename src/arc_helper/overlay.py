@@ -346,6 +346,11 @@ class TooltipChips:
             RECYCLE_CHIP: self.recycle_window,
         }
         self._hide_after_id: str | None = None
+        # Item the chips belong to, the chips mapped and their positions,
+        # so a repeat show for one item only moves windows that moved
+        self._current_item: str | None = None
+        self._shown: set[str] = set()
+        self._positions: dict[str, tuple[int, int]] = {}
 
     def _scale(self, value: int) -> int:
         return max(1, int(value / self.dpi_scale))
@@ -382,13 +387,21 @@ class TooltipChips:
 
     def show(
         self,
+        item_name: str,
         layout: TooltipLayout,
         price_text: str | None,
         stack_text: str | None,
         recycle_label: str | None,
         recycle_text: str | None,
     ) -> None:
-        """Fill, measure, place and show the chips that have content."""
+        """Fill, measure, place and show the chips that have content.
+
+        For the item already showing, chips are only moved with geometry,
+        never withdrawn and mapped again, so the compositor does not fade
+        them. A chip this layout could not place stays where it is.
+        """
+        same_item = item_name == self._current_item
+        self._current_item = item_name
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
             self._hide_after_id = None
@@ -435,13 +448,21 @@ class TooltipChips:
         for key, window in self.windows.items():
             point = positions.get(key)
             if point is None:
-                window.withdraw()
+                if not same_item:
+                    window.withdraw()
+                    self._shown.discard(key)
+                    self._positions.pop(key, None)
                 continue
-            window.geometry(f"+{phys_to_tk(point.x)}+{phys_to_tk(point.y)}")
-            window.deiconify()
-            window.lift()
+            position = (phys_to_tk(point.x), phys_to_tk(point.y))
+            if self._positions.get(key) != position:
+                window.geometry(f"+{position[0]}+{position[1]}")
+                self._positions[key] = position
+            if key not in self._shown:
+                window.deiconify()
+                window.lift()
+                self._shown.add(key)
 
-        if positions:
+        if self._shown:
             hide_ms = int(self.settings.overlay.display_time * 1000)
             self._hide_after_id = self.root.after(hide_ms, self.hide)
 
@@ -462,6 +483,9 @@ class TooltipChips:
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
             self._hide_after_id = None
+        self._current_item = None
+        self._shown.clear()
+        self._positions.clear()
         for window in self.windows.values():
             window.withdraw()
 
