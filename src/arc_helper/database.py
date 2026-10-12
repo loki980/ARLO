@@ -126,6 +126,8 @@ class Database:
 
             # Structured recycle outputs. Home rows are derived from
             # items.recycle_for, field rows come from elsewhere and are kept.
+            # Home rows are rebuilt on every open because update_db writes
+            # items directly and never calls load_csv.
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS recycle_outputs (
                     item TEXT COLLATE NOCASE,
@@ -135,12 +137,7 @@ class Database:
                     PRIMARY KEY (item, component, location)
                 )
             """)
-            has_home = conn.execute(
-                "SELECT 1 FROM recycle_outputs WHERE location = ? LIMIT 1", (HOME,)
-            ).fetchone()
-            has_items = conn.execute("SELECT 1 FROM items LIMIT 1").fetchone()
-            if not has_home and has_items:
-                self._rebuild_home_outputs(conn)
+            self._rebuild_home_outputs(conn)
 
             conn.commit()
 

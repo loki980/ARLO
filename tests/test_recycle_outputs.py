@@ -49,10 +49,22 @@ def test_parse_skips_malformed_entries():
     assert parse_recycle_for("12, 2x, 0x Wires, ,3x Rope, -1x Gears") == [("Rope", 3)]
 
 
-def test_init_populates_home_rows_from_existing_items(tmp_path):
+def test_init_rebuilds_home_rows_and_keeps_field_rows(tmp_path):
     _db_with_items(tmp_path, [("Battery", "2x Metal Parts")])
-    db = Database(db_path=tmp_path / "items.db")  # reopened: table has no home rows
+    db = Database(db_path=tmp_path / "items.db")  # reopened after the insert
     assert db.recycle_outputs("battery") == [RecycleOutput("Metal Parts", 2, "home")]
+
+    # The updater rewrites items directly, without load_csv
+    with db._get_connection() as conn:  # noqa: SLF001 - test seam
+        conn.execute("UPDATE items SET recycle_for = '5x Wires'")
+        conn.commit()
+    _add_field(db, [("Battery", "Metal Parts", 1)])
+
+    db = Database(db_path=tmp_path / "items.db")
+    assert db.recycle_outputs("Battery") == [
+        RecycleOutput("Wires", 5, "home"),
+        RecycleOutput("Metal Parts", 1, "field"),
+    ]
 
 
 def test_reload_rebuilds_home_rows_and_keeps_field_rows(tmp_path):
