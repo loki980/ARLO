@@ -2,9 +2,11 @@
 """
 Hybrid Database Updater for ARLO (Arc Raiders Loot Overlay).
 
-Combines data from two sources for best results:
-  - MetaForge API: items, sell prices, stack sizes, recycle components, quests
-  - Arc Raiders Wiki: workshop upgrades, expedition requirements, project uses
+Combines data from three sources for best results:
+  - MetaForge API: items, sell prices, stack sizes, quests
+  - arctracker.io API: recycle (home) and salvage (field) outputs
+  - Arc Raiders Wiki: workshop upgrades, expedition requirements, project uses,
+    and recycle outputs for items arctracker does not cover
 
 Usage:
     python update_db.py                 # Full update (overwrites items.csv)
@@ -46,17 +48,15 @@ except ImportError:
 # =============================================================================
 
 METAFORGE_API_BASE = "https://metaforge.app/api/arc-raiders"
-METAFORGE_SUPABASE_URL = "https://unhbvkszwhczbjxgetgk.supabase.co/rest/v1"
-METAFORGE_SUPABASE_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuaGJ2a3N6d2hjemJqeGdldGdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5NjgwMjUsImV4cCI6MjA2MDU0NDAyNX0."
-    "gckCmxnlpwwJOGmc5ebLYDnaWaxr5PW31eCrSPR5aRQ"
-)
+ARCTRACKER_ITEMS_URL = "https://arctracker.io/api/items"
+ARCTRACKER_TIMEOUT = 60  # one call of about 4 MB
 
 WIKI_URL = "https://arcraiders.wiki/wiki/Loot"
 SCRIPT_DIR = Path(__file__).parent.resolve()
 ITEMS_CSV = SCRIPT_DIR / "items.csv"
 ITEMS_DB = SCRIPT_DIR / "items.db"
+RECYCLE_OUTPUTS_CSV = SCRIPT_DIR / "recycle_outputs.csv"
+RECYCLE_OUTPUTS_FIELDS = ["item", "component", "quantity", "location"]
 
 USER_AGENT = "ARLO/1.0 (Arc Raiders Loot Overlay - https://github.com/Soygen/ARLO)"
 
@@ -86,6 +86,25 @@ class GameItem:
     recycle_for: str = ""
     keep_for: str = ""
 
+    # True when recycles_to came from arctracker home outputs. Merge mode then
+    # replaces the old recycle_for instead of keeping it.
+    recycles_from_arctracker: bool = False
+
+
+@dataclass
+class ArcTrackerItem:
+    """One arctracker.io item. Output maps are keyed by component English name."""
+
+    id: str
+    name: str
+    value: int = 0
+    stack_size: int = 0
+    rarity: str = ""
+    item_type: str = ""
+    recycles_into: dict[str, int] = field(default_factory=dict)  # home
+    salvages_into: dict[str, int] = field(default_factory=dict)  # field
+    icon_url: str = ""
+
 
 @dataclass
 class ScraperStats:
@@ -106,23 +125,6 @@ class ScraperStats:
 
 def _api_get(url: str, *, timeout: int = 30):
     resp = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
-    resp.raise_for_status()
-    return resp.json()
-
-
-def _supabase_get(table: str, params: str = "") -> list:
-    url = f"{METAFORGE_SUPABASE_URL}/{table}"
-    if params:
-        url += f"?{params}"
-    resp = requests.get(
-        url,
-        timeout=30,
-        headers={
-            "User-Agent": USER_AGENT,
-            "apikey": METAFORGE_SUPABASE_KEY,
-            "Authorization": f"Bearer {METAFORGE_SUPABASE_KEY}",
-        },
-    )
     resp.raise_for_status()
     return resp.json()
 
@@ -152,7 +154,7 @@ def fetch_metaforge_items() -> list[dict]:
 
 def fetch_wiki_recycle_map() -> dict[str, str]:
     """Scrape the wiki loot table and return item_name -> recycles_to string map."""
-    print("  Falling back to wiki for recycle data...")
+    print("  Loading wiki recycle data...")
     try:
         html = fetch_wiki_page()
     except Exception as e:  # noqa: BLE001
@@ -201,41 +203,163 @@ def fetch_wiki_recycle_map() -> dict[str, str]:
     return recycle_map
 
 
-def fetch_metaforge_recycle_map(all_items: list[dict]) -> dict[str, str]:
-    """Fetch recycle components and build item_name -> '2x Metal Parts, 3x Wires' map."""
-    print("Fetching recycle data from MetaForge...")
+# =============================================================================
+# arctracker.io API
+# =============================================================================
+
+
+def _english_name(raw_name) -> str:
+    """Return the English entry of a localized name map, or a plain string name."""
+    if isinstance(raw_name, dict):
+        return str(raw_name.get("en") or "").strip()
+    if isinstance(raw_name, str):
+        return raw_name.strip()
+    return ""
+
+
+def _int_or_zero(value) -> int:
     try:
-        components = _supabase_get("arc_item_recycle_components", "select=*")
-    except Exception as e:  # noqa: BLE001
-        print(f"  Supabase unavailable ({e}), falling back to wiki for recycle data...")
-        return fetch_wiki_recycle_map()
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_arctracker_items(data) -> dict[str, ArcTrackerItem]:
+    """Turn an /api/items payload into a lowercase English name -> record map.
+
+    Component ids in recyclesInto and salvagesInto are resolved to English
+    names, because ids differ between sources (MetaForge wires-recipe is
+    arctracker wires). When two items share an English name the first wins.
+    """
+    raw_items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(raw_items, list):
+        msg = "arctracker payload has no items list"
+        raise TypeError(msg)
 
     id_to_name = {
-        item["id"]: item["name"]
-        for item in all_items
-        if item.get("id") and item.get("name")
+        raw["id"]: _english_name(raw.get("name")) or raw["id"]
+        for raw in raw_items
+        if isinstance(raw, dict) and raw.get("id")
     }
 
-    recycle_raw: dict[str, list[tuple[str, int]]] = {}
-    for comp in components:
-        item_id, comp_id, qty = (
-            comp.get("item_id", ""),
-            comp.get("component_id", ""),
-            comp.get("quantity", 0),
+    def outputs(raw_map) -> dict[str, int]:
+        result: dict[str, int] = {}
+        if not isinstance(raw_map, dict):
+            return result
+        for comp_id, qty in raw_map.items():
+            amount = _int_or_zero(qty)
+            if amount > 0:
+                comp_name = id_to_name.get(comp_id, comp_id)
+                result[comp_name] = result.get(comp_name, 0) + amount
+        return result
+
+    arc_items: dict[str, ArcTrackerItem] = {}
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            continue
+        name = _english_name(raw.get("name"))
+        if not name or name.lower() in arc_items:
+            continue
+        arc_items[name.lower()] = ArcTrackerItem(
+            id=str(raw.get("id") or ""),
+            name=name,
+            value=_int_or_zero(raw.get("value")),
+            stack_size=_int_or_zero(raw.get("stackSize")),
+            rarity=str(raw.get("rarity") or ""),
+            item_type=str(raw.get("type") or ""),
+            recycles_into=outputs(raw.get("recyclesInto")),
+            salvages_into=outputs(raw.get("salvagesInto")),
+            icon_url=str(raw.get("imageFilename") or ""),
         )
-        if item_id and comp_id:
-            recycle_raw.setdefault(item_id, []).append((comp_id, qty))
+    return arc_items
 
-    recycle_map: dict[str, str] = {}
-    for item_id, parts in recycle_raw.items():
-        item_name = id_to_name.get(item_id, "")
-        if item_name:
-            recycle_map[item_name] = ", ".join(
-                f"{qty}x {id_to_name.get(cid, cid)}" for cid, qty in parts
-            )
 
-    print(f"  Loaded recycle data for {len(recycle_map)} items")
+def fetch_arctracker_items() -> dict[str, ArcTrackerItem]:
+    """Fetch every item from arctracker.io in one call.
+
+    Returns an empty map after one warning when the API is unreachable,
+    answers with an error status, or sends something that is not item JSON.
+    """
+    print(f"Fetching items from {ARCTRACKER_ITEMS_URL} ...")
+    try:
+        resp = requests.get(
+            ARCTRACKER_ITEMS_URL,
+            timeout=ARCTRACKER_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        )
+        resp.raise_for_status()
+        arc_items = parse_arctracker_items(resp.json())
+    except (requests.RequestException, ValueError, TypeError) as e:
+        print(f"  WARNING: arctracker.io unavailable ({e}), using wiki recycle data")
+        return {}
+    print(f"  Loaded {len(arc_items)} items from arctracker.io")
+    return arc_items
+
+
+def format_recycle_for(outputs: dict[str, int]) -> str:
+    """Format outputs in the items.csv style, for example '2x Battery, 2x Wires'."""
+    return ", ".join(f"{qty}x {name}" for name, qty in outputs.items())
+
+
+def build_recycle_map(arc_items: dict[str, ArcTrackerItem]) -> dict[str, str]:
+    """Build the lowercase item name -> recycle_for text map.
+
+    arctracker home outputs win. Items without them keep the wiki Recycles To
+    text, and the whole map comes from the wiki when arctracker is empty.
+    """
+    recycle_map = {
+        name.lower(): text for name, text in fetch_wiki_recycle_map().items()
+    }
+    for key, record in arc_items.items():
+        if record.recycles_into:
+            recycle_map[key] = format_recycle_for(record.recycles_into)
     return recycle_map
+
+
+def build_recycle_output_rows(
+    arc_items: dict[str, ArcTrackerItem],
+) -> list[dict[str, str]]:
+    """List home (recyclesInto) and field (salvagesInto) outputs per item."""
+    rows: list[dict[str, str]] = []
+    for record in arc_items.values():
+        for location, outputs in (
+            ("home", record.recycles_into),
+            ("field", record.salvages_into),
+        ):
+            rows.extend(
+                {
+                    "item": record.name,
+                    "component": component,
+                    "quantity": str(qty),
+                    "location": location,
+                }
+                for component, qty in outputs.items()
+            )
+    rows.sort(key=lambda r: (r["item"].lower(), r["location"], r["component"].lower()))
+    return rows
+
+
+def write_recycle_outputs_csv(rows: list[dict[str, str]], csv_path: Path) -> None:
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=RECYCLE_OUTPUTS_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _recycle_fields(
+    name: str,
+    arc_items: dict[str, ArcTrackerItem],
+    recycle_map: dict[str, str],
+) -> tuple[str, bool]:
+    """Return (recycles_to, came_from_arctracker) for one item, by English name."""
+    record = arc_items.get(name.lower())
+    from_arctracker = bool(record and record.recycles_into)
+    return recycle_map.get(name.lower(), ""), from_arctracker
+
+
+# =============================================================================
+# MetaForge quests
+# =============================================================================
 
 
 def fetch_metaforge_quest_items() -> dict[str, list[str]]:
@@ -496,15 +620,25 @@ def fetch_items_from_wiki() -> list[GameItem]:
 # =============================================================================
 
 
-def fetch_items_hybrid() -> list[GameItem]:
+def fetch_items_hybrid(
+    arc_items: dict[str, ArcTrackerItem] | None = None,
+) -> list[GameItem]:
     """
     Best of both worlds:
-      - MetaForge API for items, prices, stack sizes, recycle data, quest data
+      - MetaForge API for items, prices, stack sizes, quest data
+      - arctracker.io for recycle data, with the wiki for items it lacks
       - Wiki for workshop/project/expedition uses
+
+    Pass arc_items when the caller already fetched them, to avoid a second call.
     """
-    # 1. MetaForge: items + recycle + quests
+    # 1. MetaForge items + quests, arctracker recycle data
     raw_items = fetch_metaforge_items()
-    recycle_map = fetch_metaforge_recycle_map(raw_items)
+    if arc_items is None:
+        arc_items = fetch_arctracker_items()
+    # Recycle data used to come from MetaForge's Supabase table
+    # arc_item_recycle_components. Its anon key was disabled 2026-04-02 and the
+    # feed has returned 401 since, so arctracker.io replaces it.
+    recycle_map = build_recycle_map(arc_items)
     quest_map = fetch_metaforge_quest_items()
 
     # 2. Wiki: Uses column only
@@ -526,7 +660,7 @@ def fetch_items_hybrid() -> list[GameItem]:
         sell_price = raw.get("value", 0) or 0
         stack_size = stat_block.get("stackSize", 0) or 0
         rarity = raw.get("rarity", "")
-        recycles_to = recycle_map.get(name, "")
+        recycles_to, from_arctracker = _recycle_fields(name, arc_items, recycle_map)
 
         # Wiki uses (workshop upgrades, expeditions, projects)
         wiki_use_str = wiki_uses.get(name.lower(), "")
@@ -548,6 +682,7 @@ def fetch_items_hybrid() -> list[GameItem]:
                 stack_size=stack_size,
                 category=category,
                 uses=combined_uses,
+                recycles_from_arctracker=from_arctracker,
             )
         )
 
@@ -655,11 +790,15 @@ def build_csv_rows(
 
         if merge and existing and key in existing:
             old = existing[key]
+            # arctracker home outputs replace the old text. Everything else
+            # keeps the existing merge rule.
+            if not (item.recycles_from_arctracker and recycle_for):
+                recycle_for = old["recycle_for"] or recycle_for
             rows.append(
                 {
                     "name": item.name,
                     "action": old["action"],
-                    "recycle_for": old["recycle_for"] or recycle_for,
+                    "recycle_for": recycle_for,
                     "keep_for": old["keep_for"] or keep_for,
                     "sell_price": sell_price,
                     "stack_size": stack_size,
@@ -761,7 +900,7 @@ def rebuild_database(csv_path: Path, db_path: Path) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Update items.csv and items.db from MetaForge API + Arc Raiders Wiki.",
+        description="Update items.csv, recycle_outputs.csv and items.db from MetaForge, arctracker.io and the Arc Raiders Wiki.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -790,15 +929,18 @@ Examples:
 
     args = parser.parse_args()
 
+    arc_items: dict[str, ArcTrackerItem] = {}
     if args.source == "wiki":
         items = fetch_items_from_wiki()
         source_name = "Arc Raiders Wiki"
     elif args.source == "api":
-        items = fetch_items_from_metaforge_only()
+        arc_items = fetch_arctracker_items()
+        items = fetch_items_from_metaforge_only(arc_items)
         source_name = "MetaForge API"
     else:
+        arc_items = fetch_arctracker_items()
         try:
-            items = fetch_items_hybrid()
+            items = fetch_items_hybrid(arc_items)
             source_name = "MetaForge API + Wiki"
         except Exception as e:  # noqa: BLE001
             print(f"\nHybrid fetch failed ({e}), falling back to wiki only...")
@@ -842,6 +984,11 @@ Examples:
     write_csv(rows, ITEMS_CSV)
     print(f"\n  Wrote {len(rows)} items to {ITEMS_CSV}")
 
+    if arc_items:
+        output_rows = build_recycle_output_rows(arc_items)
+        write_recycle_outputs_csv(output_rows, RECYCLE_OUTPUTS_CSV)
+        print(f"  Wrote {len(output_rows)} rows to {RECYCLE_OUTPUTS_CSV}")
+
     if not args.csv_only:
         db_count = rebuild_database(ITEMS_CSV, ITEMS_DB)
         print(f"  Rebuilt {ITEMS_DB} with {db_count} items")
@@ -849,10 +996,14 @@ Examples:
     print("\nDone!")
 
 
-def fetch_items_from_metaforge_only() -> list[GameItem]:
-    """MetaForge-only mode (no wiki enrichment)."""
+def fetch_items_from_metaforge_only(
+    arc_items: dict[str, ArcTrackerItem] | None = None,
+) -> list[GameItem]:
+    """MetaForge-only mode (no wiki uses). Recycle data as in hybrid mode."""
     raw_items = fetch_metaforge_items()
-    recycle_map = fetch_metaforge_recycle_map(raw_items)
+    if arc_items is None:
+        arc_items = fetch_arctracker_items()
+    recycle_map = build_recycle_map(arc_items)
     quest_map = fetch_metaforge_quest_items()
 
     items: list[GameItem] = []
@@ -863,12 +1014,14 @@ def fetch_items_from_metaforge_only() -> list[GameItem]:
         stat_block = raw.get("stat_block") or {}
         quest_uses = quest_map.get(name.lower(), [])
         quest_str = "Quests: " + ", ".join(quest_uses) if quest_uses else ""
+        recycles_to, from_arctracker = _recycle_fields(name, arc_items, recycle_map)
 
         items.append(
             GameItem(
                 name=name,
                 rarity=raw.get("rarity", ""),
-                recycles_to=recycle_map.get(name, ""),
+                recycles_to=recycles_to,
+                recycles_from_arctracker=from_arctracker,
                 sell_price=raw.get("value", 0) or 0,
                 stack_size=stat_block.get("stackSize", 0) or 0,
                 category=_normalize_category(raw.get("item_type", "")),
@@ -913,8 +1066,9 @@ def auto_update(*, force: bool = False) -> bool:
 
     try:
         print("Checking for item database updates...")
+        arc_items = fetch_arctracker_items()
         try:
-            items = fetch_items_hybrid()
+            items = fetch_items_hybrid(arc_items)
         except Exception:  # noqa: BLE001
             print("  Hybrid fetch failed, trying wiki only...")
             try:
@@ -930,6 +1084,10 @@ def auto_update(*, force: bool = False) -> bool:
         rows, stats = build_csv_rows(items, existing, merge=True)
 
         write_csv(rows, ITEMS_CSV)
+        if arc_items:
+            write_recycle_outputs_csv(
+                build_recycle_output_rows(arc_items), RECYCLE_OUTPUTS_CSV
+            )
         rebuild_database(ITEMS_CSV, ITEMS_DB)
         _mark_updated()
 

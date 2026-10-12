@@ -1,0 +1,45 @@
+{
+  "pagination": {
+    "page": 1,
+    "limit": 100,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPrevPage": false
+  },
+  "data": [
+    {
+      "id": "after-rain-comes",
+      "name": "After Rain Comes",
+      "trader_name": "Celeste",
+      "objectives": [
+        "Find the flooded solar panels nearby the Grandioso Apartments",
+        "Repair the solar panels using 5 Wires and 2 Batteries"
+      ],
+      "required_items": [
+        {
+          "id": 0,
+          "item": {
+            "id": "wires-recipe",
+            "name": "Wires",
+            "rarity": "Uncommon",
+            "item_type": "Topside Material"
+          },
+          "item_id": "wires-recipe",
+          "quantity": 5
+        },
+        {
+          "id": 1,
+          "item": {
+            "id": "battery",
+            "name": "Battery",
+            "rarity": "Uncommon",
+            "item_type": "Topside Material"
+          },
+          "item_id": "battery",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}
