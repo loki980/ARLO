@@ -6,6 +6,7 @@ from datetime import datetime
 import pytest
 import requests
 
+from arc_helper import config
 from arc_helper import icons
 from arc_helper.database import Blueprint
 from arc_helper.database import Database
@@ -179,3 +180,13 @@ def test_icon_failure_raises_clear_error(monkeypatch, tmp_path, item_id, respons
         icons.blueprint_icon_path(item_id, tmp_path)
 
     assert list(tmp_path.iterdir()) == []
+
+
+def test_save_to_env_keeps_icon_cache_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "load_dotenv", lambda *_a, **_k: None)
+    settings = config.Settings(icon_cache_dir=tmp_path / "my_icons")
+
+    settings.save_to_env(tmp_path / ".env")
+
+    lines = (tmp_path / ".env").read_text(encoding="utf-8").splitlines()
+    assert f"ICON_CACHE_DIR={tmp_path / 'my_icons'}" in lines

@@ -386,6 +386,7 @@ class Settings(BaseSettings):
             f"SHOW_CAPTURE_AREA={str(self.show_capture_area).lower()}",
             f"CAPTURE_LIBRARY={str(self.capture_library).lower()}",
             f"CAPTURE_LIBRARY_DIR={self.capture_library_dir}",
+            f"ICON_CACHE_DIR={self.icon_cache_dir}",
             "",
             "# Platform settings",
             f"SCREEN_BACKEND={self.screen_backend}",
