@@ -19,3 +19,6 @@ dist
 progress.csv
 arlo_user.db
 diag_frame.png
+
+# Downloaded icons
+/cache/

@@ -1,0 +1,92 @@
+name,item_id,unlocks,icon_url,map,map_condition,scavengable,containers,quest_reward,trials_reward
+Advanced Camera Blueprint,advanced_camera_blueprint,Advanced Camera,https://cdn.arctracker.io/items/v2/advanced_camera_blueprint.png,,,,,,
+Angled Grip II Blueprint,angled_grip_ii_blueprint,Angled Grip II,https://cdn.arctracker.io/items/v2/angled_grip_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Angled Grip III Blueprint,angled_grip_iii_blueprint,Angled Grip III,https://cdn.arctracker.io/items/v2/angled_grip_iii_blueprint.png,All,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Anvil Blueprint,anvil_blueprint,Anvil,https://cdn.arctracker.io/items/v2/anvil_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Aphelion Blueprint,aphelion_blueprint,Aphelion,https://cdn.arctracker.io/items/v2/aphelion_blueprint.png,Stella Montis,Any,Yes,Anywhere,No,No
+Banjo Blueprint,banjo_blueprint,Banjo,https://cdn.arctracker.io/items/v2/banjo_blueprint.png,,,,,,
+Bantam Blueprint,bantam_blueprint,Bantam,https://cdn.arctracker.io/items/v2/bantam_blueprint.png,,,,,,
+Barricade Kit Blueprint,barricade_kit_blueprint,Barricade Kit,https://cdn.arctracker.io/items/v2/barricade_kit_blueprint.png,All,Any,Yes,Electrical Containers,No,Yes
+Bettina Blueprint,bettina_blueprint,Bettina,https://cdn.arctracker.io/items/v2/bettina_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Blaze Grenade Blueprint,blaze_grenade_blueprint,Blaze Grenade,https://cdn.arctracker.io/items/v2/blaze_grenade_blueprint.png,All,Any,Yes,Industrial Containers,No,Yes
+Blue Light Stick Blueprint,blue_light_stick_blueprint,Blue Light Stick,https://cdn.arctracker.io/items/v2/blue_light_stick_blueprint.png,All,Any,Yes,Anywhere,No,Yes
+Bobcat Blueprint,bobcat_blueprint,Bobcat,https://cdn.arctracker.io/items/v2/bobcat_blueprint.png,Condition Only,"Locked Gate, Hurricane",Yes,"Anywhere, First Wave Cache",No,Yes
+Burletta Blueprint,burletta_blueprint,Burletta,https://cdn.arctracker.io/items/v2/burletta_blueprint.png,N/A,N/A,No,N/A,"Yes, Industrial Espionage",Yes
+Canto Blueprint,canto_blueprint,Canto,https://cdn.arctracker.io/items/v2/canto_blueprint.png,Condition Only,Hurricane,Yes,First Wave Cache,No,Yes
+Combat Mk. 3 (Aggressive) Blueprint,combat_mk3_aggressive_blueprint,Combat Mk. 3 (Aggressive),https://cdn.arctracker.io/items/v2/combat_mk3_aggressive_blueprint.png,"Stella Montis, The Blue Gate",Any,Yes,"Medical Containers, Security Containers",No,Yes
+Combat Mk. 3 (Flanking) Blueprint,combat_mk3_flanking_blueprint,Combat Mk. 3 (Flanking),https://cdn.arctracker.io/items/v2/combat_mk3_flanking_blueprint.png,"Stella Montis, The Blue Gate",Any,Yes,"Medical Containers, Security Containers",No,Yes
+Compensator II Blueprint,compensator_ii_blueprint,Compensator II,https://cdn.arctracker.io/items/v2/compensator_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Compensator III Blueprint,compensator_iii_blueprint,Compensator III,https://cdn.arctracker.io/items/v2/compensator_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Complex Gun Parts Blueprint,complex_gun_parts_blueprint,Complex Gun Parts,https://cdn.arctracker.io/items/v2/complex_gun_parts_blueprint.png,All,Any,Yes,Security Containers,No,No
+Crash Mat Blueprint,crash_mat_blueprint,Crash Mat,https://cdn.arctracker.io/items/v2/crash_mat_blueprint.png,Riven Tides,Any,Yes,Any,No,Yes
+Deadline Blueprint,deadline_blueprint,Deadline,https://cdn.arctracker.io/items/v2/deadline_blueprint.png,Stella Montis,Any,Yes,Anywhere,No,Yes
+Defibrillator Blueprint,defibrillator_blueprint,Defibrillator,https://cdn.arctracker.io/items/v2/defibrillator_blueprint.png,All,Any,Yes,Medical Containers,No,Yes
+Dolabra Blueprint,dolabra_blueprint,Dolabra,https://cdn.arctracker.io/items/v2/dolabra_blueprint.png,Condition Only,Close Scrutiny,Yes,ARC Assessor,No,No
+Emperor Gateway Conduit Blueprint,emperor_gateway_conduit_blueprint,Emperor Gateway Conduit,https://cdn.arctracker.io/items/v2/emperor_gateway_conduit_blueprint.png,All,Any,Yes,?,No,?
+Equalizer Blueprint,equalizer_blueprint,Equalizer,https://cdn.arctracker.io/items/v2/equalizer_blueprint.png,Condition Only,Harvester,No,Harvester,No,No
+Explosive Mine Blueprint,explosive_mine_blueprint,Explosive Mine,https://cdn.arctracker.io/items/v2/explosive_mine_blueprint.png,All,Any,Yes,Industrial Containers,No,Yes
+Extended Barrel II Blueprint,extended_barrel_ii_blueprint,Extended Barrel II,https://cdn.arctracker.io/items/v2/extended_barrel_ii_blueprint.png,All,Any,Yes,?,No,Yes
+Extended Barrel III Blueprint,extended_barrel_iii_blueprint,Extended Barrel III,https://cdn.arctracker.io/items/v2/extended_barrel_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Extended Light Mag II Blueprint,extended_light_mag_ii_blueprint,Extended Light Mag II,https://cdn.arctracker.io/items/v2/extended_light_mag_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Extended Light Mag III Blueprint,extended_light_mag_iii_blueprint,Extended Light Mag III,https://cdn.arctracker.io/items/v2/extended_light_mag_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Extended Medium Mag II Blueprint,extended_medium_mag_ii_blueprint,Extended Medium Mag II,https://cdn.arctracker.io/items/v2/extended_medium_mag_ii_blueprint.png,All,Night Raid,Yes,Residential Containers,No,Yes
+Extended Medium Mag III Blueprint,extended_medium_mag_iii_blueprint,Extended Medium Mag III,https://cdn.arctracker.io/items/v2/extended_medium_mag_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Extended Shotgun Mag II Blueprint,extended_shotgun_mag_ii_blueprint,Extended Shotgun Mag II,https://cdn.arctracker.io/items/v2/extended_shotgun_mag_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Extended Shotgun Mag III Blueprint,extended_shotgun_mag_iii_blueprint,Extended Shotgun Mag III,https://cdn.arctracker.io/items/v2/extended_shotgun_mag_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Fireworks Box Blueprint,fireworks_box_blueprint,Fireworks Box,https://cdn.arctracker.io/items/v2/fireworks_box_blueprint.png,Condition Only,Cold Snap,Yes,Anywhere,"Yes, Test Case",?
+Gas Mine Blueprint,gas_mine_blueprint,Gas Mine,https://cdn.arctracker.io/items/v2/gas_mine_blueprint.png,Stella Montis,Any,Yes,Anywhere,No,?
+Grappling Hook Blueprint,grappling_hook_blueprint,Grappling Hook,https://cdn.arctracker.io/items/v2/grappling_hook_blueprint.png,,,,,,
+Green Light Stick Blueprint,green_light_stick_blueprint,Green Light Stick,https://cdn.arctracker.io/items/v2/green_light_stick_blueprint.png,All,Any,Yes,Anywhere,No,Yes
+Heavy Gun Parts Blueprint,heavy_gun_parts_blueprint,Heavy Gun Parts,https://cdn.arctracker.io/items/v2/heavy_gun_parts_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Hullcracker Blueprint,hullcracker_blueprint,Hullcracker,https://cdn.arctracker.io/items/v2/hullcracker_blueprint.png,N/A,N/A,No,N/A,"Yes, The Major's Footlocker",No
+Il Toro Blueprint,il_toro_blueprint,Il Toro,https://cdn.arctracker.io/items/v2/il_toro_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Jolt Mine Blueprint,jolt_mine_blueprint,Jolt Mine,https://cdn.arctracker.io/items/v2/jolt_mine_blueprint.png,All,Any,Yes,Industrial Containers,No,Yes
+Jupiter Blueprint,jupiter_blueprint,Jupiter,https://cdn.arctracker.io/items/v2/jupiter_blueprint.png,Condition Only,Harvester,No,Harvester,No,No
+Light Gun Parts Blueprint,light_gun_parts_blueprint,Light Gun Parts,https://cdn.arctracker.io/items/v2/light_gun_parts_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Lightweight Stock Blueprint,lightweight_stock_blueprint,Lightweight Stock,https://cdn.arctracker.io/items/v2/lightweight_stock_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Looting Mk. 3 (Safekeeper) Blueprint,looting_mk3_safekeeper_blueprint,Looting Mk. 3 (Safekeeper),https://cdn.arctracker.io/items/v2/looting_mk3_safekeeper_blueprint.png,All,Any,Yes,"Medical Containers, Security Containers, Metal Crate",No,Yes
+Looting Mk. 3 (Survivor) Blueprint,looting_mk3_survivor_blueprint,Looting Mk. 3 (Survivor),https://cdn.arctracker.io/items/v2/looting_mk3_survivor_blueprint.png,All,Any,Yes,"Medical Containers, Security Containers, Metal Crate",No,Yes
+Lure Grenade Blueprint,lure_grenade_blueprint,Lure Grenade,https://cdn.arctracker.io/items/v2/lure_grenade_blueprint.png,N/A,N/A,No,N/A,"Yes, Greasing Her Palms",No
+Medium Gun Parts Blueprint,medium_gun_parts_blueprint,Medium Gun Parts,https://cdn.arctracker.io/items/v2/medium_gun_parts_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Muzzle Brake II Blueprint,muzzle_brake_ii_blueprint,Muzzle Brake II,https://cdn.arctracker.io/items/v2/muzzle_brake_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Muzzle Brake III Blueprint,muzzle_brake_iii_blueprint,Muzzle Brake III,https://cdn.arctracker.io/items/v2/muzzle_brake_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Osprey Blueprint,osprey_blueprint,Osprey,https://cdn.arctracker.io/items/v2/osprey_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Padded Stock Blueprint,padded_stock_blueprint,Padded Stock,https://cdn.arctracker.io/items/v2/padded_stock_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid, Hidden Bunker",Yes,Residential Containers,No,Yes
+Powered Descender Blueprint,powered_descender_blueprint,Powered Descender,https://cdn.arctracker.io/items/v2/powered_descender_blueprint.png,Riven Tides,?,Yes,Any,No,?
+Pulse Mine Blueprint,pulse_mine_blueprint,Pulse Mine,https://cdn.arctracker.io/items/v2/pulse_mine_blueprint.png,Stella Montis,Any,Yes,Anywhere,No,Yes
+Rascal Blueprint,rascal_blueprint,Rascal,https://cdn.arctracker.io/items/v2/rascal_blueprint.png,All,Any,Yes,Raider Containers,No,?
+Red Light Stick Blueprint,red_light_stick_blueprint,Red Light Stick,https://cdn.arctracker.io/items/v2/red_light_stick_blueprint.png,All,Any,Yes,Anywhere,No,Yes
+Remote Raider Flare Blueprint,remote_raider_flare_blueprint,Remote Raider Flare,https://cdn.arctracker.io/items/v2/remote_raider_flare_blueprint.png,All,Any,Yes,Electrical Containers,No,Yes
+Seeker Grenade Blueprint,seeker_grenade_blueprint,Seeker Grenade,https://cdn.arctracker.io/items/v2/seeker_grenade_blueprint.png,Stella Montis,Any,Yes,Anywhere,No,?
+Shotgun Choke II Blueprint,shotgun_choke_ii_blueprint,Shotgun Choke II,https://cdn.arctracker.io/items/v2/shotgun_choke_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Shotgun Choke III Blueprint,shotgun_choke_iii_blueprint,Shotgun Choke III,https://cdn.arctracker.io/items/v2/shotgun_choke_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Shotgun Silencer Blueprint,shotgun_silencer_blueprint,Shotgun Silencer,https://cdn.arctracker.io/items/v2/shotgun_silencer_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid, Hidden Bunker",Yes,Residential Containers,No,Yes
+Showstopper Blueprint,showstopper_blueprint,Showstopper,https://cdn.arctracker.io/items/v2/showstopper_blueprint.png,All,Any,Yes,Industrial Containers,No,Yes
+Silencer I Blueprint,silencer_i_blueprint,Silencer I,https://cdn.arctracker.io/items/v2/silencer_i_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Silencer II Blueprint,silencer_ii_blueprint,Silencer II,https://cdn.arctracker.io/items/v2/silencer_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Smoke Grenade Blueprint,smoke_grenade_blueprint,Smoke Grenade,https://cdn.arctracker.io/items/v2/smoke_grenade_blueprint.png,All,Any,Yes,Residential Containers,No,Any
+Snap Hook Blueprint,snap_hook_blueprint,Snap Hook,https://cdn.arctracker.io/items/v2/snap_hook_blueprint.png,Condition Only,Electromagnetic Storm,Yes,Anywhere,No,Trophy Only
+Stable Stock II Blueprint,stable_stock_ii_blueprint,Stable Stock II,https://cdn.arctracker.io/items/v2/stable_stock_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Stable Stock III Blueprint,stable_stock_iii_blueprint,Stable Stock III,https://cdn.arctracker.io/items/v2/stable_stock_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Stiletto Blueprint,stiletto_blueprint,Stiletto,https://cdn.arctracker.io/items/v2/stiletto_blueprint.png,,,,,,
+Surge Coil Blueprint,surge_coil_blueprint,Surge Coil,https://cdn.arctracker.io/items/v2/surge_coil_blueprint.png,Condition Only,Electromagnetic Storm,Yes,?,No,?
+Tactical Mk. 3 (Defensive) Blueprint,tactical_mk3_defensive_blueprint,Tactical Mk. 3 (Defensive),https://cdn.arctracker.io/items/v2/tactical_mk3_defensive_blueprint.png,"Stella Montis, The Blue Gate",Any,Yes,"Medical Containers, Security Containers, ARC Surveyor",No,Yes
+Tactical Mk. 3 (Healing) Blueprint,tactical_mk3_healing_blueprint,Tactical Mk. 3 (Healing),https://cdn.arctracker.io/items/v2/tactical_mk3_healing_blueprint.png,"Stella Montis, The Blue Gate",Any,Yes,"Medical Containers, Security Containers",No,Yes
+Tactical Mk. 3 (Revival) Blueprint,tactical_mk3_revival_blueprint,Tactical Mk. 3 (Revival),https://cdn.arctracker.io/items/v2/tactical_mk3_revival_blueprint.png,"Stella Montis, The Blue Gate",Any,Yes,"Medical Containers, Security Containers",No,Yes
+Tactical Mk. 3 (Smoke) Blueprint,tactical_mk3_smoke_blueprint,Tactical Mk. 3 (Smoke),https://cdn.arctracker.io/items/v2/tactical_mk3_smoke_blueprint.png,?,?,Yes,?,No,?
+Tagging Grenade Blueprint,tagging_grenade_blueprint,Tagging Grenade,https://cdn.arctracker.io/items/v2/tagging_grenade_blueprint.png,All,Any,Yes,Electrical Containers,No,Yes
+Tempest Blueprint,tempest_blueprint,Tempest,https://cdn.arctracker.io/items/v2/tempest_blueprint.png,Condition Only,"Night Raid, Hurricane",Yes,"Residential Containers, First Wave Cache",No,Yes
+Tether Launcher Blueprint,tether_launcher_blueprint,Tether Launcher,https://cdn.arctracker.io/items/v2/tether_launcher_blueprint.png,,,,,,
+Torrente Blueprint,torrente_blueprint,Torrente,https://cdn.arctracker.io/items/v2/torrente_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Trailblazer Blueprint,trailblazer_blueprint,Trailblazer,https://cdn.arctracker.io/items/v2/trailblazer_blueprint.png,Stella Montis,Any,Yes,Anywhere,No,Yes
+Trigger Nade Blueprint,trigger_nade_blueprint,Trigger 'Nade,https://cdn.arctracker.io/items/v2/trigger_nade_blueprint.png,All,Any,Yes,Anywhere,"Yes, Sparks Fly",?
+Venator Blueprint,venator_blueprint,Venator,https://cdn.arctracker.io/items/v2/venator_blueprint.png,All,Any,Yes,Raider Containers,No,Yes
+Vertical Grip II Blueprint,vertical_grip_ii_blueprint,Vertical Grip II,https://cdn.arctracker.io/items/v2/vertical_grip_ii_blueprint.png,All,Any,Yes,Residential Containers,No,Yes
+Vertical Grip III Blueprint,vertical_grip_iii_blueprint,Vertical Grip III,https://cdn.arctracker.io/items/v2/vertical_grip_iii_blueprint.png,Condition Only,"Electromagnetic Storm, Locked Gate, Night Raid",Yes,Residential Containers,No,Yes
+Vita Shot Blueprint,vita_shot_blueprint,Vita Shot,https://cdn.arctracker.io/items/v2/vita_shot_blueprint.png,All,Any,Yes,"Medical Containers, ARC Surveyor",No,Yes
+Vita Spray Blueprint,vita_spray_blueprint,Vita Spray,https://cdn.arctracker.io/items/v2/vita_spray_blueprint.png,All,Any,Yes,"Medical Containers, ARC Surveyor","Yes, Worth Your Salt",Yes
+Vulcano Blueprint,vulcano_blueprint,Vulcano,https://cdn.arctracker.io/items/v2/vulcano_blueprint.png,Condition Only,"Hidden Bunker, Hurricane",Yes,"Anywhere, First Wave Cache",No,Yes
+White Flag Blueprint,white_flag_blueprint,White Flag,https://cdn.arctracker.io/items/v2/white_flag_blueprint.png,Riven Tides,Any,Yes,Any,No,Yes
+Wolfpack Blueprint,wolfpack_blueprint,Wolfpack,https://cdn.arctracker.io/items/v2/wolfpack_blueprint.png,Condition Only,Night Raid,Yes,Residential Containers,No,Yes
+Yank Grenade Blueprint,yank_grenade_blueprint,Yank Grenade,https://cdn.arctracker.io/items/v2/yank_grenade_blueprint.png,,,,,,
+Yellow Light Stick Blueprint,yellow_light_stick_blueprint,Yellow Light Stick,https://cdn.arctracker.io/items/v2/yellow_light_stick_blueprint.png,All,Any,Yes,Anywhere,No,Yes

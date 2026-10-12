@@ -1,0 +1,155 @@
+== Table ==
+{| class="wikitable sortable"
+|- class="citizen-overflow-sticky-header"
+!Blueprint Name
+!Map<ref name="spawns"/>
+!Map Condition
+!Scavengable
+!Containers<ref name="spawns"/>
+!Quest Reward
+!Trials Reward
+|-
+|[[Anvil Blueprint]]
+|All
+|Any
+|Yes
+|[[:Category:Raider Containers|Raider Containers]]
+|No
+|Yes
+|-
+|[[Angled Grip III Blueprint]]
+|All
+|[[Electromagnetic Storm]]<br>[[Locked Gate]]<br>[[Night Raid]]
+|Yes
+|[[:Category:Residential Containers|Residential Containers]]
+|No
+|Yes
+|-
+|[[Bobcat Blueprint]]
+|Condition Only
+|[[Locked Gate]]
+[[Hurricane]]
+|Yes
+|Anywhere, [[First Wave Cache]]
+|No
+|Yes
+|-
+|[[Burletta Blueprint]]
+|N/A
+|N/A
+|No
+|N/A
+|Yes, [[Industrial Espionage]]
+|Yes
+|-
+|[[Emperor Gateway Conduit Blueprint]]
+|All
+|Any
+|Yes
+|? <!--ARC Surveyor-->
+|No
+|?
+|-
+|[[Trigger 'Nade Blueprint]]
+|All
+|Any
+|Yes
+|Anywhere
+|Yes, [[Sparks Fly]]
+|?
+|}
+
+== Grid ==
+{{BlueprintGrid
+| Extended Shotgun Mag III
+| Angled Grip III
+| Pulse Mine
+| Silencer II
+| Red Light Stick
+| Tactical Mk. 3 (Revival)
+| Compensator II
+| Muzzle Brake III
+| Tactical Mk. 3 (Defensive)
+| Vita Spray
+| Medium Gun Parts
+| Tagging Grenade
+| Crash Mat
+| Bobcat
+| Defibrillator
+| Jupiter
+| Extended Medium Mag II
+| Tactical Mk. 3 (Smoke)
+| Smoke Grenade
+| Dolabra
+| Shotgun Silencer
+| White Flag
+| Extended Light Mag II
+| Showstopper
+| Remote Raider Flare
+| ?
+| Angled Grip II
+| Stable Stock III
+| Aphelion
+| Tempest
+| Tactical Mk. 3 (Healing)
+| Vertical Grip III
+| Wolfpack
+| Combat Mk. 3 (Flanking)
+| Torrente
+| Jolt Mine
+| Hullcracker
+| Vita Shot
+| Deadline
+| ?
+| Shotgun Choke II
+| Anvil
+| Osprey
+| Looting Mk. 3 (Survivor)
+| Extended Shotgun Mag II
+| Advanced Camera
+| Powered Descender
+| Compensator III
+| Vulcano
+| Lightweight Stock
+| Trailblazer
+| Barricade Kit
+| Green Light Stick
+| Extended Medium Mag III
+| Lure Grenade
+| ?
+| Combat Mk. 3 (Aggressive)
+| Grappling Hook
+| Light Gun Parts
+| Extended Light Mag III
+| Il Toro
+| Bantam
+| Padded Stock
+| Heavy Gun Parts
+| Rascal
+| Canto
+| Bettina
+| Emperor Gateway Conduit
+| Fireworks Box
+| Gas Mine
+| Yellow Light Stick
+| Looting Mk. 3 (Safekeeper)
+| Surge Coil
+| Complex Gun Parts
+| Explosive Mine
+| Venator
+| Stable Stock II
+| Blaze Grenade
+| Trigger 'Nade
+| Seeker Grenade
+| Silencer I
+| Shotgun Choke III
+| Blue Light Stick
+| Vertical Grip II
+| Extended Barrel II
+| Muzzle Brake II
+| Extended Barrel III
+| Yank Grenade
+| Burletta
+| Equalizer
+| Snap Hook
+}}
