@@ -34,7 +34,7 @@ rights reserved), data-source study with evidence, design written.
    workshop levels (the only source with Outpost). Done 11 Oct.
 4. Design written. Done 11 Oct.
 
-## Phase 1. Chips on the tooltip. Underway from 11 Oct, about 65 percent
+## Phase 1. Chips on the tooltip. Underway from 11 Oct, about 76 percent
 
 Jeffrey's words: "Next to 'can be found in' on the right hand side, show
 'sells for'. Next to 'recycles into' icons, add the additional items the item
@@ -60,13 +60,15 @@ Done:
    read right (Anvil IV, Stiletto IV, vote IV at 0.88 on the real font). Done
    11 Oct.
 
-Ahead, in order:
-
 7. Find the card anywhere on screen. 99 of the 125 captures held no card
    because the fixed cursor-relative box missed where the game drew it.
-   Replace the box with a search window and OpenCV connected components on
+   Replaced the box with a search window and OpenCV connected components on
    the cream mask, nearest solid rectangle to the cursor, old box as the
-   fallback. Retires the right-side flip TODO. Added 11 Oct, started 11 Oct.
+   fallback. Retires the right-side flip TODO. OpenCV is now a dependency.
+   Added 11 Oct, done 11 Oct (review by the fallback reviewer pending).
+
+Ahead, in order:
+
 8. Jeffrey's live check of the chips: where they land, and whether the game's
    own "Recycles into" row shows Battery only or Battery and Wires for a
    Power Bank.
@@ -76,7 +78,7 @@ Ahead, in order:
 11. OCR engine trial (PaddleOCR PP-OCRv5 under onnxruntime), only if accuracy
     still falls short after step 9. Decided 11 Oct as an option.
 
-## Phase 2. Advice with a reason. Underway from 11 Oct, about 22 percent
+## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
 Jeffrey's words: "Keep until upgrade is complete; sell once done" is the kind
 of advice he wants, with the source named. And, after the popup told him to
@@ -91,18 +93,23 @@ Done:
    levels, all nine Frozen Trail quests and the Outpost levels. Loaded into
    the database. Done 11 Oct.
 
-Ahead, in order:
-
 2. The verdict engine. Rule 0: weapons are keep, at least one, more until the
    blueprint is owned. Then active needs minus progress, a reason naming up
    to three sources, the fallback (sell or recycle) from the item's data.
-   Added 11 Oct (weapon rule), started 11 Oct.
+   Radial Press reads "keep, 3 for Gunsmith IV, then sell". Added 11 Oct
+   (weapon rule), done 11 Oct, accepted by the fallback reviewer.
 3. Popup overhaul: the verdict word colored by the verdict (fixes the
    keyword-order bug that colored "Keep until upgrade is complete; sell once
    done" gold), the catalog name instead of the raw read (the popup showed
-   ANVILIV), home recycle outputs on the notes line. Changed 11 Oct.
+   ANVILIV), home recycle outputs on the notes line. Changed 11 Oct, done
+   11 Oct.
 4. Manual progress file (`progress.csv`, not committed) for bench levels,
-   finished quests and project phases, until phase 6 reads them.
+   finished quests and project phases, loaded into `arlo_user.db`, a second
+   untracked database so the weekly refresh never conflicts with it. Done
+   11 Oct.
+
+Ahead:
+
 5. Jeffrey's decisions: ended projects (Expedition 1 to 4) hidden by default
    until he says otherwise, coin-funding phases produce no needs.
 
