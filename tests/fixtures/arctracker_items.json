@@ -1,7 +1,7 @@
 {
   "version": "1791771168004",
   "generatedAt": "2026-10-12T02:12:48.004Z",
-  "itemCount": 4,
+  "itemCount": 5,
   "items": [
     {
       "id": "power_bank",
@@ -69,6 +69,18 @@
       "value": 75,
       "stackSize": 50,
       "imageFilename": "https://cdn.arctracker.io/items/v2/metal_parts.png"
+    },
+    {
+      "id": "rubber_parts",
+      "name": {
+        "de": "Gummiteile",
+        "en": "Rubber Parts"
+      },
+      "type": "Basic Material",
+      "rarity": "Common",
+      "value": 50,
+      "stackSize": 50,
+      "imageFilename": "https://cdn.arctracker.io/items/v2/rubber_parts.png"
     }
   ]
 }

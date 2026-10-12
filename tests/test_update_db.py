@@ -176,3 +176,31 @@ def test_arctracker_failure_falls_back_to_wiki(monkeypatch, tmp_path, capsys, fa
     assert rows["Power Bank"]["recycle_for"] == "9x Old Text"
     assert rows["Old Lamp"]["recycle_for"] == "1x Metal Parts"
     assert not outputs_csv.exists()
+
+
+def _drop_rubber_parts(payload):
+    payload["items"] = [i for i in payload["items"] if i["id"] != "rubber_parts"]
+    return payload
+
+
+def _strip_rubber_parts_english(payload):
+    for item in payload["items"]:
+        if item["id"] == "rubber_parts":
+            del item["name"]["en"]
+    return payload
+
+
+@pytest.mark.parametrize(
+    "corrupt",
+    [_drop_rubber_parts, _strip_rubber_parts_english],
+    ids=["missing-record", "no-english-name"],
+)
+def test_unresolved_component_rejects_payload(monkeypatch, tmp_path, capsys, corrupt):
+    payload = corrupt(_fixture("arctracker_items.json"))
+    with pytest.raises(ValueError, match="rubber_parts"):
+        update_db.parse_arctracker_items(payload)
+    rows, outputs_csv = _run_main(monkeypatch, tmp_path, FakeResponse(payload))
+    assert capsys.readouterr().out.count("WARNING") == 1
+    assert not outputs_csv.exists()
+    assert "rubber_parts" not in (tmp_path / "items.csv").read_text(encoding="utf-8")
+    assert rows["Power Bank"]["recycle_for"] == "9x Old Text"

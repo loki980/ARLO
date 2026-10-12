@@ -230,6 +230,8 @@ def parse_arctracker_items(data) -> dict[str, ArcTrackerItem]:
     Component ids in recyclesInto and salvagesInto are resolved to English
     names, because ids differ between sources (MetaForge wires-recipe is
     arctracker wires). When two items share an English name the first wins.
+    Raises ValueError when an output references a component that has no
+    record or no English name, so no raw id reaches the CSV files.
     """
     raw_items = data.get("items") if isinstance(data, dict) else None
     if not isinstance(raw_items, list):
@@ -237,9 +239,9 @@ def parse_arctracker_items(data) -> dict[str, ArcTrackerItem]:
         raise TypeError(msg)
 
     id_to_name = {
-        raw["id"]: _english_name(raw.get("name")) or raw["id"]
+        raw["id"]: _english_name(raw.get("name"))
         for raw in raw_items
-        if isinstance(raw, dict) and raw.get("id")
+        if isinstance(raw, dict) and raw.get("id") and _english_name(raw.get("name"))
     }
 
     def outputs(raw_map) -> dict[str, int]:
@@ -249,7 +251,10 @@ def parse_arctracker_items(data) -> dict[str, ArcTrackerItem]:
         for comp_id, qty in raw_map.items():
             amount = _int_or_zero(qty)
             if amount > 0:
-                comp_name = id_to_name.get(comp_id, comp_id)
+                comp_name = id_to_name.get(comp_id)
+                if not comp_name:
+                    msg = f"arctracker component {comp_id!r} has no English name"
+                    raise ValueError(msg)
                 result[comp_name] = result.get(comp_name, 0) + amount
         return result
 
