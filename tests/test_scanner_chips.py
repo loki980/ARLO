@@ -1,6 +1,7 @@
 """Tests that leaving ACTIVE hides the tooltip chips and keeps them hidden."""
 
 import threading
+import time
 
 import pytest
 
@@ -87,3 +88,12 @@ def test_no_chips_after_leaving_active_during_layout_ocr(monkeypatch, leave):
     worker.join(timeout=5)
 
     assert _drain(scanner) == [("chips_hide",)]
+
+
+def test_repeat_detection_in_cooldown_only_touches_the_windows():
+    scanner = _active_scanner()
+    # The same item was shown a moment ago, well inside the 2 s cooldown
+    scanner._last_shown_item = "Battery"  # noqa: SLF001
+    scanner._last_shown_time = time.time()  # noqa: SLF001
+    scanner._handle_detected_item("Battery")  # noqa: SLF001
+    assert _drain(scanner) == [("touch", "Battery")]

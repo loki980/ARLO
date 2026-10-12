@@ -218,10 +218,7 @@ class OverlayWindow:
         """
         # Skip redraw if same item already showing
         if self._current_item == item_name and self.is_visible():
-            if self._hide_after_id:
-                self.window.after_cancel(self._hide_after_id)
-            hide_ms = int(self.settings.overlay.display_time * 1000)
-            self._hide_after_id = self.window.after(hide_ms, self.hide)
+            self._reschedule_hide()
             return
 
         self._current_item = item_name
@@ -281,6 +278,18 @@ class OverlayWindow:
         # Auto-hide
         hide_ms = int(self.settings.overlay.display_time * 1000)
         self._hide_after_id = self.window.after(hide_ms, self.hide)
+
+    def _reschedule_hide(self) -> None:
+        """Restart the auto-hide timer from now."""
+        if self._hide_after_id:
+            self.window.after_cancel(self._hide_after_id)
+        hide_ms = int(self.settings.overlay.display_time * 1000)
+        self._hide_after_id = self.window.after(hide_ms, self.hide)
+
+    def touch(self, item_name: str) -> None:
+        """Keep the overlay up while item_name is the item showing."""
+        if self._current_item == item_name and self.is_visible():
+            self._reschedule_hide()
 
     def hide(self) -> None:
         if self._hide_after_id:
@@ -435,6 +444,19 @@ class TooltipChips:
         if positions:
             hide_ms = int(self.settings.overlay.display_time * 1000)
             self._hide_after_id = self.root.after(hide_ms, self.hide)
+
+    def touch(self) -> None:
+        """Restart the auto-hide timer when any chip is showing."""
+        try:
+            showing = any(w.winfo_viewable() for w in self.windows.values())
+        except tk.TclError:
+            return
+        if not showing:
+            return
+        if self._hide_after_id:
+            self.root.after_cancel(self._hide_after_id)
+        hide_ms = int(self.settings.overlay.display_time * 1000)
+        self._hide_after_id = self.root.after(hide_ms, self.hide)
 
     def hide(self) -> None:
         if self._hide_after_id:

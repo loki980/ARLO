@@ -318,6 +318,8 @@ class Scanner:
             item_name == self._last_shown_item
             and current_time - self._last_shown_time < settings.overlay.cooldown
         ):
+            # Still hovered: keep the popup and chips from auto-hiding
+            self.ui_queue.put(("touch", item_name))
             return
 
         self.stats.items_detected += 1
@@ -478,6 +480,10 @@ class Application:
                         else None
                     )
                     self.overlay.show(item_name, recommendation, verdict, home_outputs)
+                elif msg[0] == "touch":
+                    self.overlay.touch(msg[1])
+                    if self.chips is not None:
+                        self.chips.touch()
                 elif msg[0] == "chips" and self.chips is not None:
                     self.chips.show(msg[1], **msg[2])
                 elif msg[0] == "chips_hide" and self.chips is not None:
