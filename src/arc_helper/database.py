@@ -15,12 +15,20 @@ from pydantic import Field
 
 from .config import get_settings
 from .config import logger
+from .tiers import TierVote
+from .tiers import resolve_tier
+from .tiers import split_read
+from .tiers import split_tier
+from .tiers import tier_key
 
 HOME = "home"
 FIELD = "field"
 
 # "2x Metal Parts", "2 X Metal Parts", "2xMetal Parts"
 _COUNTED_ENTRY = re.compile(r"(\d+)\s*[xX]\s*(.*)")
+
+# A stroke-count tier vote at least this confident overrides the read tier
+TIER_VOTE_MIN_CONFIDENCE = 0.7
 
 
 def _match_key(name: str) -> str:
@@ -89,7 +97,9 @@ class Database:
         if db_path is None:
             db_path = get_settings().database_path
         self.db_path = db_path
+        self._tier_index: dict[str, dict[str, str]] = {}
         self._init_db()
+        self._build_tier_index()
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection."""
@@ -157,6 +167,48 @@ class Database:
                     (row["name"], component, quantity, HOME),
                 )
 
+    def _build_tier_index(self) -> None:
+        """Map each tiered base, in tier_key form, to {tier: catalog name}."""
+        index: dict[str, dict[str, str]] = {}
+        with self._get_connection() as conn:
+            for row in conn.execute("SELECT name FROM items"):
+                base, tier = split_tier(row["name"])
+                if tier is not None:
+                    index.setdefault(tier_key(base), {})[tier] = row["name"]
+        self._tier_index = index
+
+    def _resolve_tiered(self, name: str, tier_vote: TierVote | None) -> str | None:
+        """Resolve a garbled tiered read to a catalog name, or None.
+
+        The read must be a tiered base, optionally followed by a tier token
+        in tolerant form. The read tier resolves to the nearest tier that
+        exists for that base. A confident stroke-count vote for a tier that
+        exists wins over the read tier.
+        """
+        key = tier_key(name)
+        if not key or not self._tier_index:
+            return None
+        if key in self._tier_index:
+            base, read_tier = key, None
+        else:
+            base, read_tier = split_read(key, self._tier_index)
+            if read_tier is None:
+                return None
+        tiers = self._tier_index[base]
+        chosen = resolve_tier(read_tier, tiers) if read_tier else None
+
+        if tier_vote is not None and tier_vote.tier is not None:
+            if (
+                tier_vote.confidence >= TIER_VOTE_MIN_CONFIDENCE
+                and tier_vote.tier in tiers
+            ):
+                chosen = tier_vote.tier
+            logger.debug(
+                f"Tier for {name!r}: read {read_tier}, vote {tier_vote.tier} "
+                f"({tier_vote.confidence:.2f}), chose {chosen}"
+            )
+        return tiers[chosen] if chosen else None
+
     def recycle_outputs(self, name: str) -> list[RecycleOutput]:
         """All recycle outputs for an item, home rows first, in source order."""
         with self._get_connection() as conn:
@@ -192,8 +244,13 @@ class Database:
                 extras.append(output._replace(quantity=remaining))
         return extras
 
-    def lookup(self, name: str) -> Item | None:
-        """Look up an item by name (case-insensitive, with fuzzy matching)."""
+    def lookup(self, name: str, tier_vote: TierVote | None = None) -> Item | None:
+        """Look up an item by name (case-insensitive, with fuzzy matching).
+
+        tier_vote is the stroke-count vote on the name's tier token, when the
+        OCR engine produced one. A confident vote picks the tier of a tiered
+        base even when the read text matched another tier exactly.
+        """
         clean_name = name.strip()
 
         with self._get_connection() as conn:
@@ -214,6 +271,22 @@ class Database:
                         if _match_key(candidate["name"]) == target:
                             row = candidate
                             break
+
+            # Tier resolver: a tiered base plus a garbled numeral ("ANVIL 1l",
+            # "ARPEGGIO |V"). Runs on a miss, or on a hit when a confident
+            # vote may change the tier, and skips the looser LIKE and fuzzy
+            # steps.
+            confident_vote = (
+                tier_vote is not None
+                and tier_vote.tier is not None
+                and tier_vote.confidence >= TIER_VOTE_MIN_CONFIDENCE
+            )
+            if not row or confident_vote:
+                resolved = self._resolve_tiered(clean_name, tier_vote)
+                if resolved:
+                    row = conn.execute(
+                        "SELECT * FROM items WHERE name = ?", (resolved,)
+                    ).fetchone()
 
             # If no exact match, try LIKE match
             if not row:
@@ -315,6 +388,7 @@ class Database:
             self._rebuild_home_outputs(conn)
             conn.commit()
 
+        self._build_tier_index()
         return count
 
     def log_missing_item(self, name: str) -> None:
@@ -369,6 +443,7 @@ class Database:
             conn.execute("DELETE FROM items")
             conn.execute("DELETE FROM recycle_outputs WHERE location = ?", (HOME,))
             conn.commit()
+        self._tier_index = {}
 
 
 def get_database() -> Database:
