@@ -33,13 +33,13 @@ jobs:
       - name: Check for changes
         id: check_changes
         run: |
-          git diff --quiet items.csv items.db || echo "changed=true" >> "$GITHUB_OUTPUT"
+          git diff --quiet items.csv items.db recycle_outputs.csv needs.csv || echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Commit and push changes
         if: steps.check_changes.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add items.csv items.db
+          git add items.csv items.db recycle_outputs.csv needs.csv
           git commit -m "Auto-update item database from wiki [$(date -u +%Y-%m-%d)]"
           git push
