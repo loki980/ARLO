@@ -19,6 +19,10 @@ from .config import logger
 from .screen import Point
 from .screen import ScreenCaptureUnavailable
 from .screen import get_backend
+from .tiers import TIER_LIKE
+from .tiers import TierVote
+from .tiers import count_strokes
+from .tiers import tier_key
 from .tooltip_layout import Point as LayoutPoint
 from .tooltip_layout import TooltipLayout
 from .tooltip_layout import Word
@@ -83,6 +87,9 @@ class OCREngine:
 
         if self.debug_mode:
             self.debug_dir.mkdir(parents=True, exist_ok=True)
+
+        # Stroke-count vote on the tier token of the last name read
+        self.last_tier_vote: TierVote | None = None
 
     @staticmethod
     def capture_region(region: RegionMixin) -> Image.Image:
@@ -475,6 +482,8 @@ class OCREngine:
         Captures area around cursor, finds the tooltip, and extracts the item name.
         Returns the cleaned item name or None if extraction fails.
         """
+        self.last_tier_vote = None
+
         # Capture around cursor
         image, _ = self.capture_around_cursor()
 
@@ -518,6 +527,7 @@ class OCREngine:
         intact - a plain pass reads "II" as "Il" or drops it to "I", which
         silently selects the wrong item tier.
         """
+        self.last_tier_vote = None
         plain = pytesseract.image_to_string(processed, config="--psm 6")
         logger.debug(f"Raw tooltip OCR:\n{plain}")
 
@@ -530,7 +540,67 @@ class OCREngine:
             config=f"--psm 6 -c tessedit_char_whitelist={self.NAME_WHITELIST}",
         )
         name_lines = [ln.strip() for ln in whitelisted.split("\n") if ln.strip()]
+
+        # The word boxes cost a third Tesseract pass, so only fetch them
+        # when the plain read already ends the name in a tier-like token
+        plain_lines = [ln.split() for ln in plain.split("\n")]
+        if self._last_name_word(plain_lines, line_count) is not None:
+            self.last_tier_vote = self._vote_on_tier(processed, line_count)
+
         return self._clean_text(" ".join(name_lines[:line_count])) or None
+
+    @classmethod
+    def _last_name_word(cls, lines: list[list[str]], line_count: int) -> int | None:
+        """Index of the tier-like last word of the name, or None.
+
+        lines are the words of each OCR line in order. The name lines are
+        found the way _count_name_lines finds them: short leading lines are
+        skipped, then line_count lines form the name.
+        """
+        start = 0
+        while start < len(lines) and len(cls._clean_text(" ".join(lines[start]))) < 2:
+            start += 1
+        last = start + line_count - 1
+        if last >= len(lines) or not lines[last]:
+            return None
+        if TIER_LIKE.match(tier_key(lines[last][-1])):
+            return last
+        return None
+
+    def _vote_on_tier(self, processed: Image.Image, line_count: int) -> TierVote | None:
+        """Count the strokes of the tier token that ends the name.
+
+        Reads word boxes from the plain pass, crops the last word of the
+        last name line from the processed image (ink is black) and counts
+        its strokes. None when the token cannot be located.
+        """
+        try:
+            data = pytesseract.image_to_data(
+                processed, config="--psm 6", output_type=pytesseract.Output.DICT
+            )
+        except pytesseract.TesseractError as e:
+            logger.debug(f"Tier vote skipped, word boxes failed: {e}")
+            return None
+
+        # Tesseract numbers lines per block and paragraph
+        lines: dict[tuple[int, int, int], list[int]] = {}
+        for i, text in enumerate(data["text"]):
+            if text.strip():
+                key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+                lines.setdefault(key, []).append(i)
+        boxes = list(lines.values())
+        words = [[data["text"][i] for i in line] for line in boxes]
+
+        last = self._last_name_word(words, line_count)
+        if last is None:
+            return None
+        i = boxes[last][-1]
+        left, top = data["left"][i], data["top"][i]
+        box = (left, top, left + data["width"][i], top + data["height"][i])
+        ink = np.array(processed.convert("L").crop(box)) < 128
+        vote = count_strokes(ink)
+        logger.debug(f"Tier vote on {data['text'][i]!r}: {vote}")
+        return vote
 
     @staticmethod
     def _upper_ratio(text: str) -> float:

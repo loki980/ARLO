@@ -322,7 +322,7 @@ class Scanner:
         self.stats.last_item_time = current_time
 
         # Look up in database
-        recommendation = self.db.lookup(item_name)
+        recommendation = self.db.lookup(item_name, tier_vote=get_ocr_engine().last_tier_vote)
 
         if recommendation:
             self.stats.items_found_in_db += 1
