@@ -16,4 +16,5 @@ dist
 .last_wiki_update
 .vs/
 .screencast_restore_token
+progress.csv
 diag_frame.png

@@ -262,6 +262,16 @@ class Settings(BaseSettings):
         """needs.csv, next to the database and items.csv."""
         return self.database_path.parent / "needs.csv"
 
+    @property
+    def progress_csv_path(self) -> Path:
+        """progress.csv, the player's own progress, next to items.csv."""
+        return self.database_path.parent / "progress.csv"
+
+    # Count needs from projects whose end date has passed
+    show_ended_projects: bool = Field(
+        default=False, description="Count needs from projects that have ended"
+    )
+
     # Screen capture backend: auto | x11 | wayland (Linux only)
     screen_backend: str = Field(
         default="auto", description="Screen backend: auto, x11 or wayland"
@@ -320,6 +330,7 @@ class Settings(BaseSettings):
             f"OVERLAY_DISPLAY_TIME={self.overlay.display_time}",
             f"OVERLAY_COOLDOWN={self.overlay.cooldown}",
             f"TOOLTIP_CHIPS={str(self.overlay.tooltip_chips).lower()}",
+            f"SHOW_ENDED_PROJECTS={str(self.show_ended_projects).lower()}",
             "",
             "# Scan intervals",
             f"TRIGGER_SCAN_INTERVAL={self.scan.trigger_scan_interval}",

@@ -28,6 +28,7 @@ LOCATIONS = (HOME, FIELD)
 NEED_KINDS = ("quest", "project", "workshop")
 RECYCLE_OUTPUTS_CSV_NAME = "recycle_outputs.csv"
 NEEDS_CSV_NAME = "needs.csv"
+PROGRESS_CSV_NAME = "progress.csv"
 
 # "2x Metal Parts", "2 X Metal Parts", "2xMetal Parts"
 _COUNTED_ENTRY = re.compile(r"(\d+)\s*[xX]\s*(.*)")
@@ -167,6 +168,32 @@ def read_needs_csv(path: Path) -> list[Need]:
     return rows
 
 
+def read_progress_csv(path: Path) -> list[tuple[str, str, int]]:
+    """Parse progress.csv into (source_kind, source_name, value) rows.
+
+    value is the workshop level reached, 1 for a finished quest, or the
+    highest project phase done. Malformed rows, negative values and repeats
+    of a key already seen are skipped with a debug log.
+    """
+    rows: list[tuple[str, str, int]] = []
+    seen: set[tuple[str, str]] = set()
+    with Path(path).open(encoding="utf-8", newline="") as f:
+        for raw in csv.DictReader(f):
+            kind = (raw.get("source_kind") or "").strip()
+            name = (raw.get("source_name") or "").strip()
+            try:
+                value = int((raw.get("value") or "").strip())
+            except ValueError:
+                value = -1
+            key = (kind, name.translate(_NOCASE))
+            if kind not in NEED_KINDS or not name or value < 0 or key in seen:
+                logger.debug(f"Skipping progress.csv row: {raw!r}")
+                continue
+            seen.add(key)
+            rows.append((kind, name, value))
+    return rows
+
+
 def parse_recycle_for(text: str | None) -> list[tuple[str, int]]:
     """Parse a recycle_for string into (component, quantity) pairs.
 
@@ -205,10 +232,11 @@ class Database:
         *,
         recycle_outputs_csv: Path | None = None,
         needs_csv: Path | None = None,
+        progress_csv: Path | None = None,
     ):
         """Initialize database connection.
 
-        The two CSV paths default to the configured ones when db_path is not
+        The CSV paths default to the configured ones when db_path is not
         given, and to the files next to db_path otherwise.
         """
         if db_path is None:
@@ -216,12 +244,15 @@ class Database:
             db_path = settings.database_path
             default_outputs = settings.recycle_outputs_csv_path
             default_needs = settings.needs_csv_path
+            default_progress = settings.progress_csv_path
         else:
             default_outputs = Path(db_path).parent / RECYCLE_OUTPUTS_CSV_NAME
             default_needs = Path(db_path).parent / NEEDS_CSV_NAME
+            default_progress = Path(db_path).parent / PROGRESS_CSV_NAME
         self.db_path = db_path
         self.recycle_outputs_csv = Path(recycle_outputs_csv or default_outputs)
         self.needs_csv = Path(needs_csv or default_needs)
+        self.progress_csv = Path(progress_csv or default_progress)
         self._tier_index: dict[str, dict[str, str]] = {}
         self._init_db()
         self._build_tier_index()
@@ -407,12 +438,76 @@ class Database:
             conn.commit()
         return True
 
+    @staticmethod
+    def _has_progress_table(conn: sqlite3.Connection) -> bool:
+        """Whether the progress table exists yet."""
+        return (
+            conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'progress'"
+            ).fetchone()
+            is not None
+        )
+
+    def load_progress_csv(self, path: Path | str) -> bool:
+        """Replace all progress rows with the CSV rows.
+
+        The progress table is created on the first load that has rows to
+        write, so a database that never saw a progress file keeps its bytes.
+        Writes nothing when the stored rows already match. Returns True when
+        the table changed.
+        """
+        rows = read_progress_csv(Path(path))
+        with self._get_connection() as conn:
+            stored: list[tuple] = []
+            if self._has_progress_table(conn):
+                stored = [
+                    tuple(row)
+                    for row in conn.execute(
+                        "SELECT source_kind, source_name, value "
+                        "FROM progress ORDER BY rowid"
+                    )
+                ]
+            if stored == rows:
+                return False
+            # What the player has finished: workshop level reached, 1 for a
+            # done quest, highest project phase done
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS progress (
+                    source_kind TEXT CHECK (
+                        source_kind IN ('quest', 'project', 'workshop')
+                    ),
+                    source_name TEXT COLLATE NOCASE,
+                    value INTEGER,
+                    PRIMARY KEY (source_kind, source_name)
+                )
+            """)
+            conn.execute("DELETE FROM progress")
+            conn.executemany(
+                "INSERT INTO progress (source_kind, source_name, value) "
+                "VALUES (?, ?, ?)",
+                rows,
+            )
+            conn.commit()
+        return True
+
+    def progress_map(self) -> dict[tuple[str, str], int]:
+        """Recorded progress as {(source_kind, source_name): value}."""
+        with self._get_connection() as conn:
+            if not self._has_progress_table(conn):
+                return {}
+            rows = conn.execute(
+                "SELECT source_kind, source_name, value FROM progress"
+            ).fetchall()
+        return {(row[0], row[1]): row[2] for row in rows}
+
     def sync_from_csvs(self) -> None:
-        """Load recycle_outputs.csv and needs.csv, whichever of them exist."""
+        """Load recycle_outputs.csv, needs.csv and progress.csv, if they exist."""
         if self.recycle_outputs_csv.exists():
             self.load_recycle_outputs_csv(self.recycle_outputs_csv)
         if self.needs_csv.exists():
             self.load_needs_csv(self.needs_csv)
+        if self.progress_csv.exists():
+            self.load_progress_csv(self.progress_csv)
 
     def needs_for(self, name: str) -> list[Need]:
         """Every quest, project and workshop row that needs an item."""
@@ -427,6 +522,20 @@ class Database:
                 (name.strip(),),
             ).fetchall()
         return [Need._make(row) for row in rows]
+
+    def blueprint_for(self, name: str) -> str | None:
+        """Catalog name of the "<base> Blueprint" entry for an item, or None.
+
+        The base is the name without its tier numeral, so Anvil IV maps to
+        Anvil Blueprint. The match is exact apart from ASCII case.
+        """
+        base, _ = split_tier(name.strip())
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT name FROM items WHERE name = ? COLLATE NOCASE",
+                (f"{base} Blueprint",),
+            ).fetchone()
+        return row["name"] if row else None
 
     def _build_tier_index(self) -> None:
         """Map each tiered base, in tier_key form, to {tier: catalog name}."""
