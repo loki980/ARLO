@@ -54,6 +54,8 @@ TOOLTIP_SCAN_INTERVAL=0.3        # Seconds between tooltip scans
 
 DEBUG_MODE=false                 # Enable to save debug images and logs
 SHOW_CAPTURE_AREA=false          # Show red rectangle around capture area
+CAPTURE_LIBRARY=false            # Save raw tooltip captures for offline OCR evaluation
+CAPTURE_LIBRARY_DIR=debug/captures  # Folder for the capture library
 ```
 
 ### Debug Mode

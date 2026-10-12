@@ -103,3 +103,20 @@ def test_no_word_boxes_for_untiered_name(monkeypatch):
     assert engine._read_item_name(image) == "BATTERY"  # noqa: SLF001
     assert engine.last_tier_vote is None
     assert calls == ["string", "string"]
+
+
+def test_capture_library_throttles_per_name_and_never_raises(tmp_path):
+    engine = OCREngine()
+    engine.capture_library_dir = tmp_path / "captures"
+    image = Image.new("RGB", (20, 20))
+    engine._save_to_library(image, "ANVIL II")  # noqa: SLF001
+    engine._save_to_library(image, "ANVIL II")  # noqa: SLF001 - within 2 seconds
+    engine._save_to_library(image, None)  # noqa: SLF001
+    saved = sorted(
+        p.name.split("_", 1)[1] for p in engine.capture_library_dir.iterdir()
+    )
+    assert saved == ["ANVIL-II.png", "none.png"]
+
+    engine.capture_library_dir = tmp_path / "blocked"
+    engine.capture_library_dir.write_text("a file, not a folder")
+    engine._save_to_library(image, "OSPREY I")  # noqa: SLF001 - logged, not raised

@@ -269,6 +269,14 @@ class Settings(BaseSettings):
         default=False, description="Show red overlay for capture area"
     )
 
+    # Capture library: save raw tooltip captures for offline OCR evaluation
+    capture_library: bool = Field(
+        default=False, description="Save raw tooltip captures for evaluation"
+    )
+    capture_library_dir: Path = Field(
+        default_factory=lambda: APP_DIR / "debug" / "captures"
+    )
+
     def save_to_env(self, env_path: Path | None = None) -> None:
         """Save current settings to .env file."""
         if env_path is None:

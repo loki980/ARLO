@@ -5,6 +5,8 @@ Screen capture and text extraction using Tesseract.
 
 import re
 import string
+import time
+from datetime import datetime
 
 import numpy as np
 import pytesseract
@@ -87,6 +89,11 @@ class OCREngine:
 
         if self.debug_mode:
             self.debug_dir.mkdir(parents=True, exist_ok=True)
+
+        # Capture library: raw tooltip captures kept for offline evaluation
+        self.capture_library = settings.capture_library
+        self.capture_library_dir = settings.capture_library_dir
+        self._capture_saved_at: dict[str, float] = {}
 
         # Stroke-count vote on the tier token of the last name read
         self.last_tier_vote: TierVote | None = None
@@ -512,11 +519,34 @@ class OCREngine:
             item_name = self._read_item_name(processed)
         except pytesseract.TesseractError as e:
             logger.error(f"OCR Error: {e}")
-            return None
+            item_name = None
+        else:
+            if item_name:
+                logger.debug(f"Extracted item name: '{item_name}'")
 
-        if item_name:
-            logger.debug(f"Extracted item name: '{item_name}'")
+        if self.capture_library and self._last_capture is not None:
+            self._save_to_library(image, item_name)
         return item_name
+
+    def _save_to_library(self, image: Image.Image, item_name: str | None) -> None:
+        """Save a raw capture for offline evaluation, never raising.
+
+        At most one file per distinct read name every 2 seconds, so holding
+        the cursor on one item does not fill the folder.
+        """
+        label = re.sub(r"[^A-Za-z0-9]+", "-", item_name or "").strip("-") or "none"
+        now = time.monotonic()
+        last = self._capture_saved_at.get(label)
+        if last is not None and now - last < 2.0:
+            return
+        try:
+            self.capture_library_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-%f")[:-3]
+            image.save(self.capture_library_dir / f"{stamp}_{label}.png")
+        except Exception as e:  # noqa: BLE001 - a full disk must not stop scanning
+            logger.warning(f"Could not save capture to library: {e}")
+            return
+        self._capture_saved_at[label] = now
 
     def _read_item_name(self, processed: Image.Image) -> str | None:
         """Read the item name from a preprocessed tooltip via two OCR passes.
