@@ -9,6 +9,14 @@ Design detail is in `docs/superpowers/specs/2026-10-11-overlay-extension-design.
 Markers such as "done 11 Oct" or "added 11 Oct" mark changes in the last 14
 days and are dropped after that. Completed steps keep their date.
 
+## Overall progress
+
+About 59 percent of the whole roadmap, weighted by effort: 43 of 61 steps
+done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
+4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
+steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
+entire roadmap". Added 15 Oct.
+
 ## Goal, in Jeffrey's words (11 Oct 2026)
 
 "I'd like an overlay that highlights items that I need to upgrade my bench, for
@@ -189,7 +197,7 @@ Ahead, in order:
 19. No advice for a garbled read. Found in the 15 Oct log: the advice card
     showed reads such as "CRACKED BIOSCANNER ;MER:;{JC:..." and "IUST'". A
     catalog name followed by junk now resolves to that name, and a read
-    that matches nothing shows no advice. Underway 15 Oct. Added 15 Oct.
+    that matches nothing shows no advice. Done 15 Oct, reviewed. Added 15 Oct.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -266,7 +274,7 @@ Ahead:
 10. Known blueprints in the advice. The weapon rule stops saying "more
     until you own the blueprint" once ARLO has seen it learned, and the
     advice card says "You already know this blueprint" when that is why it
-    says sell. Underway 15 Oct. Added 15 Oct.
+    says sell. Done 15 Oct, reviewed. Added 15 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
 
