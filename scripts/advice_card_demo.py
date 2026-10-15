@@ -1,11 +1,11 @@
 # ruff: noqa: INP001
-"""Render the advice card for four real catalog items to PNGs.
+"""Render the advice card for five real catalog items to PNGs.
 
 Usage: uv run python scripts/advice_card_demo.py OUTPUT_DIR [SCALE]
 
 Writes advice_<item>.png (owned unknown) and advice_<item>_owned2.png
-(owned = 2) for Snitch Scanner, Bronze Statuette, Microscope and
-ARC Powercell, using the configured database.
+(owned = 2) for Snitch Scanner, Bronze Statuette, Microscope,
+ARC Powercell and Anvil I (a weapon), using the configured database.
 """
 
 import datetime
@@ -21,7 +21,7 @@ from arc_helper.verdict import KEEP
 from arc_helper.verdict import KEEP_SOME
 from arc_helper.verdict import compute_verdict
 
-ITEMS = ("Snitch Scanner", "Bronze Statuette", "Microscope", "ARC Powercell")
+ITEMS = ("Snitch Scanner", "Bronze Statuette", "Microscope", "ARC Powercell", "Anvil I")
 
 
 def main() -> None:

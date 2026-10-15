@@ -18,6 +18,7 @@ from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import format_price
 from arc_helper.stash_scan import identify_slots
 from arc_helper.tooltip_layout import Rect
+from arc_helper.verdict import Verdict
 
 NAMES = ("Anvil I", "Anvil II", "Anvil III", "Metal Parts", "Rubber Parts")
 
@@ -193,19 +194,25 @@ def _slot_item(item: Item | None, left: int = 0) -> SlotItem:
     )
 
 
-def test_badges_gold_border_for_keep_and_price_for_every_item():
+def test_badges_gold_border_only_with_active_needs_and_price_for_every_item():
     keep = _slot_item(Item(name="Anvil I", action="Keep", sell_price=4000), 0)
     some = _slot_item(Item(name="Metal Parts", action="Keep", sell_price=810), 100)
     sell = _slot_item(Item(name="Rubber Parts", action="Sell", sell_price=1250), 200)
     free = _slot_item(Item(name="Note", action="Sell", sell_price=None), 300)
     unknown = _slot_item(None, 400)
-    kinds = {
-        "Anvil I": "keep",
-        "Metal Parts": "keep_some",
-        "Rubber Parts": "sell",
-        "Note": "keep",
+    weapon = _slot_item(Item(name="Weapon", action="Keep", sell_price=500), 500)
+    outpost = (("Expedition 5 phase 2", 1),)
+    verdicts = {
+        "Anvil I": Verdict("keep", "x", 1, outpost),
+        "Metal Parts": Verdict("keep_some", "x", 2, outpost),
+        "Rubber Parts": Verdict("sell", "x"),
+        "Note": Verdict("keep", "x", 1, outpost),
+        # the weapon rule: keep with no sources
+        "Weapon": Verdict("keep", "Weapon, keep at least one", 1),
     }
-    badges = badges_for([keep, some, sell, free, unknown], lambda s: kinds[s.item.name])
+    badges = badges_for(
+        [keep, some, sell, free, unknown, weapon], lambda s: verdicts[s.item.name]
+    )
     borders = [b for b in badges if b["kind"] == "border"]
     tags = [b for b in badges if b["kind"] == "tag"]
     assert [b["rect"][0] for b in borders] == [0, 100, 300]
@@ -220,6 +227,7 @@ def test_badges_gold_border_for_keep_and_price_for_every_item():
         (0, "Φ 4k"),
         (100, "Φ 810"),
         (200, "Φ 1.3k"),
+        (500, "Φ 500"),
     ]
     assert tags[0]["corner"] == "bl"
     assert all(b["rect"][0] != 400 for b in badges)

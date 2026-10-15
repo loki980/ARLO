@@ -359,7 +359,7 @@ def test_scanner_builds_the_card_on_the_show_path(monkeypatch):
     _, name, card, hold_ms = messages[0]
     assert (name, hold_ms) == ("Battery", 3000)
     assert card == AdviceCard(
-        KEEP, "Keep 3", None, 3, None, (("Quest", "Power Up", 3),)
+        KEEP, "Keep 3", "For Power Up", 3, None, (("Quest", "Power Up", 3),)
     )
 
 
@@ -384,7 +384,7 @@ def test_real_database_cards_for_snitch_scanner_and_microscope(monkeypatch):
     (_, snitch_name, snitch, _), (_, scope_name, scope, _) = _drain(scanner)
     assert snitch_name == "Snitch Scanner"
     assert snitch.title == "Keep 7"
-    assert snitch.subtitle is None
+    assert snitch.subtitle == "For Utility Station level 2 and Wires Crossed"
     assert snitch.rows == (
         ("Workshop", "Utility Station level 2", 6),
         ("Quest", "Wires Crossed", 1),

@@ -51,7 +51,28 @@ def test_keep_some_title_and_subtitle():
     verdict = Verdict("keep_some", "x", 3, (("Wires Crossed", 3),))
     card = build_advice_card(verdict, [_need("quest", "Wires Crossed", None, 3)], 5)
     assert card.title == "Keep 3"
-    assert card.subtitle == "then sell the rest"
+    assert card.subtitle == "For Wires Crossed, then sell the rest"
+
+
+def test_keep_subtitle_names_all_goals_in_row_order():
+    card = build_advice_card(KEEP, NEEDS)
+    assert card.subtitle == "For Utility Station level 2 and Wires Crossed"
+    needs = [*NEEDS, _need("project", "Expedition 5", 2, 1)]
+    verdict = KEEP._replace(sources=(*KEEP.sources, ("Expedition 5 phase 2", 1)))
+    card = build_advice_card(verdict, needs)
+    assert card.subtitle == (
+        "For Utility Station level 2, Wires Crossed and Expedition 5 phase 2"
+    )
+
+
+def test_keep_without_sources_gives_the_verdict_reason():
+    reason = "Weapon, keep at least one, more until you own the Anvil Blueprint"
+    card = build_advice_card(Verdict("keep", reason, 1), [])
+    assert card.rows == ()
+    assert card.subtitle == reason
+    assert build_advice_card(Verdict("keep", ""), []).subtitle == (
+        "Kept by ARLO's rules"
+    )
 
 
 def test_sell_has_no_rows():
