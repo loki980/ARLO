@@ -9,6 +9,7 @@ from PIL import Image
 
 from arc_helper.slot_marks import PATCH_FALLBACK
 from arc_helper.slot_marks import bar_geometry
+from arc_helper.slot_marks import learned_check
 from arc_helper.slot_marks import read_stack
 from arc_helper.slot_marks import read_tier
 from arc_helper.tooltip_layout import Rect
@@ -144,3 +145,34 @@ def test_bar_geometry_colour_matches_a_real_bar() -> None:
     assert geometry.icon_box is not None
     assert geometry.right_mark_box is not None
     assert geometry.icon_box.right < geometry.right_mark_box.left
+
+
+# Slot crops from Jeffrey's 15 Oct loadout screenshot, stretched to 3840x2160
+# (blueprint-checks-4k.png): the Vertical Grip III Blueprint shows the game's
+# learned check, the Bettina Blueprint does not
+CHECKED_BLUEPRINT = "vertical_grip_iii_blueprint_checked"
+UNCHECKED_BLUEPRINT = "bettina_blueprint_unchecked"
+
+
+def _whole(rgb):
+    return Rect(0, 0, rgb.shape[1], rgb.shape[0])
+
+
+def test_learned_check_reads_the_check_mark():
+    rgb = _slot(CHECKED_BLUEPRINT)
+    assert learned_check(rgb, _whole(rgb)) is True
+
+
+def test_learned_check_without_the_mark_is_false():
+    rgb = _slot(UNCHECKED_BLUEPRINT)
+    assert learned_check(rgb, _whole(rgb)) is False
+
+
+def test_learned_check_cannot_judge_a_corner_off_the_frame_or_covered():
+    rgb = _slot(CHECKED_BLUEPRINT)
+    height, width = rgb.shape[:2]
+    # The slot reaches past the frame's right edge
+    assert learned_check(rgb, Rect(width // 2, 0, width + width // 2, height)) is None
+    covered = rgb.copy()
+    covered[:, width // 2 :] = (240, 230, 210)  # the cream item card over it
+    assert learned_check(covered, _whole(covered)) is None
