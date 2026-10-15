@@ -17,6 +17,7 @@ from arc_helper.stash_scan import badges_for
 from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import format_price
 from arc_helper.stash_scan import identify_slots
+from arc_helper.stash_scan import owned_totals
 from arc_helper.tooltip_layout import Rect
 from arc_helper.verdict import Verdict
 
@@ -289,3 +290,56 @@ def test_an_untiered_item_with_twins_is_unidentified(stubs):
     assert found[0].item is None
     assert found[0].guess == "Grappling Hook"
     assert found[0].confidence == pytest.approx(1.0)
+
+
+def test_owned_totals_adds_stacks_and_skips_unidentified_slots():
+    parts = Item(name="Metal Parts", action="Sell", sell_price=810)
+    slots = [
+        _slot_item(parts, 0)._replace(stack=2),
+        _slot_item(parts, 100),
+        _slot_item(parts, 200)._replace(stack=4),
+        _slot_item(None, 300)._replace(stack=9),
+    ]
+    assert owned_totals(slots) == {"Metal Parts": 7}
+
+
+@pytest.mark.usefixtures("stubs")
+def test_identify_gives_bar_geometry_to_square_slots_only(monkeypatch):
+    geometry = object()
+    calls = []
+
+    def fake_geometry(crop):
+        calls.append(crop.shape)
+        return geometry
+
+    monkeypatch.setattr(stash_scan, "bar_geometry", fake_geometry)
+    square = Slot(Rect(0, 0, 90, 90), "stash", filled=True)
+    wide = Slot(Rect(100, 0, 280, 90), "equipment", filled=True)
+    slots = [square, wide]
+    found = identify_slots(
+        _frame(slots),
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder([[0, 0, 0, 1, 0], [0, 0, 0, 1, 0]]),
+        slots=slots,
+    )
+    assert found[0].bar is geometry
+    assert found[1].bar is None
+    assert calls == [(90, 90, 3)]
+
+
+def test_stacks_are_read_for_identified_slots_only(stubs):
+    _, stack_reads = stubs
+    slots = _slots(2)
+    # The second slot leads Rubber Parts by too little, so it stays unidentified
+    vectors = [[0, 0, 0, 1, 0], [0, 0, 0, 1, 0.98]]
+    found = identify_slots(
+        _frame(slots),
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder(vectors),
+        slots=slots,
+        read_stacks=True,
+    )
+    assert [s.stack for s in found] == [3, None]
+    assert len(stack_reads) == 1

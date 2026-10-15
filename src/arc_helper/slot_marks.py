@@ -7,7 +7,8 @@ weapon slots (EQUIPMENT) also show ammo and durability figures in the bar,
 with the numeral still the rightmost mark.
 
 read_tier and read_stack take an RGB slot crop (as from find_hovered_cell)
-and look only at that bar:
+and look only at that bar. bar_geometry gives the bar's box, its colour and
+the boxes of the type icon and the right mark, for painting over the icon:
 
 - The bar is the longest run of near-black rows in the lower half of the
   slot, measured on the middle columns, and its horizontal extent is the
@@ -32,6 +33,8 @@ from typing import NamedTuple
 import numpy as np
 import pytesseract
 from PIL import Image
+
+from .tooltip_layout import Rect
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +72,19 @@ _OCR_HEIGHT = 48  # digits are scaled to this height for Tesseract
 _OCR_PAD = 12
 _OCR_CONFIG = "--psm 7 -c tessedit_char_whitelist=0123456789"
 
+# Bar geometry
+_ICON_START_MAX = 0.3  # the type icon starts in this share of the bar width
+PATCH_FALLBACK = 0.55  # the patch boundary, of the bar width, without a mark
+_PATCH_GAP = 0.1  # of the bar height, kept clear left of the right mark
+_ROW_TRIM = 3.0  # an edge row whose 90th percentile is this much brighter
+# A real bar sits under a lighter tile body (about 13 brighter, a blocked or
+# all-dark slot about 1) and spans most of the slot (about 0.89 of the width,
+# 0.23 of the height)
+_BODY_ABOVE = 6.0
+_BODY_ROWS = 5
+_BAR_MIN_WIDTH = 0.7  # of the slot width
+_BAR_MAX_HEIGHT = 0.35  # of the slot height
+
 
 class TierRead(NamedTuple):
     """A tier read from the numeral on a slot."""
@@ -78,10 +94,37 @@ class TierRead(NamedTuple):
     detail: str
 
 
+class BarGeometry(NamedTuple):
+    """Where a square slot's bottom bar and its marks sit, and its colour.
+
+    Every rectangle is crop-local (in the slot crop's pixels), right and
+    bottom exclusive. bar_rect is the bar inside the tile's rounded outline.
+    colour is the bar's integer RGB, the median of its plain pixels between
+    the type icon and the right mark. icon_box is the type icon at the bar's
+    left, or None when the bar has no ink there. right_mark_box is the stack
+    count or tier numeral at the right, or None when there is none.
+    """
+
+    bar_rect: Rect
+    colour: tuple[int, int, int]
+    icon_box: Rect | None
+    right_mark_box: Rect | None
+
+    @property
+    def patch_right(self) -> int:
+        """Right edge (exclusive) of the bar part that can be painted over.
+
+        A small gap left of the right mark, or PATCH_FALLBACK of the bar
+        width when there is no right mark.
+        """
+        return _patch_right(self.bar_rect, self.right_mark_box)
+
+
 class _Bar(NamedTuple):
     lum: np.ndarray  # luminance of the bar, rows by columns
     ink: np.ndarray  # bool, same shape
     background: float
+    rect: Rect  # the bar's place in the slot crop
 
 
 def _luminance(slot_rgb: np.ndarray) -> np.ndarray:
@@ -129,14 +172,14 @@ def _find_bar(slot_rgb: np.ndarray) -> _Bar | None:
         return None
     bar = lum[top:bottom, left:right]
     background = float(np.median(bar))
-    return _Bar(bar, bar > background + _INK_ABOVE, background)
+    return _Bar(
+        bar, bar > background + _INK_ABOVE, background, Rect(left, top, right, bottom)
+    )
 
 
 def _last_word(bar: _Bar) -> tuple[int, int] | None:
     """Column span of the rightmost ink word in the bar."""
-    height = bar.ink.shape[0]
-    words = _runs(bar.ink.any(axis=0), max(2, round(_WORD_GAP * height)))
-    words = [w for w in words if bar.ink[:, w[0] : w[1]].sum() >= _MIN_INK]
+    words = _words(bar)
     return words[-1] if words else None
 
 
@@ -263,3 +306,113 @@ def read_stack(slot_rgb: np.ndarray) -> int | None:
         return None
     text = text.strip()
     return int(text) if text.isdigit() else None
+
+
+def _words(bar: _Bar) -> list[tuple[int, int]]:
+    """Column spans of the ink words in the bar, left to right."""
+    height = bar.ink.shape[0]
+    words = _runs(bar.ink.any(axis=0), max(2, round(_WORD_GAP * height)))
+    return [w for w in words if bar.ink[:, w[0] : w[1]].sum() >= _MIN_INK]
+
+
+def _word_box(bar: _Bar, word: tuple[int, int]) -> Rect:
+    """The crop-local box around a word's ink."""
+    rows = np.flatnonzero(bar.ink[:, word[0] : word[1]].any(axis=1))
+    return Rect(
+        bar.rect.left + word[0],
+        bar.rect.top + int(rows[0]),
+        bar.rect.left + word[1],
+        bar.rect.top + int(rows[-1]) + 1,
+    )
+
+
+def _patch_right(bar_rect: Rect, right_mark: Rect | None) -> int:
+    if right_mark is None:
+        return bar_rect.left + round(PATCH_FALLBACK * bar_rect.width)
+    gap = max(2, round(_PATCH_GAP * bar_rect.height))
+    return max(bar_rect.left, right_mark.left - gap)
+
+
+def _inner_bar(slot_rgb: np.ndarray) -> _Bar | None:
+    """The bar inside the tile's rounded outline, for bar_geometry.
+
+    _find_bar's rows can include a blend row into the coloured corner swoosh
+    above, which also cuts its columns short under the swoosh. Here edge
+    rows lighter than the bar are trimmed first, then the columns are the
+    ones dark in the trimmed edge rows, which stops at the rounded outline.
+    A dark region is only a bar when it spans most of the slot's width, is
+    not too tall, and the tile body just above it is lighter than it.
+    """
+    found = _find_bar(slot_rgb)
+    if found is None:
+        return None
+    lum = _luminance(slot_rgb)
+    top, bottom = found.rect.top, found.rect.bottom
+    left, right = found.rect.left, found.rect.right
+    limit = found.background + _ROW_TRIM
+
+    def light(row: int) -> bool:
+        return float(np.percentile(lum[row, left:right], 90)) > limit
+
+    while bottom - top > 2 * _BAR_EDGE_ROWS and light(top):
+        top += 1
+    while bottom - top > 2 * _BAR_EDGE_ROWS and light(bottom - 1):
+        bottom -= 1
+    edge_rows = np.concatenate(
+        (lum[top : top + _BAR_EDGE_ROWS], lum[bottom - _BAR_EDGE_ROWS : bottom])
+    )
+    left, right = _longest_run(edge_rows.max(axis=0) <= _BAR_EDGE_MAX)
+    height, width = lum.shape
+    if right - left < _BAR_MIN_WIDTH * width or bottom - top > _BAR_MAX_HEIGHT * height:
+        return None
+    bar = lum[top:bottom, left:right]
+    background = float(np.median(bar))
+    body = lum[max(0, top - _BODY_ROWS - 1) : top - 1, left:right]
+    if body.size == 0 or float(np.median(body)) < background + _BODY_ABOVE:
+        return None
+    return _Bar(
+        bar, bar > background + _INK_ABOVE, background, Rect(left, top, right, bottom)
+    )
+
+
+def bar_geometry(slot_rgb: np.ndarray) -> BarGeometry | None:
+    """The bottom bar of a square slot crop: its box, colour and mark boxes.
+
+    The type icon is the leftmost ink word when it starts in the bar's left
+    part. The right mark is the rightmost other word when it ends in the
+    bar's right half. The colour is the per-channel median of the bar's
+    pixels between the icon and the patch boundary (see
+    BarGeometry.patch_right), leaving out ink and the pixel around it.
+    Returns None when the slot has no dark bar.
+    """
+    bar = _inner_bar(slot_rgb)
+    if bar is None:
+        return None
+    width = bar.ink.shape[1]
+    words = _words(bar)
+    icon = words[0] if words and words[0][0] < _ICON_START_MAX * width else None
+    rest = words[1:] if icon else words
+    mark = rest[-1] if rest and rest[-1][1] >= _RIGHT_HALF * width else None
+    icon_box = _word_box(bar, icon) if icon else None
+    mark_box = _word_box(bar, mark) if mark else None
+    # Ink grown by one pixel, so anti-aliased glyph edges stay out of the median
+    near_ink = bar.ink.copy()
+    near_ink[1:] |= bar.ink[:-1]
+    near_ink[:-1] |= bar.ink[1:]
+    near_ink[:, 1:] |= near_ink[:, :-1].copy()
+    near_ink[:, :-1] |= near_ink[:, 1:].copy()
+    begin = icon[1] if icon else 0
+    end = _patch_right(bar.rect, mark_box) - bar.rect.left
+    plain = np.zeros_like(near_ink)
+    plain[:, begin:end] = ~near_ink[:, begin:end]
+    if not plain.any():
+        plain = ~near_ink
+    if not plain.any():
+        plain = np.ones_like(near_ink)
+    pixels = np.asarray(slot_rgb)[
+        bar.rect.top : bar.rect.bottom, bar.rect.left : bar.rect.right, :3
+    ][plain]
+    colour = np.median(pixels, axis=0).round().astype(int)
+    return BarGeometry(
+        bar.rect, (int(colour[0]), int(colour[1]), int(colour[2])), icon_box, mark_box
+    )

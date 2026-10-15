@@ -16,8 +16,11 @@ Each frame is timed twice through the whole pass (find_slots, embedding,
 tier reads, lookups), without and with stack reads. The model is loaded and
 warmed up first. Writes to the out folder: sheet_NN_<frame>.png (one tile
 per filled slot: the slot crop, the top gallery icon, the name drawn on the
-slot, then tier, stack, price and verdict), stash_scan.csv (one row per
-filled slot) and summary.txt (sample, timings and badge counts).
+slot with the bar box in cyan, the type icon box in green and the count or
+numeral box in yellow, then tier, stack, price and verdict), stash_scan.csv
+(one row per filled slot, with the bar colour as R;G;B and the right mark
+box as x0;y0;x1;y1 in slot crop pixels, empty when not found) and
+summary.txt (sample, timings and badge counts).
 """
 
 import csv
@@ -61,6 +64,8 @@ GREEN = (90, 220, 90)
 RED = (240, 90, 90)
 GOLD = (242, 177, 52)
 GREY = (200, 200, 200)
+CYAN = (60, 220, 240)
+YELLOW = (240, 230, 60)
 
 
 def _sample(folder: Path) -> tuple[list[Path], list[str]]:
@@ -117,15 +122,21 @@ def _sheet(rgb: np.ndarray, rows: list[dict], icon_paths: dict, path: Path) -> N
     for n, r in enumerate(rows):
         x, y = (n % COLUMNS) * cell_w, (n // COLUMNS) * cell_h
         crop = Image.fromarray(rgb[r["top"] : r["bottom"], r["left"] : r["right"]])
+        scale = TILE / max(crop.size)
         crop.thumbnail((TILE, TILE))
         crop_draw = ImageDraw.Draw(crop)
+        for box, colour in r["boxes"]:
+            crop_draw.rectangle(
+                [round(v * scale) for v in box[:2]]
+                + [round(v * scale) - 1 for v in box[2:]],
+                outline=colour,
+            )
         name = r["item"] or f"? {r['guess']}"
-        crop_draw.rectangle(
-            (0, crop.height - 2 * LINE, crop.width, crop.height), fill=(0, 0, 0)
-        )
+        # The name goes along the top, so the bar boxes at the bottom stay visible
+        crop_draw.rectangle((0, 0, crop.width, 2 * LINE), fill=(0, 0, 0))
         for k, part in enumerate(textwrap.wrap(name, 16)[:2]):
             crop_draw.text(
-                (2, crop.height - 2 * LINE + k * LINE),
+                (2, k * LINE),
                 part,
                 fill=GREEN if r["item"] else RED,
                 font=font,
@@ -168,12 +179,25 @@ def _row(path: Path, s, kind_of) -> dict:
         "item": s.item.name if s.item else "",
         "tier": s.tier or "",
         "stack": s.stack if s.stack is not None else "",
+        "bar_rgb": ";".join(map(str, s.bar.colour)) if s.bar else "",
+        "right_mark": ";".join(map(str, s.bar.right_mark_box))
+        if s.bar and s.bar.right_mark_box
+        else "",
         "sell_price": s.item.sell_price if s.item and s.item.sell_price else "",
         "price": format_price(s.item.sell_price)
         if s.item and s.item.sell_price
         else "-",
         "kind": kind_of(s) if s.item else "",
+        "boxes": _boxes(s.bar),
     }
+
+
+def _boxes(bar) -> list:
+    """The bar, icon and right mark boxes to draw on a sheet tile."""
+    if bar is None:
+        return []
+    boxes = [(bar.bar_rect, CYAN), (bar.icon_box, GREEN), (bar.right_mark_box, YELLOW)]
+    return [(tuple(box), colour) for box, colour in boxes if box is not None]
 
 
 def main() -> int:
@@ -244,7 +268,9 @@ def main() -> int:
         f"median full pass without stack reads: {1000 * statistics.median(plain_times):.0f} ms",
         f"median full pass with stack reads: {1000 * statistics.median(stack_times):.0f} ms",
     ]
-    columns = [k for k in rows_out[0] if k != "price"] if rows_out else []
+    columns = (
+        [k for k in rows_out[0] if k not in {"price", "boxes"}] if rows_out else []
+    )
     with (out / "stash_scan.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, columns, extrasaction="ignore")
         writer.writeheader()

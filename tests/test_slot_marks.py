@@ -7,8 +7,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from arc_helper.slot_marks import PATCH_FALLBACK
+from arc_helper.slot_marks import bar_geometry
 from arc_helper.slot_marks import read_stack
 from arc_helper.slot_marks import read_tier
+from arc_helper.tooltip_layout import Rect
 
 FIXTURES = Path(__file__).parent / "fixtures" / "slot_marks"
 # Real hovered cell crops from the 12 and 14 Oct captures
@@ -61,3 +64,83 @@ def test_a_slot_without_a_dark_bar_reads_nothing() -> None:
     plain = np.full((200, 200, 3), 120, dtype=np.uint8)
     assert read_tier(plain) is None
     assert read_stack(plain) is None
+    assert bar_geometry(plain) is None
+
+
+# Blocked slots from 20261014-210939-441_252-X22.png, cut at (3216, 752,
+# 3408, 946) and (3424, 1424, 3616, 1618): dark tile bodies with a red
+# no-entry sign and no bottom bar
+@pytest.mark.parametrize("name", ["blocked_slot_a", "blocked_slot_b"])
+def test_bar_geometry_is_none_on_a_blocked_slot(name: str) -> None:
+    assert bar_geometry(_slot(name)) is None
+
+
+def test_bar_geometry_is_none_on_a_uniform_dark_crop() -> None:
+    dark = np.zeros((190, 190, 3), dtype=np.uint8)
+    dark[:] = (9, 12, 25)
+    assert bar_geometry(dark) is None
+
+
+# A synthetic 190 px tile: bright frame, tile body, then a dark bar with a
+# white type icon at the left and a white count block at the right
+TILE_BODY = (30, 40, 60)
+BAR_RGB = (9, 12, 25)
+BAR = Rect(6, 150, 184, 186)
+ICON = Rect(14, 158, 34, 176)
+COUNT = Rect(150, 160, 172, 178)
+
+
+def _tile(*, count: bool = True) -> np.ndarray:
+    tile = np.zeros((190, 190, 3), dtype=np.uint8)
+    tile[:] = (90, 160, 220)  # the frame
+    tile[3:187, 3:187] = TILE_BODY
+    tile[BAR.top : BAR.bottom, BAR.left : BAR.right] = BAR_RGB
+    marks = (ICON, COUNT) if count else (ICON,)
+    for box in marks:
+        tile[box.top : box.bottom, box.left : box.right] = 255
+    return tile
+
+
+def test_bar_geometry_finds_the_bar_its_colour_and_marks() -> None:
+    geometry = bar_geometry(_tile())
+    assert geometry is not None
+    assert geometry.bar_rect == BAR
+    assert geometry.colour == BAR_RGB
+    assert geometry.icon_box == ICON
+    assert geometry.right_mark_box == COUNT
+    assert ICON.right < geometry.patch_right < COUNT.left
+
+
+def test_bar_geometry_without_a_right_mark_falls_back_to_55_percent() -> None:
+    geometry = bar_geometry(_tile(count=False))
+    assert geometry is not None
+    assert geometry.right_mark_box is None
+    assert geometry.colour == BAR_RGB
+    assert geometry.patch_right == BAR.left + round(PATCH_FALLBACK * BAR.width)
+
+
+# Real square tile cut from 20261014-211002-366_ARC-MOTION-CORE.png at
+# (2088, 544, 2280, 736): medium ammo x90 in the backpack. The reference bar
+# region sits between the type icon and the x90, inside the bar.
+REAL_TILE = "ammo_x90_tile"
+REAL_REFERENCE = Rect(60, 160, 120, 176)
+
+
+def test_bar_geometry_colour_matches_a_real_bar() -> None:
+    tile = _slot(REAL_TILE)
+    geometry = bar_geometry(tile)
+    assert geometry is not None
+    region = tile[
+        REAL_REFERENCE.top : REAL_REFERENCE.bottom,
+        REAL_REFERENCE.left : REAL_REFERENCE.right,
+    ]
+    reference = np.median(region.reshape(-1, 3), axis=0)
+    assert np.all(np.abs(np.array(geometry.colour) - reference) <= 6)
+    bar = geometry.bar_rect
+    assert bar.left <= REAL_REFERENCE.left
+    assert REAL_REFERENCE.right <= bar.right
+    assert bar.top <= REAL_REFERENCE.top
+    assert REAL_REFERENCE.bottom <= bar.bottom
+    assert geometry.icon_box is not None
+    assert geometry.right_mark_box is not None
+    assert geometry.icon_box.right < geometry.right_mark_box.left
