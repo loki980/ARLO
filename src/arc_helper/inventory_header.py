@@ -29,10 +29,18 @@ TITLE_BOTTOM = 0.158
 # stash counts start after the grid icon, the loadout weight after the bag
 # icon (measured on 3840x2160, 40 and 215 px).
 STASH_TEXT_LEFT = 40 / 2160
-STASH_TEXT_RIGHT = 480 / 2160
+STASH_TEXT_RIGHT = 540 / 2160
 LOADOUT_TEXT_LEFT = 215 / 2160
-LOADOUT_TEXT_RIGHT = 600 / 2160
+LOADOUT_TEXT_RIGHT = 680 / 2160
 UPSCALE = 2
+# The background behind the text is flat. Per column, the 20th percentile of
+# the rows (which ignores the bright text) must stay within
+# BACKGROUND_TOLERANCE gray levels of the crop's typical column for no more
+# than COVER_RUN columns in a row. A longer run is something covering part of
+# the numbers, such as an item card or popup, and a truncated value could
+# read as whole. Isolated dark columns beside glyph edges are normal.
+BACKGROUND_TOLERANCE = 6
+COVER_RUN = 6
 # One text line for the loadout, two (title and counts) for the stash
 ONE_LINE = "--psm 7 --oem 1"
 TWO_LINES = "--psm 6 --oem 1"
@@ -60,6 +68,15 @@ def _left_edge(slots: list[Slot]) -> int | None:
     return min(slot.rect.left for slot in slots)
 
 
+def _longest_run(flags: np.ndarray) -> int:
+    """Length of the longest run of True values."""
+    best = run = 0
+    for flag in flags:
+        run = run + 1 if flag else 0
+        best = max(best, run)
+    return best
+
+
 def _read_row(rgb: np.ndarray, rect: Rect, config: str) -> str:
     """OCR one text row: grayscale, upscale, Otsu, dark text on white."""
     height, width = rgb.shape[:2]
@@ -68,6 +85,12 @@ def _read_row(rgb: np.ndarray, rect: Rect, config: str) -> str:
     if crop.size == 0:
         return ""
     gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
+    columns = np.percentile(gray, 20, axis=0)
+    if (
+        _longest_run(np.abs(columns - np.median(columns)) > BACKGROUND_TOLERANCE)
+        > COVER_RUN
+    ):
+        return ""
     gray = cv2.resize(gray, None, fx=UPSCALE, fy=UPSCALE, interpolation=cv2.INTER_CUBIC)
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     if binary.mean() < 128:

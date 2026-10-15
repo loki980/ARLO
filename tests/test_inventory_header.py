@@ -87,3 +87,17 @@ def test_loadout_header_unreadable_when_value_is_covered():
     # The loadout value spans about x 1795 to 1945, the card covers all of it
     frame = _cover(_frame(FULL), 1780, 1960)
     assert read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT)) is None
+
+
+def test_stash_header_none_when_trailing_digits_are_covered():
+    # Black over x 600 to 800 hides the end of 849,247, which would read as 84
+    frame = _frame(FULL)
+    frame[335:400, 600:800] = 0
+    assert read_stash_header(frame, _slots(STASH, FULL_STASH_LEFT)) is None
+
+
+def test_loadout_header_none_when_trailing_digits_are_covered():
+    # Black over x 1850 to 2000 hides the end of 75,629, which would read as 7
+    frame = _frame(FULL)
+    frame[335:400, 1850:2000] = 0
+    assert read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT)) is None

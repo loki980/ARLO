@@ -34,6 +34,7 @@ STASH_SPAN = (-10, 560)
 LOADOUT_SPAN = (200, 600)
 SHEET_SCALE = 0.5
 COLUMNS = 2
+FALLBACK_LEFT = {STASH_SPAN: 302, LOADOUT_SPAN: 1384}
 
 
 def _sample(folder: Path) -> list[Path]:
@@ -48,7 +49,9 @@ def _sample(folder: Path) -> list[Path]:
 def _crop(rgb: np.ndarray, left: int | None, span: tuple[int, int]) -> np.ndarray:
     width = span[1] - span[0]
     if left is None:
-        return np.zeros((CROP_BOTTOM - CROP_TOP, width, 3), np.uint8)
+        # No slots found: show the crop at the usual left edge, labelled in
+        # the caption, so the header can still be checked by eye
+        left = FALLBACK_LEFT[span]
     start = max(0, left + span[0])
     crop = rgb[CROP_TOP:CROP_BOTTOM, start : start + width]
     pad = width - crop.shape[1]
@@ -64,6 +67,8 @@ def _tile(rgb: np.ndarray, stash, equipment, label: str, stash_read, loadout_rea
     )
     caption = np.zeros((34, row.shape[1], 3), np.uint8)
     text = f"{label} S:{stash_read} L:{loadout_read}"
+    if left_s is None or left_e is None:
+        text += " (fallback crop, no slots)"
     cv2.putText(
         caption, text, (2, 13), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 0), 1
     )
