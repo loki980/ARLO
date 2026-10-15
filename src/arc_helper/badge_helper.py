@@ -1,4 +1,4 @@
-"""Badge surface helper: draws gold borders and price tags over the game.
+"""Badge surface helper: draws gold borders, tags and bar patches over the game.
 
 Runs under the system Python (it needs gi with GTK 3, cairo and python-xlib,
 which ARLO's own environment does not have), so it imports nothing from
@@ -37,6 +37,20 @@ CORNERS = ("tl", "tr", "bl", "br")
 TAG_TEXT_SHARE = 0.17
 TAG_TEXT_MIN = 11
 TAG_TEXT_MAX = 40
+# The check mark's colour and its width as a share of the tag's text height
+CHECK_GREEN = "#5fd35f"
+CHECK_SHARE = 0.8
+OUTLINE_WIDTH = 2
+# A patch's text height as a share of the bar height, the smallest it may
+# shrink to, the step it shrinks by, and its padding and icon gap in px
+PATCH_TEXT_SHARE = 0.55
+PATCH_TEXT_MIN_SHARE = 0.4
+PATCH_TEXT_STEP = 0.9
+PATCH_PAD = 8
+PATCH_ICON_GAP = 4
+# Draw order: patches first, then tags, then borders on top
+DRAW_ORDER = {"patch": 0, "tag": 1, "border": 2}
+KINDS = set(DRAW_ORDER)
 RAISE_MS = 1000
 
 
@@ -52,6 +66,16 @@ def parse_color(text: str) -> tuple[float, float, float, float]:
     return tuple(values)
 
 
+def parse_rgb(value) -> tuple[float, float, float, float]:
+    """Turn an [r, g, b] list of 0..255 ints, or a '#rrggbb' string, into RGBA."""
+    if isinstance(value, str):
+        return parse_color(value)
+    if len(value) != 3:
+        msg = f"colour {value!r} is not [r, g, b]"
+        raise ValueError(msg)
+    return (*(int(c) / 255 for c in value), 1.0)
+
+
 def parse_message(line: str) -> tuple[str, list[dict]]:
     """Return the op and badge list of one JSON line from BadgeSurface."""
     message = json.loads(line)
@@ -61,7 +85,7 @@ def parse_message(line: str) -> tuple[str, list[dict]]:
         raise ValueError(msg)
     badges = list(message.get("badges", [])) if op == "draw" else []
     for badge in badges:
-        if badge.get("kind") not in {"border", "tag"}:
+        if badge.get("kind") not in KINDS:
             msg = f"unknown badge kind {badge.get('kind')!r}"
             raise ValueError(msg)
         if len(badge.get("rect", ())) != 4:
@@ -69,6 +93,17 @@ def parse_message(line: str) -> tuple[str, list[dict]]:
             raise ValueError(msg)
         if badge["kind"] == "tag" and badge.get("corner", "bl") not in CORNERS:
             msg = f"unknown tag corner {badge['corner']!r}"
+            raise ValueError(msg)
+        if (
+            badge["kind"] == "patch"
+            and not {
+                "icon_right",
+                "patch_right",
+                "colour",
+            }
+            <= badge.keys()
+        ):
+            msg = "a patch needs icon_right, patch_right and colour"
             raise ValueError(msg)
     return op, badges
 
@@ -113,7 +148,8 @@ def _draw_border(cr, badge: dict) -> None:
         bottom - top - width,
         float(badge.get("radius", 4)) - half,
     )
-    cr.set_source_rgba(*parse_color(badge.get("color", "#f2b134")))
+    # BadgeSurface always sends the colour (cell_border.HOVER_GOLD by default)
+    cr.set_source_rgba(*parse_color(badge["color"]))
     cr.set_line_width(width)
     cr.stroke()
 
@@ -171,7 +207,9 @@ def _draw_tag(cr, badge: dict, family: str) -> None:
     pad_x = pixels * 0.35
     pad_y = pixels * 0.3
     inset = max(3.0, pixels * 0.3)
-    pill_w = text.width + 2 * pad_x
+    check_w = text.height * CHECK_SHARE if badge.get("check") else 0.0
+    check_gap = pad_x if check_w else 0.0
+    pill_w = check_w + check_gap + text.width + 2 * pad_x
     pill_h = text.height + 2 * pad_y
     corner = badge.get("corner", "bl")
     x = left + inset if corner[1] == "l" else right - inset - pill_w
@@ -179,12 +217,101 @@ def _draw_tag(cr, badge: dict, family: str) -> None:
     _rounded_rect(cr, x, y, pill_w, pill_h, pill_h / 2)
     cr.set_source_rgba(*parse_color(badge.get("bg", "#141414d9")))
     cr.fill()
+    if badge.get("outline") is not None:
+        # The outline's inner edge lies on the pill's edge
+        half = OUTLINE_WIDTH / 2
+        _rounded_rect(
+            cr,
+            x - half,
+            y - half,
+            pill_w + OUTLINE_WIDTH,
+            pill_h + OUTLINE_WIDTH,
+            pill_h / 2 + half,
+        )
+        cr.set_source_rgba(*parse_rgb(badge["outline"]))
+        cr.set_line_width(OUTLINE_WIDTH)
+        cr.stroke()
+    if check_w:
+        _draw_check(cr, x + pad_x, y + pad_y, check_w, text.height)
     cr.set_source_rgba(*parse_color(badge.get("fg", "#ffffff")))
-    text.draw(x + pad_x, y + pad_y)
+    text.draw(x + pad_x + check_w + check_gap, y + pad_y)
+
+
+def _draw_check(cr, x: float, y: float, w: float, h: float) -> None:
+    """A green check mark in the w x h box at x, y."""
+    import cairo
+
+    cr.save()
+    cr.set_line_width(max(1.5, h * 0.18))
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    cr.set_line_join(cairo.LINE_JOIN_ROUND)
+    cr.move_to(x + w * 0.1, y + h * 0.55)
+    cr.line_to(x + w * 0.4, y + h * 0.85)
+    cr.line_to(x + w * 0.95, y + h * 0.15)
+    cr.set_source_rgba(*parse_color(CHECK_GREEN))
+    cr.stroke()
+    cr.restore()
+
+
+def _bottom_left_rounded_rect(
+    cr, x: float, y: float, w: float, h: float, r: float
+) -> None:
+    """A rectangle with only its bottom-left corner rounded by r."""
+    r = max(0.0, min(r, w, h))
+    cr.new_sub_path()
+    cr.move_to(x, y)
+    cr.line_to(x + w, y)
+    cr.line_to(x + w, y + h)
+    cr.line_to(x + r, y + h)
+    cr.arc(x + r, y + h - r, r, math.pi / 2, math.pi)
+    cr.close_path()
+
+
+def patch_text(cr, badge: dict, family: str):
+    """The patch's text and fill right edge, or None when the text cannot fit.
+
+    The text starts at PATCH_TEXT_SHARE of the bar height and shrinks by
+    PATCH_TEXT_STEP down to PATCH_TEXT_MIN_SHARE until it fits, padded by
+    PATCH_PAD on both sides, before patch_right.
+    """
+    left, top, _right, bottom = badge["rect"]
+    bar_h = bottom - top
+    patch_right = badge["patch_right"]
+    smallest = bar_h * PATCH_TEXT_MIN_SHARE
+    pixels = bar_h * PATCH_TEXT_SHARE
+    while True:
+        text = _Text(cr, str(badge.get("text", "")), pixels, family)
+        text_edge = left + PATCH_PAD + text.width + PATCH_PAD
+        if text_edge <= patch_right:
+            edge = max(badge["icon_right"] + PATCH_ICON_GAP, text_edge)
+            # Whole pixels keep the fill's right edge crisp
+            return text, min(math.ceil(edge), patch_right)
+        if pixels <= smallest:
+            return None
+        pixels = max(smallest, pixels * PATCH_TEXT_STEP)
+
+
+def _draw_patch(cr, badge: dict, family: str) -> None:
+    fitted = patch_text(cr, badge, family)
+    if fitted is None:
+        return
+    text, edge = fitted
+    left, top, _right, bottom = badge["rect"]
+    _bottom_left_rounded_rect(
+        cr, left, top, edge - left, bottom - top, float(badge.get("radius", 6))
+    )
+    cr.set_source_rgba(*parse_rgb(badge["colour"]))
+    cr.fill()
+    cr.set_source_rgba(1, 1, 1, 1)
+    text.draw(left + PATCH_PAD, top + (bottom - top - text.height) / 2)
 
 
 def draw_badges(cr, badges: list[dict], family: str = FONT_FAMILY) -> None:
-    """Clear the surface to transparent and draw every badge, in order."""
+    """Clear the surface to transparent and draw every badge.
+
+    Patches go first, then tags, then borders, so an outline is never hidden
+    under a fill. Badges of one kind keep their message order.
+    """
     import cairo
 
     cr.save()
@@ -192,9 +319,11 @@ def draw_badges(cr, badges: list[dict], family: str = FONT_FAMILY) -> None:
     cr.paint()
     cr.restore()
     cr.set_operator(cairo.OPERATOR_OVER)
-    for badge in badges:
+    for badge in sorted(badges, key=lambda b: DRAW_ORDER[b["kind"]]):
         if badge["kind"] == "border":
             _draw_border(cr, badge)
+        elif badge["kind"] == "patch":
+            _draw_patch(cr, badge, family)
         else:
             _draw_tag(cr, badge, family)
 
