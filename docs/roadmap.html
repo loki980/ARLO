@@ -153,15 +153,15 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="counts" aria-label="Where things stand">
   <div><b>1 / 8</b><span>phases done</span><small>phase 0 done</small></div>
   <div><b>~75%</b><span>of phase 1 done</span><small>10 of 15 steps, weighted by effort</small></div>
-  <div><b>259</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>298</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>Paddle won the bake-off: every title resolved at 54 ms a card, against 504 ms today. Now switching the app to it, so items show sooner</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Found right in all 34 full-screen captures in 4 ms. Now wiring the gold frame into the scanner</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>Built and merged. The title now reads in about 135 ms instead of 520, so a new item shows in about half the time. Waiting on how it feels in game</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Built and merged: a gold frame around the hovered cell when the advice is keep. Waiting on your look in game</small></span></li>
     <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 6, A big KEEP on the item and readable text</a><small>Built and merged: a KEEP chip on the game card in a game-style font. Waiting on your look in game</small></span></li>
   </ul>
 </section>
@@ -199,8 +199,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="working">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>Three readers competed on your labeled captures. PaddleOCR resolved all 56 cards at 54 ms each, today's reader 55 at 504 ms. Now the app switches to it, and the chips read their rows from the same pass, so a new item shows sooner</small></span><span class="when recent">changed 14 Oct</span></li>
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>The game draws a glowing ring around the hovered cell. ARLO found it in all 34 of your full-screen captures in about 4 ms, and a gold frame window is built. Now hooking it to the scanner, drawn when the advice is keep</small></span><span class="when recent">added 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>Three readers competed on your captures, all equally accurate. With the chips' row search included, today's reader took 777 ms a card, PaddleOCR 400 ms and Tesseract on the isolated title line 389 ms with the popup up at 135 ms. That last one is now the default, needing nothing new installed. PaddleOCR stays as an option. Built and merged, waiting on how it feels in game</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>The game draws a glowing ring around the hovered cell. ARLO finds it in all 34 of your full-screen captures in about 4 ms and draws a gold frame just outside it while the advice is keep. Built and merged, waiting on your look in game</small></span><span class="when recent">added 14 Oct</span></li>
         </ul>
       </div>
       <div class="split">
@@ -387,6 +387,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>14 Oct</time><span>You confirmed the popups no longer fade. Your three ideas placed: a big KEEP now, a gold border on the hovered item now, borders and prices on every icon with the phase 4 badges. Three workers running side by side: readable popup text, the hovered-cell research, and the title reader bake-off.</span></li>
   <li><time>14 Oct</time><span>Real fonts in the popup and chips built. You clarified the KEEP belongs on the item's own card, so a verdict chip beside HOME ONLY is next. Page updated to the new roadmap rules: a working-on-now list, every phase with a step underway highlighted, labelled step marks.</span></li>
   <li><time>14 Oct</time><span>KEEP chip on the game card merged, in a game-style font after your ARC Tracker screenshot. Hovered cell found in all 34 captures, the gold frame built. Paddle won the reader bake-off by about 9 times on speed, now going in to cut the delay before an item shows. 259 tests.</span></li>
+  <li><time>14 Oct</time><span>Gold frame around the hovered keep item merged. Title reading switched: about 135 ms a card instead of 520, so a new item shows in about half the time. 298 tests. Three workers ran side by side tonight. Everything is waiting on your look in game.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

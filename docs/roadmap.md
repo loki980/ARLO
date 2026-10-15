@@ -92,7 +92,14 @@ Ahead, in order:
     isolated 56 at 116 ms, today's reader 55 at 504 ms. Jeffrey, 14 Oct:
     "the delay between overlay shown on hovering new items is pretty slow.
     Improve if possible." So part 2 switches the app to paddle and reads the
-    chips' label rows from the same pass. Underway 14 Oct.
+    chips' label rows from the same pass. Done 14 Oct, reviewed: on the full
+    pipeline (title plus the chips' row search) paddle took 400 ms a card,
+    the isolated-title Tesseract reader 389 ms (popup at 135 ms), today's
+    reader 777 ms, all equally accurate. The isolated-title reader is the
+    default (no extra dependency, popup sooner), paddle stays selectable
+    with OCR_ENGINE=paddle. A scan with no card now reads nothing instead
+    of guessing from a box around the cursor. Waiting on Jeffrey's feel for
+    the speed in game.
 12. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
@@ -140,8 +147,11 @@ Ahead, in order:
     verdict is KEEP. Added 14 Oct. Investigation done 14 Oct: the game draws
     an animated glow ring (not a white outline) around the hovered cell,
     found right in 34 of 34 full-screen captures in about 4 ms. The detector
-    and a click-through gold frame are merged. Wiring it into the scanner is
-    underway 14 Oct.
+    and a click-through gold frame are merged. Wired into the scanner 14 Oct,
+    reviewed and merged: the frame is drawn just outside the game's glow
+    ring while the verdict is keep and hides with the chips. Waiting on
+    Jeffrey's look in game (the live screenshot could not be taken, the
+    screen was locked).
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
