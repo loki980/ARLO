@@ -129,3 +129,16 @@ def test_bakeoff_exact_title_ignores_case_only():
     assert not is_exact_title("ANVILIV", "Anvil IV")
     assert not is_exact_title("ANVIL IV.", "Anvil IV")
     assert not is_exact_title(None, "Anvil IV")
+
+
+def test_bakeoff_counts_covered_rows_apart_from_scored():
+    labels = [
+        {"file": "a.png", "expected": "Anvil I", "card": "yes"},
+        {"file": "b.png", "expected": "covered", "card": "yes"},
+        {"file": "c.png", "expected": "unreadable", "card": "yes"},
+        {"file": "d.png", "expected": "", "card": "no"},
+    ]
+    scored, unreadable, covered = _bakeoff_module().split_rows(labels)
+    assert [r["file"] for r in scored] == ["a.png"]
+    assert [r["file"] for r in unreadable] == ["c.png"]
+    assert [r["file"] for r in covered] == ["b.png"]

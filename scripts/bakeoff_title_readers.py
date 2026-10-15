@@ -2,13 +2,17 @@
 """Compare the card title readers on a labeled capture library.
 
 Usage: uv run python scripts/bakeoff_title_readers.py <captures> <labels.csv>
+[<labels.csv> ...]
 
-labels.csv has the columns file,expected,card,notes. Only the files it lists
-are read, so a library that keeps growing gives the same result. Rows with
-card no are skipped. Rows whose expected is "unreadable" (a card with its
-title cut off) are counted separately, together with how often each reader
-still resolved them to some catalog name. Every other row with card yes is
-scored.
+Each labels.csv has the columns file,expected,card,notes and gets its own
+result block, followed by a short summary of every block at the end. Only
+the files a labels file lists are read, so a library that keeps growing
+gives the same result. Rows with card no are skipped. Rows whose expected is
+"unreadable" (a card with its title cut off) are counted separately,
+together with how often each reader still resolved them to some catalog
+name. Rows whose expected is "covered" (ARLO's own popup covers the card
+title) are counted separately and never read. Every other row with card yes
+is scored.
 
 The card finder runs once per image with the cursor assumed at the image
 centre, and its crop goes to every reader. A row where the finder finds no
@@ -50,6 +54,7 @@ from arc_helper.title_reader import timed_read
 from arc_helper.tooltip_layout import Point
 
 UNREADABLE = "unreadable"
+COVERED = "covered"
 FOCUS = ("Rattler III", "Anvil IV", "Burletta IV", "Anvil I")
 BASELINE = "tesseract"
 
@@ -89,13 +94,34 @@ def _median_ms(times: list[float]) -> float:
     return 1000 * statistics.median(times) if times else 0.0
 
 
+def split_rows(
+    labels: list[dict[str, str]],
+) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
+    """Split label rows with card yes into scored, unreadable and covered.
+
+    Covered rows are left out of every accuracy count.
+    """
+    rows = [r for r in labels if r.get("card") == "yes"]
+    scored = [
+        r
+        for r in rows
+        if r.get("expected") and r["expected"] not in {UNREADABLE, COVERED}
+    ]
+    unreadable = [r for r in rows if r.get("expected") == UNREADABLE]
+    covered = [r for r in rows if r.get("expected") == COVERED]
+    return scored, unreadable, covered
+
+
 def main() -> int:
-    if len(sys.argv) != 3:
-        print("usage: bakeoff_title_readers.py <captures> <labels.csv>")
+    if len(sys.argv) < 3:
+        print(
+            "usage: bakeoff_title_readers.py <captures> <labels.csv> [<labels.csv> ...]"
+        )
         return 2
-    folder, labels_path = Path(sys.argv[1]), Path(sys.argv[2])
-    if not folder.is_dir() or not labels_path.is_file():
-        print(f"need a folder and a labels file: {folder} {labels_path}")
+    folder = Path(sys.argv[1])
+    labels_paths = [Path(arg) for arg in sys.argv[2:]]
+    if not folder.is_dir() or not all(p.is_file() for p in labels_paths):
+        print(f"need a folder and labels files: {folder} {sys.argv[2:]}")
         return 2
 
     logging.getLogger("arc_helper").setLevel(logging.WARNING)
@@ -112,11 +138,34 @@ def main() -> int:
         except TitleReaderUnavailableError as e:
             unavailable[engine] = str(e)
 
+    summary: list[str] = []
+    for index, labels_path in enumerate(labels_paths):
+        if index:
+            print()
+            print("=" * 72)
+            print()
+        summary.extend(
+            _report(folder, labels_path, readers, unavailable, db, strict_db)
+        )
+    print()
+    print("summary, resolved catalog accuracy per labels file:")
+    for line in summary:
+        print(line)
+    return 0
+
+
+def _report(
+    folder: Path,
+    labels_path: Path,
+    readers: dict,
+    unavailable: dict[str, str],
+    db: Database,
+    strict_db: Database,
+) -> list[str]:
+    """Read and score one labels file, print its block, return summary lines."""
     labels = _load_labels(labels_path)
-    rows = [r for r in labels if r.get("card") == "yes"]
-    scored = [r for r in rows if r.get("expected") and r["expected"] != UNREADABLE]
-    unreadable = [r for r in rows if r.get("expected") == UNREADABLE]
-    skipped = len(labels) - len(rows)
+    scored, unreadable, covered = split_rows(labels)
+    skipped = len(labels) - len(scored) - len(unreadable) - len(covered)
 
     exact = dict.fromkeys(readers, 0)
     resolved = dict.fromkeys(readers, 0)
@@ -186,6 +235,7 @@ def main() -> int:
     print(f"labels: {labels_path}")
     print(
         f"scored rows: {len(scored)}  unreadable rows: {len(unreadable)}  "
+        f"covered by ARLO's popup (not read, not scored): {len(covered)}  "
         f"card no (skipped): {skipped}  missing files: {len(missing_files)}"
     )
     print(
@@ -244,7 +294,13 @@ def main() -> int:
                 f"{_median_ms(times[winner]):.0f} ms against "
                 f"{_median_ms(times[BASELINE]):.0f} ms per card"
             )
-    return 0
+    return [
+        f"  {labels_path}  covered rows: {len(covered)}",
+        *(
+            f"    {name:<16}  {_percent(resolved[name], read_scored)}"
+            for name in readers
+        ),
+    ]
 
 
 if __name__ == "__main__":
