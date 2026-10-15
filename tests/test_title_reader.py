@@ -1,5 +1,6 @@
 """Tests for the card title readers."""
 
+import importlib.util
 import shutil
 import sys
 from pathlib import Path
@@ -100,3 +101,19 @@ def test_paddle_reader_without_package_is_unavailable(monkeypatch):
     monkeypatch.setitem(sys.modules, "rapidocr_onnxruntime", None)
     with pytest.raises(TitleReaderUnavailableError, match="rapidocr-onnxruntime"):
         make_reader("paddle")
+
+
+def _bakeoff_module():
+    path = Path(__file__).parents[1] / "scripts" / "bakeoff_title_readers.py"
+    spec = importlib.util.spec_from_file_location("bakeoff_title_readers", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_bakeoff_exact_title_ignores_case_only():
+    is_exact_title = _bakeoff_module().is_exact_title
+    assert is_exact_title("ANVIL IV", "Anvil IV")
+    assert not is_exact_title("ANVILIV", "Anvil IV")
+    assert not is_exact_title("ANVIL IV.", "Anvil IV")
+    assert not is_exact_title(None, "Anvil IV")

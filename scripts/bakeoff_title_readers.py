@@ -1,4 +1,4 @@
-# ruff: noqa: INP001, PLC2701, SLF001
+# ruff: noqa: INP001, SLF001
 """Compare the card title readers on a labeled capture library.
 
 Usage: uv run python scripts/bakeoff_title_readers.py <captures> <labels.csv>
@@ -19,7 +19,7 @@ once more with the last-resort tolerant step turned off, so the gain from
 that step alone is visible.
 
 Prints per reader: exact title accuracy (the read equals the expected name
-ignoring case, spaces and punctuation), resolved catalog accuracy with and
+ignoring case only, spaces and punctuation count), resolved catalog accuracy with and
 without the tolerant step, the median time per card, and the misses with
 read versus expected. A focus section then shows every reader's read for the
 names that failed in game (Rattler III, Anvil IV, Burletta IV, Anvil I),
@@ -41,7 +41,6 @@ from PIL import Image
 
 from arc_helper.database import Database
 from arc_helper.database import Item
-from arc_helper.database import _match_key
 from arc_helper.ocr import crop_card
 from arc_helper.title_reader import ENGINES
 from arc_helper.title_reader import TitleRead
@@ -62,6 +61,15 @@ def _load_labels(path: Path) -> list[dict[str, str]]:
             for row in csv.DictReader(f)
             if (row.get("file") or "").strip()
         ]
+
+
+def is_exact_title(read: str | None, expected: str) -> bool:
+    """True when a read equals the expected name ignoring case only.
+
+    Spaces and punctuation count, so ANVILIV is not an exact read of Anvil IV.
+    Leading and trailing whitespace is ignored.
+    """
+    return (read or "").strip().casefold() == expected.strip().casefold()
 
 
 def _percent(hits: int, total: int) -> str:
@@ -151,7 +159,7 @@ def main() -> int:
                 false_reads[name] += item is not None
                 continue
             strict_item = _lookup(strict_db, read)
-            exact_hit = _match_key(read.text or "") == _match_key(expected)
+            exact_hit = is_exact_title(read.text, expected)
             resolved_hit = item is not None and item.name.casefold() == (
                 expected.casefold()
             )
