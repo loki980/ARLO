@@ -265,9 +265,15 @@ Will contain:
    the INVENTORY trigger is active. Started 14 Oct.
 3. An embedding model (DINOv2-small under onnxruntime, Apache-2.0) over a
    gallery built from the stable arctracker icon PNGs plus crops learned from
-   hovering (ARLO already reads the tooltip). Started 14 Oct.
+   hovering (ARLO already reads the tooltip). Done 14 Oct, reviewed: on the
+   same 110 crops, top-1 70 percent (hash 50), top-5 99 percent, base item
+   95.5 percent, weapons 89 percent on the base item but 25 percent on the
+   exact tier. Wide weapon slots needed a 40 degree turn to match the
+   catalog art. About 29 ms a slot on the CPU, model 88.5 MB downloaded on
+   first use. Recommendation: the model names the base item, the tier comes
+   from the slot numeral (step 4).
 4. Tier numerals on icons by glyph matching (the loadout shows a IV glyph on
-   the weapon card), stack counts by OCR.
+   the weapon card), stack counts by OCR. Started 14 Oct.
 
 ## Phase 4. Badges on every cell. Next, after phases 2 and 3
 
