@@ -11,6 +11,7 @@ from PIL import Image
 import arc_helper.main as main_module
 from arc_helper.database import Item
 from arc_helper.main import NO_CARD_SLEEP_CAP_S
+from arc_helper.main import TRIGGER_LOST_S
 from arc_helper.main import TRIGGER_RECHECK_S
 from arc_helper.main import Application
 from arc_helper.main import Scanner
@@ -253,22 +254,28 @@ def test_trigger_recheck_is_time_based(monkeypatch):
 
 
 class _ClosingOcr(_Ocr):
-    """INVENTORY is seen on entry, then gone at the first recheck."""
+    """INVENTORY is seen on entry, then gone at every recheck.
+
+    The run ends at the first check made back in IDLE.
+    """
+
+    scanner = None
 
     def check_trigger_any(self, regions):
         found = not self.trigger_checks
         super().check_trigger_any(regions)
-        if not found:
+        if self.scanner.state == ScannerState.IDLE and not found:
             self.cards.clear()
         return found
 
 
-def test_trigger_lost_hides_the_card_windows(monkeypatch):
+def test_trigger_lost_hides_the_card_windows(monkeypatch, caplog):
     clock = _Clock()
-    ocr = _ClosingOcr(clock, [CARD_A] * 20, read_s=0.0)
+    ocr = _ClosingOcr(clock, [CARD_A] * 40, read_s=0.0)
     monkeypatch.setattr(main_module, "get_ocr_engine", lambda: ocr)
     ref = []
     scanner = Scanner(root=None, overlay=None, status=None, db=_Db(), hotkey=None)
+    ocr.scanner = scanner
     scanner.hotkey = _Hotkey(ocr, ref, held=False)
     ref.append(scanner)
     scanner._running = True  # noqa: SLF001 - test seam
@@ -276,12 +283,103 @@ def test_trigger_lost_hides_the_card_windows(monkeypatch):
     monkeypatch.setattr(main_module.time, "monotonic", clock.monotonic)
     monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
     monkeypatch.setattr(scanner, "_verdict_for", lambda *_: Verdict("sell", "r"))
-    scanner._scan_loop()  # noqa: SLF001
+    with caplog.at_level(logging.DEBUG, logger=main_module.logger.name):
+        scanner._scan_loop()  # noqa: SLF001
 
     assert scanner.state == ScannerState.IDLE
     kinds = _kinds(scanner)
     assert kinds[:2] == ["overlay", "chips"]
     assert kinds[-1] == "hide"
+    # Rechecks about 1.05 s apart: the third miss spans 2.1 s and leaves
+    leave = [
+        r.getMessage()
+        for r in caplog.records
+        if "reason=trigger_lost" in r.getMessage()
+    ]
+    assert leave == ["state ACTIVE -> IDLE reason=trigger_lost misses=3 span=2100 ms"]
+
+
+class _TriggerOcr:
+    """Answers each trigger check from a list, and records what it read."""
+
+    def __init__(self, answers):
+        self.answers = list(answers)
+        self.last_trigger_reads = ()
+
+    def check_trigger_any(self, regions):  # noqa: ARG002
+        found = self.answers.pop(0)
+        self.last_trigger_reads = (("region1", ""), ("region2", "INVENT"))
+        if not found:
+            self.last_trigger_reads += (("band", "MAP LOGBOOK"),)
+        return found
+
+
+def _rechecks(monkeypatch, answers, times):
+    """Enter ACTIVE at t=100, then call _trigger_lost at each time.
+
+    Returns the scanner and what each call answered.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(main_module.time, "monotonic", clock.monotonic)
+    scanner = Scanner(root=None, overlay=None, status=None, db=_Db(), hotkey=None)
+    scanner._reset_scan_timing()  # noqa: SLF001
+    ocr = _TriggerOcr(answers)
+    settings = SimpleNamespace(trigger_region=None, trigger_region2=None)
+    lost = []
+    for t in times:
+        clock.now = t
+        lost.append(scanner._trigger_lost(ocr, settings))  # noqa: SLF001
+    return scanner, lost
+
+
+def test_one_trigger_miss_stays_active(monkeypatch):
+    _, lost = _rechecks(monkeypatch, [False, True], [101.0, 102.0])
+    assert lost == [False, False]
+
+
+def test_trigger_misses_spanning_lost_s_on_two_rechecks_leave(monkeypatch):
+    # A slow cycle puts the two rechecks TRIGGER_LOST_S apart
+    _, lost = _rechecks(monkeypatch, [False, False], [101.0, 101.0 + TRIGGER_LOST_S])
+    assert lost == [False, True]
+    # Two misses a second apart are not enough yet, the third one is
+    _, lost = _rechecks(monkeypatch, [False] * 3, [101.0, 102.0, 103.0])
+    assert lost == [False, False, True]
+
+
+def test_trigger_hit_between_misses_restarts_the_span(monkeypatch):
+    answers = [False, True, False, False]
+    _, lost = _rechecks(monkeypatch, answers, [101.0, 102.0, 103.0, 104.0])
+    # The misses at 101 and 103 would span 2 s, but the hit at 102 broke them
+    assert lost == [False, False, False, False]
+
+
+def test_reentry_starts_a_fresh_trigger_miss_span(monkeypatch):
+    scanner, lost = _rechecks(monkeypatch, [False, False], [101.0, 102.0])
+    assert lost == [False, False]
+    # Back in ACTIVE (say the hotkey) at 102.5: the old misses are forgotten
+    monkeypatch.setattr(main_module.time, "monotonic", lambda: 102.5)
+    scanner._reset_scan_timing()  # noqa: SLF001
+    assert scanner._trigger_misses == 0  # noqa: SLF001
+    ocr = _TriggerOcr([False])
+    settings = SimpleNamespace(trigger_region=None, trigger_region2=None)
+    monkeypatch.setattr(main_module.time, "monotonic", lambda: 103.5)
+    assert not scanner._trigger_lost(ocr, settings)  # noqa: SLF001
+    assert scanner._trigger_miss_since == 103.5  # noqa: SLF001
+
+
+def test_trigger_miss_logs_what_each_place_read(monkeypatch, caplog):
+    with caplog.at_level(logging.DEBUG, logger=main_module.logger.name):
+        _rechecks(monkeypatch, [False, False], [101.0, 102.0])
+    misses = [
+        r.getMessage()
+        for r in caplog.records
+        if r.getMessage().startswith("trigger miss")
+    ]
+    reads = "region1=none region2='INVENT' band='MAP LOGBOOK'"
+    assert misses == [
+        f"trigger miss {reads} check=0 ms misses=1 span=0 ms",
+        f"trigger miss {reads} check=0 ms misses=2 span=1000 ms",
+    ]
 
 
 def test_debug_log_names_state_changes_only(monkeypatch, caplog):
