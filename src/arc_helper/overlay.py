@@ -470,8 +470,11 @@ class OverlayWindow:
         self.window.withdraw()
 
     def set_position(self, x: int, y: int) -> None:
+        """Move the popup to x, y in physical px, at once when it is showing."""
         self.overlay_x = x
         self.overlay_y = y
+        if self.is_visible():
+            self.window.geometry(f"+{phys_to_tk(x)}+{phys_to_tk(y)}")
 
     def is_visible(self) -> bool:
         try:
