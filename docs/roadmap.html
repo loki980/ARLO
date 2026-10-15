@@ -153,17 +153,17 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="counts" aria-label="Where things stand">
   <div><b>1 / 8</b><span>phases done</span><small>phase 0 done</small></div>
   <div><b>~75%</b><span>of phase 1 done</span><small>10 of 15 steps, weighted by effort</small></div>
-  <div><b>298</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>365</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 7, A card that looks like part of the game</a><small>Copying ARC Tracker's advice card, as you asked: drawing it from ARLO's advice data first</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Your session showed no frame when the card opens left, and a misplaced frame under the corner popup. Fixing both</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 16, Never read a card ARLO itself covers</a><small>The corner popup hid an Anvil I title and the advice flipped between KEEP and UNKNOWN. Dropping covered reads, moving the popup away</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>Garnet read as GARNET REQUIRED RESOURCES. Fixing on your new captures</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 7, A card that looks like part of the game</a><small>The card, its recycle wording and its window in your LOADOUT box are built. Now it replaces the corner popup</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 18, ARLO wakes up in raid too</a><small>In raid the MAP tab shifts INVENTORY out of the trigger boxes, so containers and ARC loot got nothing</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase3">Phase 3, step 2, Slot lattice</a><small>Finding every slot on screen, the base for borders and prices on every icon</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase3">Phase 3, step 1, A perceptual-hash baseline</a><small>Measured: 42 percent right, weapons near zero, as expected. In review</small></span></li>
   </ul>
 </section>
 
@@ -193,16 +193,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Hover an item and read the whole story</h2>
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
-      <div class="gauge" aria-label="Phase 1 about 70 percent done">
-        <div class="bar"><i style="width:70%"></i></div>
-        <div class="read">~70%<small>11 of 16 steps</small></div>
+      <div class="gauge" aria-label="Phase 1 about 80 percent done">
+        <div class="bar"><i style="width:80%"></i></div>
+        <div class="read">~80%<small>15 of 18 steps</small></div>
       </div>
       <div class="working">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>Built and merged. Your session showed two misses: no frame when the card opens to the left (Stiletto I in quick use), and a frame across the card's ACTIONS tab when ARLO's own popup covered the card. Fixing both on your new captures</small></span><span class="when recent">changed 14 Oct</span></li>
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 16, Never read a card ARLO itself covers<small>An Anvil I card opened under the corner popup. The next read got body text and showed UNKNOWN, which uncovered the title, so the advice flipped every scan. Covered reads are dropped and the popup moves to the other corner</small></span><span class="when recent">added 14 Oct</span></li>
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>The faster reader is merged, about 135 ms a card instead of 520. Your session found Garnet read as GARNET REQUIRED RESOURCES, being fixed on your new captures</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 18, ARLO wakes up in raid too<small>Items in found containers and on ARC got nothing: the in-raid MAP tab shifts INVENTORY out of the boxes ARLO checks. A wide band across the top is searched when the boxes miss</small></span><span class="when recent">added 14 Oct</span></li>
         </ul>
       </div>
       <div class="split">
@@ -218,6 +216,10 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="done"><span class="tick">✓</span><span class="what">Find the card anywhere on screen<small>99 of your captures held no card because the fixed box missed it. A search around the cursor now finds the card wherever the game draws it</small></span><span class="when recent">done 11 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Captures only when you ask<small>Capture now runs only for a test started with the capture flag, stops after 300 images, and saves in the background so scanning is never slowed</small></span><span class="when recent">done 14 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Weapons identified in game<small>The whole screen is searched, so tall weapon cards keep their title. You confirmed weapon identification works</small></span><span class="when recent">done 12 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Fast show and hide<small>A new card is read at once, the same card is never read again, and the advice hides as soon as the card goes. Reads in your session replay dropped from 44 to 26</small></span><span class="when recent">done 14 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Never read a card ARLO covers<small>The popup now lives in your red box in the LOADOUT panel and steps aside when a card opens over it</small></span><span class="when recent">done 14 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Gold border on the hovered item<small>A gold frame around the hovered cell when the advice is keep. Right in 34 of 35 of your session's captures, left-opening cards included</small></span><span class="when recent">done 14 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">A faster title reader<small>About 135 ms a card instead of 520. Garnet and other mod cards read right</small></span><span class="when recent">done 14 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Popups stay put while you hover<small>Your hover log showed the popup hid one second after each read while a new read took up to 2.5 seconds. The hide delay now follows the scan speed. You confirmed it fixed</small></span><span class="when recent">done 14 Oct</span></li>
           </ul>
         </div>
@@ -246,7 +248,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="working">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 7, A card that looks like part of the game<small>Copying ARC Tracker's card as you asked: the advice as a header bar with a coloured stripe, what needs the item with a progress bar, and how many you have once ARLO knows your stash. Drawing it first, then placing it beside the game's tooltip in place of the corner popup</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 7, A card that looks like part of the game<small>Copying ARC Tracker's card: the advice as a header bar with a coloured stripe, what needs the item with counts, and the recycle line naming parts you still need. Drawn and shown in your LOADOUT box, now replacing the corner popup</small></span><span class="when recent">changed 14 Oct</span></li>
         </ul>
       </div>
       <div class="split">
@@ -270,11 +272,18 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     </article>
   </li>
 
-  <li class="phase">
-    <div class="slot">3</div>
-    <article class="card" data-tab="Phase 3">
-      <div class="tags"><span class="tag ahead">Planned</span><span class="dates">after phase 1</span></div>
+  <li class="phase" id="phase3">
+    <div class="slot now">3</div>
+    <article class="card" data-tab="Phase 3 · working on now">
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 14 Oct</span></div>
       <h2>Read the grid</h2>
+      <div class="working">
+        <h3>Working on now</h3>
+        <ul class="steps">
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 1, A perceptual-hash baseline<small>Measured on 120 slots whose item ARLO already knew: 42 percent right, weapons near zero, tiers confused. The evidence for the learned model in step 3</small></span><span class="when recent">started 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 2, Slot lattice<small>Finding every slot and its panel on screen, the base for a gold border on every keep item and prices on the icons</small></span><span class="when recent">started 14 Oct</span></li>
+        </ul>
+      </div>
       <p>ARLO finds every slot in your open stash and recognizes the icon in each one, without you hovering. The approach: OpenCV for the geometry, a learned model for icon identity, OCR stays for text. <span class="when recent">changed 11 Oct</span></p>
       <h3>Will contain</h3>
       <ul class="will">
@@ -391,6 +400,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>14 Oct</time><span>KEEP chip on the game card merged, in a game-style font after your ARC Tracker screenshot. Hovered cell found in all 34 captures, the gold frame built. Paddle won the reader bake-off by about 9 times on speed, now going in to cut the delay before an item shows. 259 tests.</span></li>
   <li><time>14 Oct</time><span>Gold frame around the hovered keep item merged. Title reading switched: about 135 ms a card instead of 520, so a new item shows in about half the time. 298 tests. Three workers ran side by side tonight. Everything is waiting on your look in game.</span></li>
   <li><time>14 Oct</time><span>Your capture session: 44 screenshots. Found the corner popup covering a card and flipping its advice, no gold frame on left-opening cards, Garnet misread, and the KEEP chip covering card text. You asked to copy ARC Tracker's card. Four workers started side by side.</span></li>
+  <li><time>14 Oct</time><span>Merged: the popup in your LOADOUT red box, covered cards never read, gold frame fixes, Garnet, the advice card and its window, fast show and hide. 365 tests. ARLO restarted with all of it. Started: the in-raid trigger and phase 3.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
