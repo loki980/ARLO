@@ -1,24 +1,30 @@
 # ruff: noqa: INP001, PLC2701, SLF001
 """Evaluate the item name read and tier resolution over saved captures.
 
-Usage: uv run python scripts/eval_captures.py <folder>
+Usage: uv run python scripts/eval_captures.py <folder> [labels.csv]
 
 Runs the real OCR name read and database lookup on every PNG in the folder
 (for example the capture library written by uv run arc-helper --capture) and
 prints one row per file: file, located card, read text, tier vote and
 confidence, and the resolved catalog name. Each image is read the way the
-scanner reads it: the card is located with the cursor assumed at the image
-centre and the name passes run on its crop. With no card the whole image is
-read, as for an old fixed-box capture. With a labels.csv in the folder (columns
-file,expected) it also prints the accuracy of the read text, of the
-resolver without the vote, and of the resolver with the vote.
+scanner reads it, with the reader OCR_ENGINE names: the card is located with
+the cursor assumed at the image centre and the reader runs on its crop. With
+no card the tesseract engine reads the whole image, as for an old fixed-box
+capture, and the other engines read nothing. With a labels.csv in the folder,
+or given after it (columns file,expected), it also prints the accuracy of the
+read text, of the resolver without the vote, and of the resolver with the
+vote. It ends with the effective reader (a fallback shows here) and, over the
+captures with a card, the median ms for the full name read and for
+layout_from_last_capture.
 
 Needs Tesseract and items.db, no display.
 """
 
 import csv
 import logging
+import statistics
 import sys
+import time
 from pathlib import Path
 
 from PIL import Image
@@ -26,12 +32,10 @@ from PIL import Image
 from arc_helper.database import Database
 from arc_helper.database import _match_key
 from arc_helper.ocr import OCREngine
-from arc_helper.ocr import crop_card
 from arc_helper.tooltip_layout import Point
 
 
-def _load_labels(folder: Path) -> dict[str, str]:
-    path = folder / "labels.csv"
+def _load_labels(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
     with path.open(encoding="utf-8", newline="") as f:
@@ -50,9 +54,13 @@ def _percent(hits: int, total: int) -> str:
     return f"{hits}/{total} ({100 * hits / total:.1f}%)" if total else "0/0"
 
 
+def _median_ms(seconds: list[float]) -> str:
+    return f"{1000 * statistics.median(seconds):.0f} ms" if seconds else "-"
+
+
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: eval_captures.py <folder>")
+    if len(sys.argv) not in {2, 3}:
+        print("usage: eval_captures.py <folder> [labels.csv]")
         return 2
     folder = Path(sys.argv[1])
     if not folder.is_dir():
@@ -64,24 +72,35 @@ def main() -> int:
 
     engine = OCREngine()
     db = Database()
-    labels = _load_labels(folder)
+    labels_path = Path(sys.argv[2]) if len(sys.argv) == 3 else folder / "labels.csv"
+    labels = _load_labels(labels_path)
     files = sorted(folder.glob("*.png"))
     width = max((len(f.name) for f in files), default=4)
 
     print(f"{'file':<{width}}  {'card':<21}  {'read':<24}  {'vote':<9}  resolved")
     hits = {"read": 0, "no_vote": 0, "vote": 0}
     labeled = 0
+    read_times: list[float] = []
+    layout_times: list[float] = []
     for path in files:
         with Image.open(path) as image:
             rgb = image.convert("RGB")
-        # The search window is centred on the cursor
-        found = crop_card(rgb, Point(rgb.width // 2, rgb.height // 2))
+        # The capture is the search window, centred on the cursor, as the
+        # scanner keeps it before reading
+        engine._last_capture, engine._last_origin = rgb, Point(0, 0)
+        engine._last_card = None
+        start = time.perf_counter()
+        crop = engine._locate_card(Point(rgb.width // 2, rgb.height // 2))
+        card = engine._last_card
         card_text = "-"
-        if found is not None:
-            rgb, card = found
+        if card is not None:
             card_text = f"{card.left},{card.top} {card.width}x{card.height}"
-        processed = engine.preprocess_tooltip(rgb)
-        read = engine._read_item_name(processed)
+        read = engine._read_title(crop or rgb, card_found=crop is not None)
+        if card is not None:
+            read_times.append(time.perf_counter() - start)
+            start = time.perf_counter()
+            engine.layout_from_last_capture()
+            layout_times.append(time.perf_counter() - start)
         vote = engine.last_tier_vote
         with_vote = db.lookup(read, tier_vote=vote) if read else None
 
@@ -106,6 +125,10 @@ def main() -> int:
         print(f"read text:              {_percent(hits['read'], labeled)}")
         print(f"resolver without vote:  {_percent(hits['no_vote'], labeled)}")
         print(f"resolver with vote:     {_percent(hits['vote'], labeled)}")
+    print(f"engine: {engine.reader.name}")
+    print(f"captures with a card:   {len(read_times)} of {len(files)}")
+    print(f"median full read:       {_median_ms(read_times)} per card")
+    print(f"median layout:          {_median_ms(layout_times)} per card")
     return 0
 
 
