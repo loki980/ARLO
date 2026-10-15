@@ -11,6 +11,8 @@ import threading
 import time
 import tkinter as tk
 import traceback
+from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -48,6 +50,26 @@ from arc_helper.verdict import Verdict
 from arc_helper.verdict import compute_verdict
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
+
+# The popup and chips hide this long after the last read of an item: twice
+# the slowest of the last three scan periods, capped, and never less than
+# display_time, so a hovered item stays shown until the next scan reads it.
+HOLD_SCAN_PERIODS = 2
+HOLD_HISTORY = 3
+HOLD_CAP_S = 6.0
+
+
+def scan_hold_s(
+    display_time: float, periods: Sequence[float], estimate_s: float
+) -> float:
+    """Seconds the popup and chips stay up after a read.
+
+    periods are the scan periods measured in this ACTIVE stretch, oldest
+    first. estimate_s stands in for the period while none is measured yet.
+    """
+    recent = list(periods)[-HOLD_HISTORY:]
+    period = max(recent) if recent else estimate_s
+    return max(display_time, min(HOLD_SCAN_PERIODS * period, HOLD_CAP_S))
 
 
 class ScannerState(Enum):
@@ -185,6 +207,12 @@ class Scanner:
     # the debug log. Reset on every entry to ACTIVE.
     _last_scan_start: float | None = None
 
+    # Scan periods measured in this ACTIVE stretch (seconds) and the hold
+    # computed after the latest scan (ms), sent with every overlay, touch and
+    # chips message. None until the first scan, which leaves display_time.
+    _scan_periods: deque = field(default_factory=lambda: deque(maxlen=HOLD_HISTORY))
+    _hold_ms: int | None = None
+
     # Hotkey override (Ctrl+Shift to force tooltip scanning)
     _hotkey_override: bool = False
 
@@ -258,7 +286,7 @@ class Scanner:
                         # Hotkey pressed - enter active mode via override
                         self._hotkey_override = True
                         self.state = ScannerState.ACTIVE
-                        self._last_scan_start = None
+                        self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=hotkey")
                         self._update_status("hotkey")
                         logger.info("Hotkey override - activating tooltip scanner")
@@ -268,7 +296,7 @@ class Scanner:
                         # Trigger detected! Switch to active mode
                         self._hotkey_override = False
                         self.state = ScannerState.ACTIVE
-                        self._last_scan_start = None
+                        self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=inventory_trigger")
                         self._update_status("active")
                         logger.info("INVENTORY detected - activating tooltip scanner")
@@ -311,17 +339,23 @@ class Scanner:
                     if self._last_scan_start is None:
                         logger.debug("scan start period=none")
                     else:
-                        logger.debug(
-                            "scan start period=%d ms",
-                            (scan_start - self._last_scan_start) * 1000,
-                        )
+                        period = scan_start - self._last_scan_start
+                        self._scan_periods.append(period)
+                        logger.debug("scan start period=%d ms", period * 1000)
                     self._last_scan_start = scan_start
                     item_name = ocr.extract_item_name_at_cursor()
+                    scan_s = time.monotonic() - scan_start
                     logger.debug(
                         "scan end %d ms read=%s",
-                        (time.monotonic() - scan_start) * 1000,
+                        scan_s * 1000,
                         item_name or "none",
                     )
+                    hold_s = scan_hold_s(
+                        settings.overlay.display_time,
+                        self._scan_periods,
+                        scan_s + settings.scan.tooltip_scan_interval,
+                    )
+                    self._hold_ms = round(hold_s * 1000)
                     self.stats.tooltip_scans += 1
 
                     if item_name:
@@ -340,6 +374,11 @@ class Scanner:
                 logger.error(f"Scanner error: {e}")
                 self._update_status("error")
                 time.sleep(1.0)  # Back off on error
+
+    def _reset_scan_timing(self) -> None:
+        """Forget scan timing on entry to ACTIVE."""
+        self._last_scan_start = None
+        self._scan_periods.clear()
 
     def _handle_detected_item(self, item_name: str) -> None:
         """Handle a detected item name."""
@@ -366,7 +405,7 @@ class Scanner:
                 shown_name,
                 (current_time - self._last_shown_time) * 1000,
             )
-            self.ui_queue.put(("touch", shown_name))
+            self.ui_queue.put(("touch", shown_name, self._hold_ms))
             return
 
         logger.debug(
@@ -429,7 +468,9 @@ class Scanner:
         self, item_name: str, recommendation: Item | None, verdict: Verdict
     ) -> None:
         """Queue an overlay update for the main (GUI) thread to apply."""
-        self.ui_queue.put(("overlay", item_name, recommendation, verdict))
+        self.ui_queue.put(
+            ("overlay", item_name, recommendation, verdict, self._hold_ms)
+        )
 
     def _queue_chips(
         self, recommendation: Item | None, *, same_item: bool = False
@@ -446,7 +487,7 @@ class Scanner:
         if recommendation is not None:
             layout = get_ocr_engine().layout_from_last_capture()
         if recommendation is not None and layout is None and same_item:
-            self.ui_queue.put(("touch", recommendation.name))
+            self.ui_queue.put(("touch", recommendation.name, self._hold_ms))
             return
         if recommendation is None or layout is None:
             self._hide_chips()
@@ -460,7 +501,9 @@ class Scanner:
         with self._chips_lock:
             # stop() or pause() may have hidden the chips during the OCR pass
             if self._running and self.state == ScannerState.ACTIVE:
-                self.ui_queue.put(("chips", recommendation.name, layout, payload))
+                self.ui_queue.put(
+                    ("chips", recommendation.name, layout, payload, self._hold_ms)
+                )
 
     def _hide_chips(self) -> None:
         """Queue hiding the tooltip chips for the main (GUI) thread."""
@@ -547,19 +590,21 @@ class Application:
                     self._last_status = msg[1]
                     self._apply_status(msg[1])
                 elif msg[0] == "overlay":
-                    _, item_name, recommendation, verdict = msg
+                    _, item_name, recommendation, verdict, hold_ms = msg
                     home_outputs = (
                         self.db.recycle_outputs(recommendation.name)
                         if recommendation is not None
                         else None
                     )
-                    self.overlay.show(item_name, recommendation, verdict, home_outputs)
+                    self.overlay.show(
+                        item_name, recommendation, verdict, home_outputs, hold_ms
+                    )
                 elif msg[0] == "touch":
-                    self.overlay.touch(msg[1])
+                    self.overlay.touch(msg[1], msg[2])
                     if self.chips is not None:
-                        self.chips.touch()
+                        self.chips.touch(msg[2])
                 elif msg[0] == "chips" and self.chips is not None:
-                    self.chips.show(msg[1], msg[2], **msg[3])
+                    self.chips.show(msg[1], msg[2], **msg[3], hold_ms=msg[4])
                 elif msg[0] == "chips_hide" and self.chips is not None:
                     self.chips.hide(reason="chips_hide")
         except queue.Empty:

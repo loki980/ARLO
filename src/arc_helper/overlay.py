@@ -73,6 +73,13 @@ def popup_notes(recommendation: Item, home_outputs: list[RecycleOutput] | None) 
     return recommendation.keep_for or ""
 
 
+def _hide_delay_ms(settings, hold_ms: int | None) -> int:
+    """Auto-hide delay: the scanner's hold, or display_time without one."""
+    if hold_ms is None:
+        return int(settings.overlay.display_time * 1000)
+    return hold_ms
+
+
 class OverlayWindow:
     """Transparent overlay window for showing recommendations."""
 
@@ -212,17 +219,19 @@ class OverlayWindow:
         recommendation: Item | None,
         verdict: Verdict | None = None,
         home_outputs: list[RecycleOutput] | None = None,
+        hold_ms: int | None = None,
     ) -> None:
         """Show the overlay with item info.
 
         verdict picks the action word, its color and the reason line. When
         None it is derived from the item's action string. home_outputs are
-        the item's recycle_outputs rows for the notes line.
+        the item's recycle_outputs rows for the notes line. hold_ms is the
+        auto-hide delay, display_time when None.
         """
         # Skip redraw if same item already showing
         if self._current_item == item_name and self.is_visible():
             logger.debug("popup show item=%s redraw=no", item_name)
-            self._reschedule_hide()
+            self._reschedule_hide(hold_ms)
             return
 
         logger.debug("popup show item=%s redraw=yes", item_name)
@@ -282,26 +291,26 @@ class OverlayWindow:
         self.reason_label.config(wraplength=max_width)
 
         # Auto-hide
-        hide_ms = int(self.settings.overlay.display_time * 1000)
+        hide_ms = _hide_delay_ms(self.settings, hold_ms)
         self._hide_after_id = self.window.after(hide_ms, self.hide)
         self._hide_delay_ms = hide_ms
         logger.debug("popup hide timer armed delay=%d ms", hide_ms)
 
-    def _reschedule_hide(self) -> None:
-        """Restart the auto-hide timer from now."""
+    def _reschedule_hide(self, hold_ms: int | None = None) -> None:
+        """Restart the auto-hide timer from now, display_time when no hold."""
         if self._hide_after_id:
             self.window.after_cancel(self._hide_after_id)
             logger.debug("popup hide timer cancelled delay=%s ms", self._hide_delay_ms)
-        hide_ms = int(self.settings.overlay.display_time * 1000)
+        hide_ms = _hide_delay_ms(self.settings, hold_ms)
         self._hide_after_id = self.window.after(hide_ms, self.hide)
         self._hide_delay_ms = hide_ms
         logger.debug("popup hide timer armed delay=%d ms", hide_ms)
 
-    def touch(self, item_name: str) -> None:
+    def touch(self, item_name: str, hold_ms: int | None = None) -> None:
         """Keep the overlay up while item_name is the item showing."""
         if self._current_item == item_name and self.is_visible():
             logger.debug("popup touch item=%s restart=yes", item_name)
-            self._reschedule_hide()
+            self._reschedule_hide(hold_ms)
         else:
             logger.debug(
                 "popup touch item=%s restart=no showing=%s",
@@ -416,12 +425,14 @@ class TooltipChips:
         stack_text: str | None,
         recycle_label: str | None,
         recycle_text: str | None,
+        hold_ms: int | None = None,
     ) -> None:
         """Fill, measure, place and show the chips that have content.
 
         For the item already showing, chips are only moved with geometry,
         never withdrawn and mapped again, so the compositor does not fade
-        them. A chip this layout could not place stays where it is.
+        them. A chip this layout could not place stays where it is. hold_ms
+        is the auto-hide delay, display_time when None.
         """
         same_item = item_name == self._current_item
         logger.debug(
@@ -490,13 +501,16 @@ class TooltipChips:
                 self._shown.add(key)
 
         if self._shown:
-            hide_ms = int(self.settings.overlay.display_time * 1000)
+            hide_ms = _hide_delay_ms(self.settings, hold_ms)
             self._hide_after_id = self.root.after(hide_ms, self.hide)
             self._hide_delay_ms = hide_ms
             logger.debug("chips hide timer armed delay=%d ms", hide_ms)
 
-    def touch(self) -> None:
-        """Restart the auto-hide timer when any chip is showing."""
+    def touch(self, hold_ms: int | None = None) -> None:
+        """Restart the auto-hide timer when any chip is showing.
+
+        hold_ms is the auto-hide delay, display_time when None.
+        """
         try:
             showing = any(w.winfo_viewable() for w in self.windows.values())
         except tk.TclError:
@@ -509,7 +523,7 @@ class TooltipChips:
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
             logger.debug("chips hide timer cancelled delay=%s ms", self._hide_delay_ms)
-        hide_ms = int(self.settings.overlay.display_time * 1000)
+        hide_ms = _hide_delay_ms(self.settings, hold_ms)
         self._hide_after_id = self.root.after(hide_ms, self.hide)
         self._hide_delay_ms = hide_ms
         logger.debug("chips hide timer armed delay=%d ms", hide_ms)

@@ -114,7 +114,7 @@ def test_repeat_detection_in_cooldown_only_touches_the_windows(monkeypatch):
     scanner._last_shown_item = "Battery"  # noqa: SLF001
     scanner._last_shown_time = time.time()  # noqa: SLF001
     scanner._handle_detected_item("Battery")  # noqa: SLF001
-    assert _drain(scanner) == [("touch", "Battery")]
+    assert _drain(scanner) == [("touch", "Battery", None)]
 
 
 def test_raw_read_variants_of_one_item_show_once_then_touch(monkeypatch):
@@ -129,9 +129,9 @@ def test_raw_read_variants_of_one_item_show_once_then_touch(monkeypatch):
     for raw in ("ANVIL IV", "ANVILIV", "ANVILLV"):
         scanner._handle_detected_item(raw)  # noqa: SLF001
     assert _drain(scanner) == [
-        ("overlay", "Anvil IV", anvil, "verdict"),
-        ("touch", "Anvil IV"),
-        ("touch", "Anvil IV"),
+        ("overlay", "Anvil IV", anvil, "verdict", None),
+        ("touch", "Anvil IV", None),
+        ("touch", "Anvil IV", None),
     ]
     # Chips are only queued with the first show
     assert len(chips) == int(get_settings().overlay.tooltip_chips)
