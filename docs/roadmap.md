@@ -109,6 +109,12 @@ Ahead, in order:
     search window now defaults to the full screen. Added 12 Oct, done 12 Oct,
     reviewed. Confirmed by Jeffrey in game 12 Oct: "It seems like all the
     weapon identification is working now."
+14. Capture library only on request. Jeffrey, 14 Oct: "only allow this to
+    run if I'm using claude." The library was still on in his .env after a
+    test, saving a 2 MB full-screen image about every 2 seconds on the scan
+    thread (471 files, 285 MB). It now turns on only with
+    `uv run arc-helper --capture`, ignores .env, stops after a per-run limit,
+    and saves on a background thread. Added 14 Oct, building now.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -248,9 +254,10 @@ pages, project pages and the quest list.
 
 ## Known follow-ups
 
-- Add `TOOLTIP_CHIPS=true`, `CAPTURE_LIBRARY=false` and
-  `CAPTURE_LIBRARY_DIR=debug/captures` to `.env.example` (blocked for agents
-  by permission settings).
+- Add `TOOLTIP_CHIPS=true` and `CAPTURE_LIBRARY_DIR=debug/captures` to
+  `.env.example` (blocked for agents by permission settings). Changed 14 Oct:
+  `CAPTURE_LIBRARY` is no longer a setting, so it does not belong there, and
+  Jeffrey can delete it from his `.env`.
 - The ruff baseline on master has 9 lint errors and 7 unformatted files
   outside the new code.
 - 158 items have no rarity because the API gives none.

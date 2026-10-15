@@ -4,7 +4,7 @@
 Usage: uv run python scripts/eval_captures.py <folder>
 
 Runs the real OCR name read and database lookup on every PNG in the folder
-(for example the capture library written with CAPTURE_LIBRARY=true) and
+(for example the capture library written by uv run arc-helper --capture) and
 prints one row per file: file, located card, read text, tier vote and
 confidence, and the resolved catalog name. Each image is read the way the
 scanner reads it: the card is located with the cursor assumed at the image
