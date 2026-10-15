@@ -625,18 +625,12 @@ class Scanner:
 
         verdict = self._verdict_for(recommendation, settings.show_ended_projects)
 
-        # A new item whose card leaves the home spot free brings the popup
-        # back home. The same item never moves it. The new item's popup may
-        # be taller, which shifts home up, so the Tk thread checks the card
-        # again against home at the new size before it moves the popup.
-        home = labelled.get(POPUP_HOME)
-        if (
-            self.overlay_rects.popup_away()
-            and not same_item
-            and card is not None
-            and home is not None
-            and not rects_intersect(card, home)
-        ):
+        # A new item may bring the popup back home. The same item never
+        # moves it. Home depends on the new item's popup size (a taller
+        # popup shifts it up, a shorter one down), so every candidate goes
+        # to the Tk thread with its card, which moves the popup only when
+        # the card leaves home free at the size after the show.
+        if self.overlay_rects.popup_away() and not same_item and card is not None:
             self._queue_popup_spot(POPUP_HOME, card)
 
         # Show overlay (must be done on main thread)

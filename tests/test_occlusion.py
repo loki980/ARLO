@@ -137,12 +137,16 @@ def test_popup_returns_home_when_the_next_card_leaves_home_free(monkeypatch):
     scanner._handle_detected_item("Anvil I")  # noqa: SLF001
     assert _drain(scanner) == [("popup_spot", POPUP_CORNER, None)]
 
-    # The popup now sits in the corner, the same card is read whole
+    # The popup now sits in the corner, the same card is read whole. Its
+    # first show is a new item, so the return home goes to the Tk thread
+    # with the card, which keeps the popup away while the card covers home
     scanner.overlay_rects.publish(
         [CORNER_RECT], _spots(popup=CORNER_RECT), popup_away=True
     )
     scanner._handle_detected_item("Anvil I")  # noqa: SLF001
-    assert [m[0] for m in _drain(scanner)] == ["overlay"]
+    messages = _drain(scanner)
+    assert messages[0] == ("popup_spot", POPUP_HOME, HOME_CARD)
+    assert [m[0] for m in messages] == ["popup_spot", "overlay"]
 
     # The same item again after the cooldown does not move the popup
     scanner._last_shown_time = 0  # noqa: SLF001
@@ -169,7 +173,11 @@ def test_new_item_on_the_home_spot_keeps_the_popup_away(monkeypatch):
     )
     scanner._handle_detected_item("Battery")  # noqa: SLF001
 
-    assert [m[0] for m in _drain(scanner)] == ["overlay"]
+    # The candidate goes to the Tk thread with its card, which decides
+    # against home at the size after the show
+    messages = _drain(scanner)
+    assert messages[0] == ("popup_spot", POPUP_HOME, HOME_CARD)
+    assert [m[0] for m in messages] == ["popup_spot", "overlay"]
 
 
 def test_anvil_capture_under_the_corner_popup_is_discarded_and_the_popup_moved(
@@ -324,3 +332,37 @@ def test_return_home_happens_after_the_show_when_the_card_leaves_home_free(
 
     assert app._popup_spot == POPUP_HOME  # noqa: SLF001
     assert app.overlay.window.geometries == [f"+{HOME_RECT.left}+{HOME_RECT.top}"]
+
+
+def test_return_home_after_the_show_when_a_shorter_popup_frees_the_card(
+    monkeypatch,
+):
+    """Tall to short: the card covers the old tall home, not the short one."""
+    short, tall = (536, 200), POPUP_SIZE
+    short_home, _ = popup_spot_rects(SCREEN, short, CORNER)
+    tall_home, _ = popup_spot_rects(SCREEN, tall, CORNER)
+    card = Rect(1300, 1400, 2000, 1600)
+    assert main_module.rects_intersect(card, tall_home)
+    assert not main_module.rects_intersect(card, short_home)
+
+    # The scanner sees the tall popup's home, which the card covers, and
+    # still queues the candidate with its card
+    scanner = _scanner(monkeypatch, card, _spots(popup=CORNER_RECT))
+    scanner.overlay_rects.publish(
+        [CORNER_RECT],
+        {POPUP_HOME: tall_home, POPUP_CORNER: CORNER_RECT, POPUP: CORNER_RECT},
+        popup_away=True,
+    )
+    scanner._handle_detected_item("Battery")  # noqa: SLF001
+    messages = _drain(scanner)
+    assert messages[0] == ("popup_spot", POPUP_HOME, card)
+
+    # The Tk thread applies it, then the new item's popup is shorter
+    app = _app_in_corner(monkeypatch, tall)
+    app._apply_popup_spot(*messages[0][1:])  # noqa: SLF001
+    assert app.overlay.window.geometries == []
+    app.overlay.window.size = short
+    app._after_popup_show()  # noqa: SLF001
+
+    assert app._popup_spot == POPUP_HOME  # noqa: SLF001
+    assert app.overlay.window.geometries == [f"+{short_home.left}+{short_home.top}"]
