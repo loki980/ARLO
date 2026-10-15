@@ -4,8 +4,8 @@ Displays item recommendations as a styled popup with action colors.
 """
 
 import tkinter as tk
-from collections.abc import Callable
 from dataclasses import replace
+from typing import Callable
 
 from .clickthrough import make_click_through
 from .config import get_dpi_scale

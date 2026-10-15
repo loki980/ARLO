@@ -5,9 +5,11 @@ import pytest
 from PIL import ImageFont
 
 from arc_helper import overlay as overlay_module
+from arc_helper import textrender
 from arc_helper.textrender import TextStyle
 from arc_helper.textrender import families_scalable
 from arc_helper.textrender import find_font_file
+from arc_helper.textrender import has_scalable_fonts
 from arc_helper.textrender import render_text
 from arc_helper.textrender import wrap_text
 
@@ -99,3 +101,48 @@ def test_label_keeps_tk_text_when_fonts_scale(monkeypatch):
         assert not label.cget("image")
     finally:
         root.destroy()
+
+
+class _FakeFont:
+    def __init__(self, actual_family):
+        self._family = actual_family
+
+    def actual(self, _option):
+        return self._family
+
+
+def _stub_tk(monkeypatch, families, actual_family):
+    calls = []
+
+    def fake_families(_root):
+        calls.append(1)
+        return families
+
+    monkeypatch.setattr(textrender.tkfont, "families", fake_families)
+    monkeypatch.setattr(
+        textrender.tkfont, "Font", lambda *_a, **_k: _FakeFont(actual_family)
+    )
+    return calls
+
+
+def test_has_scalable_fonts_false_for_fixed_only(monkeypatch):
+    _stub_tk(monkeypatch, ("fixed",), "fixed")
+    assert has_scalable_fonts(type("Root", (), {})()) is False
+
+
+def test_has_scalable_fonts_true_for_a_real_family(monkeypatch):
+    _stub_tk(monkeypatch, ("fixed", "Noto Sans"), "Noto Sans")
+    assert has_scalable_fonts(type("Root", (), {})()) is True
+
+
+def test_has_scalable_fonts_false_when_request_resolves_to_fixed(monkeypatch):
+    _stub_tk(monkeypatch, ("fixed", "Noto Sans"), "fixed")
+    assert has_scalable_fonts(type("Root", (), {})()) is False
+
+
+def test_has_scalable_fonts_is_cached_per_root(monkeypatch):
+    calls = _stub_tk(monkeypatch, ("fixed", "Noto Sans"), "Noto Sans")
+    root = type("Root", (), {})()
+    has_scalable_fonts(root)
+    has_scalable_fonts(root)
+    assert len(calls) == 1
