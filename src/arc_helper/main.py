@@ -35,6 +35,7 @@ from arc_helper.advice_window import AdviceWindow
 from arc_helper.badge_surface import Badge
 from arc_helper.badge_surface import BadgeSurface
 from arc_helper.badge_surface import Border
+from arc_helper.badge_surface import Patch
 from arc_helper.badge_surface import Tag
 from arc_helper.cell_border import CellBorder
 from arc_helper.clickthrough import make_click_through
@@ -295,8 +296,8 @@ STASH_TICK_S = 0.1
 # keep clear of, for the card's shadow
 STASH_CARD_MARGIN = 16
 # The parts of a slot a drawn badge changes on screen, which the stillness
-# compare skips: the price pill's band (a share of the slot height, at its
-# corner's edge) and a band along the edges for the gold border
+# compare skips: a tag's band (a share of the slot height, at its corner's
+# edge), a patch's whole rect and a band along the edges for a border
 STASH_TAG_BAND = 0.4
 STASH_BORDER_BAND = 6
 # Catalog item types that never sit in an inventory slot, left out of the
@@ -333,6 +334,9 @@ def frame_hidden(frame: StashFrame | None) -> list[Rect]:
 def badge_marks(badge: Mapping) -> list[Rect]:
     """The parts of the screen a drawn badge changes."""
     left, top, right, bottom = (int(v) for v in badge["rect"])
+    if badge["kind"] == "patch":
+        # The patch rect is the bar itself, all of it changes on screen
+        return [Rect(left, top, right, bottom)]
     if badge["kind"] == "border":
         band = STASH_BORDER_BAND
         return [
@@ -357,11 +361,18 @@ def badges_clear_of(badges: Sequence[dict], hidden: Sequence[Rect]) -> list[dict
 
 
 def surface_badges(badges: Sequence[dict]) -> list[Badge]:
-    """Badge dicts (stash_scan.badges_for) as the badge surface's Border and Tag."""
+    """Badge dicts (stash_scan.badges_for) as the badge surface's Border, Tag and Patch."""
     made: list[Badge] = []
     for b in badges:
         fields = {**b, "rect": tuple(int(v) for v in b["rect"])}
-        made.append(Border(**fields) if b["kind"] == "border" else Tag(**fields))
+        if b["kind"] == "border":
+            made.append(Border(**fields))
+        elif b["kind"] == "patch":
+            made.append(Patch(**{**fields, "colour": tuple(b["colour"])}))
+        else:
+            if b.get("outline") is not None:
+                fields["outline"] = tuple(b["outline"])
+            made.append(Tag(**fields))
     return made
 
 
@@ -454,7 +465,9 @@ def stash_identifier(
         if not loaded:
             loaded.extend(load_stash_gallery(cache_dir))
         gallery, twins = loaded
-        return identify_slots(rgb, gallery, db.lookup, twins=twins)
+        return identify_slots(
+            rgb, gallery, db.lookup, twins=twins, read_stacks=True
+        )
 
     return identify
 
@@ -1410,15 +1423,15 @@ class Scanner:
             self.db.home_only_outputs(recommendation.name),
             verdict,
         )
-        border = None
-        if verdict is not None and verdict.sources:
-            engine = get_ocr_engine()
-            border = hovered_cell_on_screen(
-                getattr(engine, "_last_capture", None),
-                getattr(engine, "_last_origin", None),
-                getattr(engine, "_last_card", None),
-                self.overlay_rects.snapshot(),
-            )
+        # The gold frame marks the hovered cell of every identified item,
+        # whatever the verdict
+        engine = get_ocr_engine()
+        border = hovered_cell_on_screen(
+            getattr(engine, "_last_capture", None),
+            getattr(engine, "_last_origin", None),
+            getattr(engine, "_last_card", None),
+            self.overlay_rects.snapshot(),
+        )
         with self._chips_lock:
             # stop() or pause() may have hidden the chips during the OCR pass
             if self._running and self.state == ScannerState.ACTIVE:
