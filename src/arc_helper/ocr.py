@@ -3,8 +3,10 @@ OCR module for ARLO.
 Screen capture and text extraction using Tesseract.
 """
 
+import queue
 import re
 import string
+import threading
 import time
 from datetime import datetime
 
@@ -34,6 +36,9 @@ from .tooltip_layout import find_cream_rect
 from .tooltip_layout import find_label_rows
 from .tooltip_layout import find_tooltip_card
 from .tooltip_layout import to_screen
+
+# Captures waiting for the writer thread before new ones are dropped
+CAPTURE_QUEUE_SIZE = 4
 
 # Margin kept around the located card when it is cropped for OCR
 CARD_CROP_MARGIN = 8
@@ -158,7 +163,15 @@ class OCREngine:
         # Capture library: raw tooltip captures kept for offline evaluation
         self.capture_library = settings.capture_library
         self.capture_library_dir = settings.capture_library_dir
+        self.capture_library_limit = settings.capture_library_limit
         self._capture_saved_at: dict[str, float] = {}
+        # Captures queued this run, and the queue the writer thread drains so
+        # a 2 MB PNG save never runs on the scan thread
+        self._capture_count = 0
+        self._capture_queue: queue.Queue[tuple[Image.Image, str, str]] = queue.Queue(
+            maxsize=CAPTURE_QUEUE_SIZE
+        )
+        self._capture_writer: threading.Thread | None = None
 
         # Stroke-count vote on the tier token of the last name read
         self.last_tier_vote: TierVote | None = None
@@ -656,24 +669,59 @@ class OCREngine:
         return item_name
 
     def _save_to_library(self, image: Image.Image, item_name: str | None) -> None:
-        """Save a raw capture for offline evaluation, never raising.
+        """Queue a raw capture for the writer thread, never blocking or raising.
 
         At most one file per distinct read name every 2 seconds, so holding
-        the cursor on one item does not fill the folder.
+        the cursor on one item does not fill the folder, and at most
+        capture_library_limit files in one run. A full queue drops the
+        capture.
         """
+        if self._capture_count >= self.capture_library_limit:
+            return
         label = re.sub(r"[^A-Za-z0-9]+", "-", item_name or "").strip("-") or "none"
         now = time.monotonic()
         last = self._capture_saved_at.get(label)
         if last is not None and now - last < 2.0:
             return
+        stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-%f")[:-3]
+        self._start_capture_writer()
+        try:
+            self._capture_queue.put_nowait((image, stamp, label))
+        except queue.Full:
+            logger.debug(f"Capture writer busy, dropped capture '{label}'")
+            return
+        self._capture_saved_at[label] = now
+        self._capture_count += 1
+        if self._capture_count >= self.capture_library_limit:
+            logger.info(
+                f"Capture library limit of {self.capture_library_limit} reached, "
+                "no more captures this run"
+            )
+
+    def _start_capture_writer(self) -> None:
+        """Start the capture writer thread on first use."""
+        if self._capture_writer is None:
+            self._capture_writer = threading.Thread(
+                target=self._capture_writer_loop, name="capture-writer", daemon=True
+            )
+            self._capture_writer.start()
+
+    def _capture_writer_loop(self) -> None:
+        """Save queued captures one at a time, for the life of the process."""
+        while True:
+            image, stamp, label = self._capture_queue.get()
+            try:
+                self._write_capture(image, stamp, label)
+            finally:
+                self._capture_queue.task_done()
+
+    def _write_capture(self, image: Image.Image, stamp: str, label: str) -> None:
+        """Save one capture as <stamp>_<label>.png, never raising."""
         try:
             self.capture_library_dir.mkdir(parents=True, exist_ok=True)
-            stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-%f")[:-3]
             image.save(self.capture_library_dir / f"{stamp}_{label}.png")
         except Exception as e:  # noqa: BLE001 - a full disk must not stop scanning
             logger.warning(f"Could not save capture to library: {e}")
-            return
-        self._capture_saved_at[label] = now
 
     def _read_item_name(self, processed: Image.Image) -> str | None:
         """Read the item name from a preprocessed tooltip via two OCR passes.

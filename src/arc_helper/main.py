@@ -3,6 +3,7 @@ ARLO - Main Application.
 Coordinates OCR scanning and overlay display.
 """
 
+import argparse
 import datetime
 import queue
 import sys
@@ -21,7 +22,9 @@ from dotenv import load_dotenv
 
 from arc_helper.clickthrough import make_click_through
 from arc_helper.config import APP_DIR
+from arc_helper.config import DEFAULT_CAPTURE_LIMIT
 from arc_helper.config import SettingsManager
+from arc_helper.config import capture_library_in_env
 from arc_helper.config import get_settings
 from arc_helper.config import logger
 from arc_helper.database import FIELD
@@ -611,8 +614,58 @@ def check_first_run() -> bool:
     return True
 
 
-def main() -> None:
+def _positive_int(value: str) -> int:
+    """argparse type for a whole number of 1 or more."""
+    try:
+        number = int(value)
+    except ValueError:
+        number = 0
+    if number < 1:
+        msg = f"must be a whole number of 1 or more, got {value!r}"
+        raise argparse.ArgumentTypeError(msg)
+    return number
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the command line, exiting with status 2 on a bad argument."""
+    parser = argparse.ArgumentParser(
+        prog="arc-helper", description="Arc Raiders Loot Overlay"
+    )
+    parser.add_argument(
+        "--capture",
+        nargs="?",
+        const=DEFAULT_CAPTURE_LIMIT,
+        default=None,
+        type=_positive_int,
+        metavar="N",
+        help=(
+            "save raw item card captures for this run only, "
+            f"at most N images (default {DEFAULT_CAPTURE_LIMIT})"
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def apply_capture_args(args: argparse.Namespace) -> None:
+    """Turn the capture library on for this run when --capture was given."""
+    if capture_library_in_env():
+        logger.warning(
+            "CAPTURE_LIBRARY in .env is ignored, start ARLO with --capture to collect captures"
+        )
+    if args.capture is None:
+        return
+    SettingsManager.enable_capture_library(args.capture)
+    folder = get_settings().capture_library_dir
+    logger.info(
+        f"Capture library on for this run: up to {args.capture} images in {folder}"
+    )
+
+
+def main(argv: list[str] | None = None) -> None:
     """Entry point for ARLO."""
+    # Before calibration, the OCR engine and the window: --help and bad
+    # arguments exit here, and the engine sees the capture switch at init
+    apply_capture_args(parse_args(argv))
 
     # Log any unhandled exception before exit
     def exception_hook(exc_type, exc_value, exc_tb):

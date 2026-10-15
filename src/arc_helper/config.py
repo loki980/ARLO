@@ -9,8 +9,10 @@ import sys
 from contextlib import suppress
 from pathlib import Path
 
+from dotenv import dotenv_values
 from dotenv import load_dotenv
 from pydantic import Field
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 
@@ -35,6 +37,11 @@ def get_app_dir() -> Path:
 
 
 APP_DIR = get_app_dir()
+
+# Captures saved in one run started with --capture and no number
+DEFAULT_CAPTURE_LIMIT = 300
+# Settings that only the --capture flag may set, never a settings source
+CAPTURE_RUN_ONLY_KEYS = frozenset({"capture_library", "capture_library_limit"})
 
 
 def get_screen_resolution() -> tuple[int, int]:
@@ -335,13 +342,31 @@ class Settings(BaseSettings):
         default=False, description="Show red overlay for capture area"
     )
 
-    # Capture library: save raw tooltip captures for offline OCR evaluation
+    # Capture library: save raw tooltip captures for offline OCR evaluation.
+    # Turned on only for one run by the --capture flag, never from the
+    # environment or .env (see _drop_capture_switches and SettingsManager).
     capture_library: bool = Field(
         default=False, description="Save raw tooltip captures for evaluation"
+    )
+    capture_library_limit: int = Field(
+        default=DEFAULT_CAPTURE_LIMIT,
+        description="Most captures saved in one run",
     )
     capture_library_dir: Path = Field(
         default_factory=lambda: APP_DIR / "debug" / "captures"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_capture_switches(cls, data: object) -> object:
+        """Ignore CAPTURE_LIBRARY and its limit from every settings source."""
+        if isinstance(data, dict):
+            return {
+                k: v
+                for k, v in data.items()
+                if str(k).lower() not in CAPTURE_RUN_ONLY_KEYS
+            }
+        return data
 
     def save_to_env(self, env_path: Path | None = None) -> None:
         """Save current settings to .env file."""
@@ -389,7 +414,6 @@ class Settings(BaseSettings):
             "# Debug settings",
             f"DEBUG_MODE={str(self.debug_mode).lower()}",
             f"SHOW_CAPTURE_AREA={str(self.show_capture_area).lower()}",
-            f"CAPTURE_LIBRARY={str(self.capture_library).lower()}",
             f"CAPTURE_LIBRARY_DIR={self.capture_library_dir}",
             f"ICON_CACHE_DIR={self.icon_cache_dir}",
             "",
@@ -407,24 +431,58 @@ class Settings(BaseSettings):
 
 
 class SettingsManager:
-    """Manages the singleton Settings instance."""
+    """Manages the singleton Settings instance.
+
+    The capture library switch set for this run by --capture is kept here
+    and applied to every new instance, so a reload keeps it.
+    """
 
     _instance: Settings | None = None
+    _capture_library: bool = False
+    _capture_library_limit: int = DEFAULT_CAPTURE_LIMIT
+
+    @classmethod
+    def _new(cls) -> Settings:
+        settings = Settings()
+        settings.capture_library = cls._capture_library
+        settings.capture_library_limit = cls._capture_library_limit
+        return settings
 
     @classmethod
     def get(cls) -> Settings:
         if cls._instance is None:
-            cls._instance = Settings()
+            cls._instance = cls._new()
         return cls._instance
 
     @classmethod
     def reload(cls) -> Settings:
-        cls._instance = Settings()
+        cls._instance = cls._new()
         return cls._instance
+
+    @classmethod
+    def enable_capture_library(cls, limit: int = DEFAULT_CAPTURE_LIMIT) -> None:
+        """Turn the capture library on for this run, up to limit images."""
+        cls._capture_library = True
+        cls._capture_library_limit = limit
+        if cls._instance is not None:
+            cls._instance.capture_library = True
+            cls._instance.capture_library_limit = limit
 
     @classmethod
     def reset(cls) -> None:
         cls._instance = None
+
+
+def capture_library_in_env(env_path: Path | None = None) -> bool:
+    """True when CAPTURE_LIBRARY is set in the environment or the .env file."""
+    if any(key.upper() == "CAPTURE_LIBRARY" for key in os.environ):
+        return True
+    path = APP_DIR / ".env" if env_path is None else env_path
+    try:
+        values = dotenv_values(path)
+    except OSError:
+        return False
+    return any(key.upper() == "CAPTURE_LIBRARY" for key in values)
 
 
 def get_settings() -> Settings:
