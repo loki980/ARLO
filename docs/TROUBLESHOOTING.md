@@ -25,11 +25,11 @@ Here are some common errors you may experience and how to deal with them.
 
 When a weapon shows the wrong tier (I, II, III, IV, V), collect captures so the tier reading can be measured and tuned:
 
-1. Set `CAPTURE_LIBRARY=true` in `.env` (and optionally `CAPTURE_LIBRARY_DIR`, default `debug/captures`)
+1. Start ARLO with `uv run arc-helper --capture`. Captures are saved for that run only, at most 300 images, or N with `--capture N`. The folder is `CAPTURE_LIBRARY_DIR` in `.env`, default `debug/captures`
 2. Hover the tiered items that come out wrong. Each scan saves the raw capture as `<timestamp>_<read name>.png`, at most one per name every 2 seconds
 3. Optionally add a `labels.csv` to the folder with the columns `file,expected` (the catalog name, for example `Anvil II`)
 4. Run `uv run python scripts/eval_captures.py debug/captures` to see the read text, the stroke-count vote and the resolved item for every capture, plus accuracy when labels are present. It reads each file the way the scanner does: it locates the item card with the cursor assumed at the image centre, prints its rectangle in the `card` column (a dash when there is none) and reads the name from the card crop, or from the whole image when no card is found
-5. Set `CAPTURE_LIBRARY=false` again when done, the folder grows while it is on
+5. Restart ARLO without `--capture` when done. A normal start never saves captures
 
 ### "Application won't start"
 

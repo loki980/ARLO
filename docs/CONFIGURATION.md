@@ -62,9 +62,10 @@ TOOLTIP_SCAN_INTERVAL=0.3        # Seconds between tooltip scans
 
 DEBUG_MODE=false                 # Enable to save debug images and logs
 SHOW_CAPTURE_AREA=false          # Show red rectangle around capture area
-CAPTURE_LIBRARY=false            # Save raw tooltip captures for offline OCR evaluation
 CAPTURE_LIBRARY_DIR=debug/captures  # Folder for the capture library
 ```
+
+`CAPTURE_LIBRARY` is no longer read. The capture library saves raw tooltip captures for offline OCR evaluation only for a run started with `uv run arc-helper --capture` (at most 300 images, or N with `--capture N`). A leftover `CAPTURE_LIBRARY` line in `.env` is ignored with a warning in the log. `CAPTURE_LIBRARY_DIR` still sets the folder.
 
 ### Progress File (progress.csv)
 
