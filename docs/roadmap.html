@@ -135,7 +135,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="counts" aria-label="Where things stand">
   <div><b>1 / 8</b><span>phases extracted</span><small>phase 0 done</small></div>
   <div><b>~80%</b><span>of phase 1 done</span><small>8 of 12 steps, weighted by effort</small></div>
-  <div><b>219</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>229</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
@@ -190,7 +190,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="next"><span class="tick">▸</span><span class="what">Your live check of the chips<small>Hover a Power Bank, tell me where the chips land and what the game's own recycle row shows. Also a screenshot of any weapon hover where ARLO shows nothing</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Capture run for tiers I to III<small>So the stroke counter is tuned on every numeral, not only IV</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Decide the recycle chip label<small>"home only" if the game shows the field result, "field only" if it shows home</small></span><span class="when"></span></li>
-            <li class="next"><span class="tick">▸</span><span class="what">Stop the popups fading in and out<small>Still happening after two fixes. Leading suspect: a scan now takes about a second and the popup's hide timer is one second, so it can lapse between scans. The timestamped log is built. Next you run one 10 second hover with debug on, then the fix the log points to</small></span><span class="when recent">log built 14 Oct</span></li>
+            <li class="next"><span class="tick">▸</span><span class="what">Stop the popups fading in and out<small>Still happening after two fixes. Leading suspect: a scan now takes about a second and the popup's hide timer is one second, so it can lapse between scans. Your hover log showed why: a scan comes every 1 to 2.5 seconds but the popup hid after 1, so it vanished and came back every scan. The hide delay now follows the scan speed. Waiting on your hover in game to confirm</small></span><span class="when recent">fix built 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Replace the title reader on evidence<small>Your 320 captures are labeled. Three readers are competing on them now: today's Tesseract, Tesseract with the title line isolated, and PaddleOCR. The winner ships</small></span><span class="when recent">changed 12 Oct</span></li>
           </ul>
         </div>
@@ -333,6 +333,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>12 Oct</time><span>Your 320 captures labeled by eye: half the cards had their title cut off by the capture window, so the search now covers the whole screen. Second flicker cause fixed. Blueprint data inside ARLO. 209 tests. Paused for the night with the reader bake-off still running.</span></li>
   <li><time>12 Oct</time><span>You confirmed weapon identification works in game. The popups still fade in and out, so that is first thing tomorrow.</span></li>
   <li><time>14 Oct</time><span>Captures now only on request with arc-helper --capture. The popup timing log is built and reviewed: millisecond times for every scan, show, hide and timer. 219 tests. Waiting on your 10 second hover with debug on.</span></li>
+  <li><time>14 Oct</time><span>Your hover log found the fading: the popup's 1 second timer ran out before every next scan. The hide delay now follows the scan speed, reviewed and merged. 229 tests. Waiting on your hover to confirm.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

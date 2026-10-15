@@ -106,9 +106,13 @@ Ahead, in order:
     with DEBUG_MODE=true, arc_helper.log now has millisecond times, each
     scan's start, period and duration, each popup and chip show, touch and
     hide with its reason, every hide timer armed or cancelled, and each
-    scanner state change. Changed 14 Oct. Next: Jeffrey runs with
-    DEBUG_MODE=true and hovers one item for 10 s, then the fix the log
-    points to.
+    scanner state change. Changed 14 Oct. Jeffrey's 10 s hover log (14 Oct)
+    confirmed the leading suspect: scans every 1.1 to 2.5 s against a 1 s
+    hide timer, so both windows hid and re-mapped on every scan. Fix (14 Oct,
+    reviewed): the hide delay follows the measured scan speed, twice the
+    slowest recent scan period, capped at 6 s, never below
+    OVERLAY_DISPLAY_TIME. Changed 14 Oct. Next: Jeffrey hovers again in game
+    to confirm.
 13. Search the whole screen for the card. The labeled capture library (320
     captures, 113 with a card) showed 56 cards missing their title row
     because the cursor-centred window cut tall weapon cards at the top. The
