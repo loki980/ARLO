@@ -14,6 +14,7 @@ from arc_helper.main import ScannerState
 from arc_helper.main import scan_hold_s
 from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import TooltipLayout
+from arc_helper.verdict import Verdict
 
 INTERVAL_S = 0.3
 
@@ -133,7 +134,7 @@ def _run_loop(monkeypatch, held, durations, read=None):
     monkeypatch.setattr(main_module, "get_ocr_engine", lambda: ocr)
     monkeypatch.setattr(main_module.time, "monotonic", clock.monotonic)
     monkeypatch.setattr(main_module.time, "sleep", sleep)
-    monkeypatch.setattr(scanner, "_verdict_for", lambda *_: "verdict")
+    monkeypatch.setattr(scanner, "_verdict_for", lambda *_: Verdict("keep", "r"))
     scanner._scan_loop()  # noqa: SLF001
     return scanner, holds
 

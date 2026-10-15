@@ -146,3 +146,19 @@ def test_has_scalable_fonts_is_cached_per_root(monkeypatch):
     has_scalable_fonts(root)
     has_scalable_fonts(root)
     assert len(calls) == 1
+
+
+def test_condensed_font_is_the_bundled_barlow():
+    assert find_font_file(bold=False, condensed=True).endswith(
+        "BarlowSemiCondensed-SemiBold.ttf"
+    )
+    assert find_font_file(bold=True, condensed=True).endswith(
+        "BarlowSemiCondensed-Bold.ttf"
+    )
+
+
+def test_credit_sign_missing_from_barlow_still_takes_width(font_path):
+    barlow = find_font_file(bold=False, condensed=True)
+    plain = render_text("640 ₡", STYLE, barlow, 1.334)
+    with_fallback = render_text("640 ₡", STYLE, barlow, 1.334, 0, font_path)
+    assert with_fallback.width != plain.width

@@ -69,10 +69,16 @@ def has_scalable_fonts(root: tk.Misc) -> bool:
     return result
 
 
-@lru_cache(maxsize=2)
-def find_font_file(bold: bool) -> str | None:  # noqa: FBT001
-    """Path of a TrueType sans font, bold or regular, None when none is found."""
-    pattern = "sans:bold" if bold else "sans"
+FONT_DIR = Path(__file__).parent / "assets" / "fonts"
+BUNDLED_CONDENSED = {
+    False: "BarlowSemiCondensed-SemiBold.ttf",
+    True: "BarlowSemiCondensed-Bold.ttf",
+}
+CONDENSED_FAMILY = "Barlow Semi Condensed"
+
+
+def _fc_match(pattern: str) -> str | None:
+    """TrueType file fc-match picks for a pattern, None when unusable."""
     try:
         out = subprocess.run(
             ["fc-match", "-f", "%{file}", pattern],
@@ -82,9 +88,29 @@ def find_font_file(bold: bool) -> str | None:  # noqa: FBT001
             check=False,
         ).stdout.strip()
     except (OSError, subprocess.SubprocessError):
-        out = ""
+        return None
     if out.lower().endswith(".ttf") and Path(out).is_file():
         return out
+    return None
+
+
+@lru_cache(maxsize=8)
+def find_font_file(bold: bool, condensed: bool = False) -> str | None:  # noqa: FBT001, FBT002
+    """Path of a TrueType sans font, bold or regular, None when none is found.
+
+    condensed asks for the bundled Barlow Semi Condensed (SemiBold, or Bold
+    when bold), then fc-match for Fira Sans Condensed, then the plain sans.
+    """
+    if condensed:
+        bundled = FONT_DIR / BUNDLED_CONDENSED[bold]
+        if bundled.is_file():
+            return str(bundled)
+        found = _fc_match("Fira Sans Condensed:bold" if bold else "Fira Sans Condensed")
+        if found and "condensed" in found.lower():
+            return found
+    found = _fc_match("sans:bold" if bold else "sans")
+    if found:
+        return found
     for path in _FALLBACKS[bold]:
         if Path(path).is_file():
             return path
@@ -127,26 +153,62 @@ def wrap_text(text: str, font: ImageFont.FreeTypeFont, wraplength: int) -> list[
     return lines
 
 
+def _missing_glyph(font: ImageFont.FreeTypeFont, char: str) -> bool:
+    """True when the font has no glyph for char and would draw its notdef box."""
+    if ord(char) < 128:
+        return False
+    return bytes(font.getmask(char)) == bytes(font.getmask("\ufdd0"))
+
+
+def _runs(
+    line: str, font: ImageFont.FreeTypeFont, fallback: ImageFont.FreeTypeFont | None
+) -> list[tuple[str, ImageFont.FreeTypeFont]]:
+    """Split a line into runs, each drawn with the font that has its glyphs."""
+    if fallback is None:
+        return [(line, font)]
+    runs: list[tuple[str, ImageFont.FreeTypeFont]] = []
+    for char in line:
+        chosen = fallback if _missing_glyph(font, char) else font
+        if runs and runs[-1][1] is chosen:
+            runs[-1] = (runs[-1][0] + char, chosen)
+        else:
+            runs.append((char, chosen))
+    return runs
+
+
 def render_text(
     text: str,
     style: TextStyle,
     font_path: str,
     scaling: float,
     wraplength: int = 0,
+    fallback_path: str | None = None,
 ) -> Image.Image:
-    """Draw text as an RGB image, fg on bg, at round(points x scaling) pixels."""
+    """Draw text as an RGB image, fg on bg, at round(points x scaling) pixels.
+
+    Characters the font lacks (the credit sign in Barlow) are drawn with
+    fallback_path's font when given.
+    """
     pixels = max(1, round(style.size * scaling))
     font = _load_font(font_path, pixels)
+    fallback = _load_font(fallback_path, pixels) if fallback_path else None
     lines = wrap_text(text, font, wraplength)
     ascent, descent = font.getmetrics()
     line_h = ascent + descent
-    width = max(1, *(math.ceil(font.getlength(line)) for line in lines))
+    all_runs = [_runs(line, font, fallback) for line in lines]
+    width = max(
+        1,
+        *(math.ceil(sum(f.getlength(run) for run, f in runs)) for runs in all_runs),
+    )
     # A little room so glyph overhang is not clipped
     width += max(1, pixels // 10)
     image = Image.new("RGB", (width, line_h * len(lines)), style.bg)
     draw = ImageDraw.Draw(image)
-    for i, line in enumerate(lines):
-        draw.text((0, i * line_h), line, font=font, fill=style.fg)
+    for i, runs in enumerate(all_runs):
+        x = 0.0
+        for run, run_font in runs:
+            draw.text((x, i * line_h), run, font=run_font, fill=style.fg)
+            x += run_font.getlength(run)
     return image
 
 
@@ -156,7 +218,10 @@ def render_photo(
     style: TextStyle,
     font_path: str,
     wraplength: int = 0,
+    fallback_path: str | None = None,
 ) -> ImageTk.PhotoImage:
     """render_text as a Tk image owned by root."""
-    image = render_text(text, style, font_path, tk_scaling(root), wraplength)
+    image = render_text(
+        text, style, font_path, tk_scaling(root), wraplength, fallback_path
+    )
     return ImageTk.PhotoImage(image, master=root)
