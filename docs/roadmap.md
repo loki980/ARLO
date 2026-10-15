@@ -262,7 +262,8 @@ Will contain:
    all missed, tiers sometimes differ only in the numeral. The evidence for
    step 3.
 2. Slot lattice from edges and contours, frame stillness check, only while
-   the INVENTORY trigger is active. Started 14 Oct.
+   the INVENTORY trigger is active. Done 14 Oct, reviewed: every slot and
+   its panel in about 28 ms a frame, 3 uncovered slots missed in 144 frames.
 3. An embedding model (DINOv2-small under onnxruntime, Apache-2.0) over a
    gallery built from the stable arctracker icon PNGs plus crops learned from
    hovering (ARLO already reads the tooltip). Done 14 Oct, reviewed: on the
@@ -273,7 +274,10 @@ Will contain:
    first use. Recommendation: the model names the base item, the tier comes
    from the slot numeral (step 4).
 4. Tier numerals on icons by glyph matching (the loadout shows a IV glyph on
-   the weapon card), stack counts by OCR. Started 14 Oct.
+   the weapon card), stack counts by OCR. Done 14 Oct, reviewed: tiers 44 of
+   44 weapon slots (square and wide), no false reads, 0.4 ms a slot. Stacks
+   52 of 53. With the icon model, weapons identified exactly 39 of 44 (11
+   before). Measured on the crops the reader was tuned on.
 
 ## Phase 4. Badges on every cell. Next, after phases 2 and 3
 
@@ -289,6 +293,16 @@ Will contain: badge drawing from verdicts and the grid, hidden while the
 grid moves. Jeffrey, 14 Oct, asked for a gold border on items to keep and
 the sell price on the small item icons: both become badge styles here,
 since they need every cell read (phase 3). Changed 14 Oct.
+
+3. The badge surface: one full-screen transparent click-through layer drawn
+   by a helper under the system Python with GTK3 (the spike's x11 mode),
+   fed badges by ARLO. Built 14 Oct, drawn to an image only (Jeffrey was
+   playing), in review. Added 14 Oct.
+4. The stash pass: identify every visible slot from one frame (slot
+   lattice, icon model, tier numeral, stack count) and turn it into badges,
+   gold for keep and a price on every icon. Underway 14 Oct. Added 14 Oct.
+5. Wire the stash pass and the badge surface into the scanner, only while
+   the grid is still. Added 14 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
