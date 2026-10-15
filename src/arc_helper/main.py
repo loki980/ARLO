@@ -5,6 +5,7 @@ Coordinates OCR scanning and overlay display.
 
 import argparse
 import datetime
+import inspect
 import json
 import queue
 import sys
@@ -441,7 +442,8 @@ def stash_still(
     anything else outside the grid never count as movement. When every slot
     pixel is ignored the frames count as still. Without a slot on either
     frame the whole frame outside the ignore rects is compared, and a
-    wholly ignored frame counts as still.
+    wholly ignored frame counts as still. An injected still that takes no
+    rects is called as still(a, b) and compares as it likes.
     """
     if a.shape != b.shape:
         return False
@@ -451,11 +453,25 @@ def stash_still(
         found = [*slots(a), *slots(b)]
     if found:
         rects = _cell_runs(a.shape, found, ignore)
-        return still(a, b, rects) if rects else True
-    if not ignore:
+    elif not ignore:
         return still(a, b)
-    rects = free_rects(a.shape, ignore)
-    return still(a, b, rects) if rects else True
+    else:
+        rects = free_rects(a.shape, ignore)
+    if not rects:
+        return True
+    return still(a, b, rects) if _takes_rects(still) else still(a, b)
+
+
+def _takes_rects(still: Callable[..., bool]) -> bool:
+    """True when still can be called as still(a, b, rects)."""
+    try:
+        inspect.signature(still).bind(None, None, None)
+    except TypeError:
+        return False
+    except ValueError:
+        # No signature to inspect (a builtin), so assume the full form
+        return True
+    return True
 
 
 def _frame_rgb(image) -> np.ndarray:
@@ -666,6 +682,14 @@ class StashBadges:
                 self._wake.set()
 
     def _watch_once(self) -> None:
+        """One watcher round, then the slot cache keeps only held frames."""
+        try:
+            self._watch_round()
+        finally:
+            with self._lock:
+                self._evict_slots()
+
+    def _watch_round(self) -> None:
         """Compare the newest capture with the one before and act on it."""
         with self._lock:
             frame, self._latest = self._latest, None
@@ -725,21 +749,32 @@ class StashBadges:
             return hit[1]
         rects = [s.rect for s in find_slots(rgb)]
         with self._lock:
-            held = {
-                id(r): r
-                for r in (
-                    self._prev[0] if self._prev else None,
-                    self._newest[0] if self._newest else None,
-                    self._job[1] if self._job else None,
-                )
-                if r is not None
-            }
-            if id(rgb) in held and held[id(rgb)] is rgb:
+            if any(r is rgb for r in self._held()):
                 self._slot_cache[id(rgb)] = (rgb, rects)
-            # Entries of frames no longer held go
-            for key in [k for k in self._slot_cache if k not in held]:
-                del self._slot_cache[key]
         return rects
+
+    def _held(self) -> list[np.ndarray]:
+        """The RGB frames _prev, _newest and _job refer to (under the lock)."""
+        return [
+            r
+            for r in (
+                self._prev[0] if self._prev else None,
+                self._newest[0] if self._newest else None,
+                self._job[1] if self._job else None,
+            )
+            if r is not None
+        ]
+
+    def _evict_slots(self) -> None:
+        """Drop the cached slots of frames no longer held (under the lock).
+
+        Runs at the end of every watcher round and pass. Within a round the
+        frame _prev referred to before stays cached until its compare is done.
+        """
+        held = {id(r): r for r in self._held()}
+        for key, (rgb, _rects) in list(self._slot_cache.items()):
+            if held.get(key) is not rgb:
+                del self._slot_cache[key]
 
     def _uncovered(self, frame: StashFrame) -> bool:
         """True when the parts the last pass could not see are in view now."""
@@ -791,6 +826,7 @@ class StashBadges:
         )
         with self._lock:
             self._pass_running = False
+            self._evict_slots()
             if not fresh or generation != self._generation:
                 if generation == self._generation:
                     self._need_pass = True

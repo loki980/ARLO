@@ -228,14 +228,47 @@ def test_find_slots_runs_once_per_held_frame(monkeypatch):
     stash = _stash(lambda _rgb: [_slot(SLOT_A)], _Surface())
     # Four still frames, then two of a moved grid, each a new array
     frames = [_frame(0) for _ in range(4)] + [_frame(120), _frame(120)]
-    for rgb in frames:
+    for i, rgb in enumerate(frames):
         stash.feed(rgb, None, ())
         stash.step()
-        assert len(stash._slot_cache) <= 3  # noqa: SLF001
+        # Cached exactly the frames _prev, _newest and _job refer to, once
+        # the first compare has run (the first frame alone is not looked at)
+        held = {id(r) for r in stash._held()}  # noqa: SLF001
+        assert set(stash._slot_cache) == (held if i else set())  # noqa: SLF001
     # Each frame once: the first as the frame before, the rest as the newest
     assert sorted(calls) == sorted(id(f) for f in frames)
     stash.clear("test")
     assert not stash._slot_cache  # noqa: SLF001
+
+
+def test_cache_drops_replaced_newest_frames(monkeypatch):
+    _fake_slots(monkeypatch, [SLOT_A])
+    stash = _stash(lambda _rgb: [_slot(SLOT_A)], _Surface())
+    frames = [_frame(0) for _ in range(5)]
+    for rgb in frames:
+        stash.feed(rgb, None, ())
+        stash.step()
+    # The last frame is both _prev and _newest, the earlier ones are gone
+    assert set(stash._slot_cache) == {id(frames[-1])}  # noqa: SLF001
+
+
+def test_two_argument_still_works_with_slots(monkeypatch):
+    _fake_slots(monkeypatch, [SLOT_A])
+    seen = []
+
+    def still(a, b):
+        seen.append((a, b))
+        return True
+
+    assert stash_still(_frame(0), _frame(200), [], still)
+    assert stash_still(_frame(0), _frame(200), [SLOT_B], still)
+    surface = _Surface()
+    stash = _stash(lambda _rgb: [_slot(SLOT_A)], surface, still=still)
+    for _ in range(2):
+        stash.feed(_frame(0), None, ())
+        stash.step()
+    assert len(seen) == 3
+    assert surface.draws()
 
 
 def _scanner_ocr(origin=ORIGIN):
