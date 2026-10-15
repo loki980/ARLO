@@ -101,7 +101,9 @@ Ahead, in order:
     of guessing from a box around the cursor. Waiting on Jeffrey's feel for
     the speed in game. Jeffrey's capture session, 14 Oct: Garnet (a weapon
     mod card) read as "GARNET REQUIRED RESOURCES G NCIL PARTS" and showed
-    UNKNOWN. Fix on tonight's labeled captures underway 14 Oct.
+    UNKNOWN. Fixed 14 Oct, reviewed: light grey description text now ends
+    the title, Garnet resolves to Garnet Stencil, 25 of 25 visible titles
+    that night, 56 of 56 on 12 Oct.
 12. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
@@ -156,13 +158,32 @@ Ahead, in order:
     screen was locked). Jeffrey's capture session the same night showed two
     failures: no frame when the card opens left of the cell (Stiletto I in
     quick use), and a frame across the card's ACTIONS tab when ARLO's
-    corner popup covered the card (Anvil I). Fix underway 14 Oct.
+    corner popup covered the card (Anvil I). Fixed 14 Oct, reviewed: 34 of
+    35 of that night's captures right (21 before), all 8 left-opening cards
+    right. The left-opening items that night were USE or unknown, and the
+    frame only shows for keep.
 16. Never read a card ARLO itself covers. Found in Jeffrey's capture
     session, 14 Oct: an Anvil I card opened under the corner popup, the
     next scan read body text and showed UNKNOWN, the wider UNKNOWN popup
     uncovered the title, and the popup flipped between KEEP and UNKNOWN
-    every scan. A read whose card overlaps ARLO's popup is dropped and the
-    popup moves to the other top corner. Added 14 Oct, underway 14 Oct.
+    every scan. A read whose card overlaps ARLO's popup is dropped. Jeffrey,
+    14 Oct, with a screenshot: "You should move the upper left popup to the
+    red box -- it'll look nicer and be closer to the cursor." The popup's
+    home is now the empty LOADOUT panel area below the weapon slots, and it
+    steps to the top-left corner only while a card covers that spot. Done
+    14 Oct, reviewed (one edge case carried into step 17 and fixed there).
+17. Fast show and hide. Jeffrey, 14 Oct: "really wish the overlay was
+    faaster about showing/hiding the popups." The scan loop now watches the
+    card every cycle: a new card is read at once, the same card is never
+    read again, and a card gone for two cycles hides everything at once (a
+    3 s hold is only a safety net). No pause after a cycle with a card.
+    Replaying the session's 44 captures, reads dropped from 44 to 26. Added
+    14 Oct, done 14 Oct, reviewed.
+18. ARLO wakes up in raid too. Jeffrey, 14 Oct: "Items in found containers
+    and arc do not get the overlay." In raid the MAP tab shifts the
+    INVENTORY tab out of the calibrated trigger boxes, so ARLO never woke.
+    A wide band across the top centre is searched when the boxes miss.
+    Added 14 Oct, underway 14 Oct.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -219,8 +240,10 @@ Ahead:
    5 knows it. Replaces the corner popup. Added 14 Oct. Jeffrey, 14 Oct,
    sharing four more ARC Tracker screenshots (keep, sell, recycle cards):
    "This is super nice. You should just copy it." Part 1, drawing the card
-   from the verdict data, underway 14 Oct. Part 2 places it beside the
-   game's tooltip and retires the corner popup. Changed 14 Oct.
+   from the verdict data, done 14 Oct, reviewed. The recycle wording names
+   the parts you still need, done 14 Oct. The window that shows it in the
+   LOADOUT panel box, done 14 Oct. Next: hook it into the scanner in place
+   of the corner popup. Changed 14 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
 
@@ -231,8 +254,10 @@ for icon identity, OCR for text. Changed 11 Oct.
 Will contain:
 
 1. A perceptual-hash baseline, measured first, expected to fail on lookalikes.
+   Started 14 Oct on slot crops labeled from the hovered cell and the title
+   read.
 2. Slot lattice from edges and contours, frame stillness check, only while
-   the INVENTORY trigger is active.
+   the INVENTORY trigger is active. Started 14 Oct.
 3. An embedding model (DINOv2-small under onnxruntime, Apache-2.0) over a
    gallery built from the stable arctracker icon PNGs plus crops learned from
    hovering (ARLO already reads the tooltip).
