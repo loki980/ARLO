@@ -70,7 +70,6 @@ def test_unknown_item():
     card = build_advice_card(Verdict("unknown", "Item not in database"), [], 4)
     assert card.title == "Not in the database"
     assert card.rows == ()
-    assert card.owned is None
 
 
 def test_render_width_and_height_grow_with_rows():
@@ -89,3 +88,20 @@ def test_render_scales_and_survives_long_names():
     card = build_advice_card(verdict, [long_need], 1)
     image = render_advice_card(card, 1.75)
     assert image.width == 980
+
+
+def test_keep_title_when_owned_equals_needed():
+    card = build_advice_card(KEEP, NEEDS, owned=7)
+    assert card.title == "Keep all 7: 0 more needed"
+    assert build_advice_card(KEEP, NEEDS, owned=9).title == "Keep all 7: 0 more needed"
+
+
+def test_owned_footer_on_cards_without_rows():
+    for kind in ("sell", "recycle"):
+        verdict = Verdict(kind, "r")
+        without = build_advice_card(verdict, [])
+        with_owned = build_advice_card(verdict, [], owned=2)
+        assert with_owned.owned == 2
+        assert (
+            render_advice_card(with_owned).height > render_advice_card(without).height
+        )

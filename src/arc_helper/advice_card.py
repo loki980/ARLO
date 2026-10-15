@@ -114,8 +114,8 @@ def _rows(verdict: Verdict, needs: Iterable[Need]) -> tuple[tuple[str, str, int]
 def _keep_title(count: int | None, owned: int | None) -> str:
     if count is None:
         return "Keep"
-    if owned is not None and owned < count:
-        return f"Keep all {count}: {count - owned} more needed"
+    if owned is not None:
+        return f"Keep all {count}: {max(0, count - owned)} more needed"
     return f"Keep {count}"
 
 
@@ -141,7 +141,7 @@ def build_advice_card(
     elif kind == USE:
         title, subtitle, total = "Use it", verdict.reason, None
     else:
-        title, total, owned = "Not in the database", None, None
+        title, total = "Not in the database", None
     return AdviceCard(kind, title, subtitle, total, owned, rows)
 
 
@@ -349,7 +349,9 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
             y += s(ROW_GAP)
         y -= s(ROW_GAP)
         y += s(PAD - 4)
-    if card.rows and card.owned is not None:
+    if not card.rows:
+        y = header_bottom + s(PAD - 4)
+    if card.owned is not None:
         canvas.rect((body_left, y, body_right, y + max(1, s(1))), DIVIDER)
         y += max(1, s(1)) + s(14)
         canvas.text(body_left, y, f"You have {card.owned}", BODY_SIZE, BOLD, WHITE)
