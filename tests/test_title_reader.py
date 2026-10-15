@@ -76,6 +76,18 @@ def test_tesseract_title_reader_reads_anvil_iv():
     assert read.tier_vote.tier == "IV"
 
 
+@needs_tesseract
+@pytest.mark.parametrize(
+    "fixture", ["garnet_stencil_capture_a.png", "garnet_stencil_capture_b.png"]
+)
+def test_tesseract_title_reader_stops_at_light_grey_description(fixture):
+    # The Garnet description is light grey, lighter than title ink, and the
+    # black REQUIRED RESOURCES heading further down must not join the title
+    card = np.array(_card(fixture))
+    assert len(find_title_lines(card)) == 1
+    assert TesseractTitleReader().read(card).text == "GARNET"
+
+
 @pytest.mark.parametrize(
     ("raw", "fixed"),
     [

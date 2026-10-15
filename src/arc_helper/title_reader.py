@@ -57,6 +57,7 @@ _TAG_FILL_MIN = 0.12  # and at least this much of the row is chip
 _CHIP_MIN = 60  # a chip pixel's brightest channel is at least this
 _TAG_SEARCH = 0.4  # the tag row starts in the top 40 percent of the card
 _INK_MAX = 100  # a pixel with every channel below this is text ink
+_TEXT_MAX = 160  # below this is text of any shade, light grey description too
 _LIGHT_MAX = 220  # a background pixel's brightest channel is at least this
 _LIGHT_MIN = 180  # and its darkest channel at least this
 _BLACK_MAX = 55  # title ink is near black, description ink is grey
@@ -315,9 +316,9 @@ def find_title_lines(card_rgb: np.ndarray) -> list[Box]:
 
     The colored tag row (category and rarity chips) is found as the first
     rows in the top of the card with a long run of non-background pixels.
-    Below it, rows with dark ink form text lines. The title is the run of
-    lines whose ink is near black, up to the first gap followed by the grey
-    sentence-case description. Returns [] when there is no tag row, which
+    Below it, rows with ink of any shade form text lines. The title is the
+    run of lines whose ink is near black, up to the first line of grey
+    sentence-case description, light grey included. Returns [] when there is no tag row, which
     is the case when the title is cut off above the capture.
     """
     rgb = np.asarray(card_rgb)[:, :, :3].astype(np.int16)
@@ -351,7 +352,10 @@ def find_title_lines(card_rgb: np.ndarray) -> list[Box]:
 
     ink = max_rgb < _INK_MAX
     black = max_rgb < _BLACK_MAX
-    text_rows = ink.sum(axis=1) >= _LINE_MIN_INK
+    # Rows of text of any shade, so a light grey description is a line too
+    # and ends the title instead of being skipped as blank
+    text = max_rgb < _TEXT_MAX
+    text_rows = text.sum(axis=1) >= _LINE_MIN_INK
     text_rows[:tag_bottom] = False
 
     lines: list[Box] = []
@@ -359,7 +363,8 @@ def find_title_lines(card_rgb: np.ndarray) -> list[Box]:
         if line_bottom - line_top < 6:
             continue  # a stray rule or speck, not a text line
         band_ink = ink[line_top:line_bottom]
-        share = black[line_top:line_bottom].sum() / max(1, band_ink.sum())
+        band_text = text[line_top:line_bottom]
+        share = black[line_top:line_bottom].sum() / max(1, band_text.sum())
         if share < _TITLE_BLACK_SHARE:
             break  # grey sentence-case description
         cols = np.flatnonzero(band_ink.any(axis=0))
