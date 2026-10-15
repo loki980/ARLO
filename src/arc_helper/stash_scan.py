@@ -16,8 +16,13 @@ identify_slots runs the pieces of phase 3 over one full-screen frame:
    name plus the read tier is looked up, so the numeral decides the tier and
    the embedding only the base item. Without a numeral the candidate's own
    name is looked up.
-5. With read_stacks, slot_marks.read_stack reads the xN count (about 68 ms
-   a slot with a count, so it is off by default).
+5. With read_stacks, slot_marks.read_stack reads the xN count of each
+   identified slot (about 68 ms a slot with a count, so it is off by
+   default).
+6. slot_marks.bar_geometry finds the bottom bar of each square slot: its
+   box, colour, type icon box and count or numeral box. Wide slots get none.
+
+owned_totals adds up the stacks of each identified item over the slots.
 
 distinct_gallery drops the gallery entries whose icon equals another
 item's, which would otherwise never clear the lead rule, and returns the
@@ -53,6 +58,8 @@ from .icon_embed import EmbedCandidate
 from .icon_embed import EmbedGallery
 from .icon_embed import crop_square
 from .icon_embed import default_embedder
+from .slot_marks import BarGeometry
+from .slot_marks import bar_geometry
 from .slot_marks import read_stack
 from .slot_marks import read_tier
 from .tooltip_layout import Rect
@@ -87,7 +94,9 @@ class SlotItem(NamedTuple):
     rule or the name does not resolve. guess is the top gallery name either
     way, confidence its similarity and lead its margin over the best other
     base item. tier is the read numeral, else the tier in the catalog name.
-    stack is the read count, None when not read or not shown.
+    stack is the read count, None when not read or not shown. bar is the
+    bottom bar's geometry from slot_marks.bar_geometry, None on wide slots
+    or when no bar is found.
     """
 
     rect: Rect
@@ -98,6 +107,7 @@ class SlotItem(NamedTuple):
     confidence: float
     lead: float
     guess: str | None
+    bar: BarGeometry | None = None
 
 
 def base_name(name: str) -> str:
@@ -234,7 +244,8 @@ def identify_slots(
         item, tier, lead = _resolve(
             found, tier_read.tier if tier_read else None, lookup, twins or {}
         )
-        stack = read_stack(crop) if read_stacks else None
+        stack = read_stack(crop) if read_stacks and item is not None else None
+        bar = None if is_wide(slot.rect) else bar_geometry(crop)
         result.append(
             SlotItem(
                 slot.rect,
@@ -245,9 +256,25 @@ def identify_slots(
                 round(found[0].similarity, 4),
                 round(lead, 4),
                 found[0].name,
+                bar,
             )
         )
     return result
+
+
+def owned_totals(slot_items: Iterable[SlotItem]) -> dict[str, int]:
+    """How many of each identified item the slots show, keyed by item name.
+
+    A slot counts its read stack, or 1 when no stack was read. Unidentified
+    slots are skipped.
+    """
+    totals: dict[str, int] = {}
+    for slot in slot_items:
+        if slot.item is None:
+            continue
+        count = slot.stack if slot.stack is not None else 1
+        totals[slot.item.name] = totals.get(slot.item.name, 0) + count
+    return totals
 
 
 def format_price(value: int) -> str:
@@ -311,10 +338,15 @@ def verdict_kinds(
     return lambda slot: verdict_of(slot).kind
 
 
+def is_wide(rect: Rect) -> bool:
+    """Whether a slot is wide (a weapon slot), from WIDE_ASPECT."""
+    width, height = rect.right - rect.left, rect.bottom - rect.top
+    return width >= WIDE_ASPECT * height
+
+
 def tag_corner(rect: Rect) -> str:
     """The price pill's corner: top left on wide slots, else bottom left."""
-    width, height = rect.right - rect.left, rect.bottom - rect.top
-    return TAG_CORNER_WIDE if width >= WIDE_ASPECT * height else TAG_CORNER
+    return TAG_CORNER_WIDE if is_wide(rect) else TAG_CORNER
 
 
 def badges_for(
