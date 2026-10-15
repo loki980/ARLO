@@ -4,6 +4,7 @@ Displays item recommendations as a styled popup with action colors.
 """
 
 import tkinter as tk
+from dataclasses import replace
 from typing import Callable
 
 from .clickthrough import make_click_through
@@ -16,6 +17,10 @@ from .database import Item
 from .database import RecycleOutput
 from .screen import get_backend
 from .screen import phys_to_tk
+from .textrender import TextStyle
+from .textrender import find_font_file
+from .textrender import has_scalable_fonts
+from .textrender import render_photo
 from .tooltip_layout import PRICE_CHIP
 from .tooltip_layout import RECYCLE_CHIP
 from .tooltip_layout import Size
@@ -73,6 +78,85 @@ def popup_notes(recommendation: Item, home_outputs: list[RecycleOutput] | None) 
     return recommendation.keep_for or ""
 
 
+def _make_label(
+    root: tk.Misc,
+    parent: tk.Misc,
+    size: int,
+    *,
+    bold: bool = False,
+    fg: str,
+    bg: str,
+    **options,
+) -> tk.Label:
+    """Build a text label. Without scalable Tk fonts it shows Pillow images."""
+    font = ("Segoe UI", size, *(("bold",) if bold else ()))
+    label = tk.Label(parent, text="", font=font, fg=fg, bg=bg, **options)
+    label._arlo_style = None  # noqa: SLF001
+    if not has_scalable_fonts(root):
+        path = find_font_file(bold=bold)
+        if path:
+            label._arlo_style = TextStyle(size, bold, fg, bg)  # noqa: SLF001
+            label._arlo_font = path  # noqa: SLF001
+            label._arlo_root = root  # noqa: SLF001
+            label._arlo_text = ""  # noqa: SLF001
+            label._arlo_wrap = 0  # noqa: SLF001
+    return label
+
+
+def _set_text(
+    label: tk.Label,
+    text: str,
+    *,
+    fg: str | None = None,
+    wraplength: int | None = None,
+) -> None:
+    """Set a label's text, colour and wrap width on the Tk or the image path.
+
+    wraplength is in Tk pixels, left as it was when None.
+    """
+    style = getattr(label, "_arlo_style", None)
+    if not isinstance(style, TextStyle):
+        options: dict = {}
+        if text is not None:
+            options["text"] = text
+        if fg is not None:
+            options["fg"] = fg
+        if wraplength is not None:
+            options["wraplength"] = wraplength
+        label.config(**options)
+        return
+    if fg is not None:
+        style = replace(style, fg=fg)
+        label._arlo_style = style  # noqa: SLF001
+    if wraplength is not None:
+        label._arlo_wrap = wraplength  # noqa: SLF001
+    label._arlo_text = text  # noqa: SLF001
+    if not text:
+        label._arlo_photo = None  # noqa: SLF001
+        label.config(image="", text="")
+        return
+    photo = render_photo(
+        label._arlo_root,  # noqa: SLF001
+        text,
+        style,
+        label._arlo_font,  # noqa: SLF001
+        label._arlo_wrap,  # noqa: SLF001
+    )
+    # Keep a reference, Tk does not hold the image alive
+    label._arlo_photo = photo  # noqa: SLF001
+    label.config(image=photo, text="")
+
+
+def _rewrap(label: tk.Label, wraplength: int) -> None:
+    """Change the wrap width, keeping the text the label already shows."""
+    style = getattr(label, "_arlo_style", None)
+    text = label._arlo_text if isinstance(style, TextStyle) else None  # noqa: SLF001
+    if text is None:
+        label.config(wraplength=wraplength)
+    else:
+        _set_text(label, text, wraplength=wraplength)
+
+
 def _hide_delay_ms(settings, hold_ms: int | None) -> int:
     """Auto-hide delay: the scanner's hold, or display_time without one."""
     if hold_ms is None:
@@ -118,7 +202,7 @@ class OverlayWindow:
 
         # Font sizes - bigger and bolder
         name_size = max(10, self._scale(18))
-        action_size = max(12, self._scale(26))
+        action_size = max(12, self._scale(44))
         info_size = max(8, self._scale(13))
         detail_size = max(8, self._scale(12))
 
@@ -149,32 +233,36 @@ class OverlayWindow:
         self.accent_bar.pack(fill="x", pady=(0, self._scale(8)))
 
         # Item name
-        self.name_label = tk.Label(
+        self.name_label = _make_label(
+            self.root,
             self.frame,
-            text="Item Name",
-            font=("Segoe UI", name_size, "bold"),
+            name_size,
+            bold=True,
             fg="white",
             bg=BG_PANEL,
             anchor="w",
         )
+        _set_text(self.name_label, "Item Name")
         self.name_label.pack(anchor="w")
 
         # Action label (large, colored)
-        self.action_label = tk.Label(
+        self.action_label = _make_label(
+            self.root,
             self.frame,
-            text="ACTION",
-            font=("Segoe UI", action_size, "bold"),
+            action_size,
+            bold=True,
             fg="#FFD700",
             bg=BG_PANEL,
             anchor="w",
         )
+        _set_text(self.action_label, "ACTION")
         self.action_label.pack(anchor="w", pady=(self._scale(4), 0))
 
         # Reason line under the action (why keep, sell or recycle)
-        self.reason_label = tk.Label(
+        self.reason_label = _make_label(
+            self.root,
             self.frame,
-            text="",
-            font=("Segoe UI", info_size),
+            info_size,
             fg="white",
             bg=BG_PANEL,
             justify=tk.LEFT,
@@ -183,10 +271,10 @@ class OverlayWindow:
         self.reason_label.pack(anchor="w")
 
         # Sell price / stack size info line
-        self.info_label = tk.Label(
+        self.info_label = _make_label(
+            self.root,
             self.frame,
-            text="",
-            font=("Segoe UI", info_size),
+            info_size,
             fg=TEXT_INFO,
             bg=BG_PANEL,
             anchor="w",
@@ -202,10 +290,10 @@ class OverlayWindow:
         # Only packed when there's detail text (see show())
 
         # Detail / notes label (recycle_for or keep_for)
-        self.notes_label = tk.Label(
+        self.notes_label = _make_label(
+            self.root,
             self.frame,
-            text="",
-            font=("Segoe UI", detail_size),
+            detail_size,
             fg=TEXT_DIM,
             bg=BG_PANEL,
             justify=tk.LEFT,
@@ -245,12 +333,12 @@ class OverlayWindow:
             verdict = verdict_from_action(recommendation)
 
         # Update content
-        self.name_label.config(text=popup_title(item_name, recommendation))
+        _set_text(self.name_label, popup_title(item_name, recommendation))
 
         color = action_color(verdict.kind)
-        self.action_label.config(text=f"\u2192 {action_word(verdict.kind)}", fg=color)
+        _set_text(self.action_label, action_word(verdict.kind), fg=color)
         self.accent_bar.config(bg=color)
-        self.reason_label.config(text=verdict.reason)
+        _set_text(self.reason_label, verdict.reason)
 
         info_text = detail_text = ""
         if recommendation:
@@ -262,7 +350,7 @@ class OverlayWindow:
                 info_parts.append(f"Stack: {recommendation.stack_size}")
             info_text = "    \u00b7    ".join(info_parts)
             detail_text = popup_notes(recommendation, home_outputs)
-        self.info_label.config(text=info_text)
+        _set_text(self.info_label, info_text)
 
         # Show or hide separator and notes based on content
         self.separator.pack_forget()
@@ -270,7 +358,7 @@ class OverlayWindow:
         if detail_text:
             self.separator.pack(fill="x", pady=(self._scale(8), self._scale(6)))
             self.notes_label.pack(anchor="w")
-            self.notes_label.config(text=detail_text)
+            _set_text(self.notes_label, detail_text)
 
         # Position and show
         self.window.geometry(
@@ -287,8 +375,8 @@ class OverlayWindow:
             self.info_label.winfo_width(),
         ]
         max_width = max(*widths, self._scale(280))
-        self.notes_label.config(wraplength=max_width)
-        self.reason_label.config(wraplength=max_width)
+        _rewrap(self.notes_label, max_width)
+        _rewrap(self.reason_label, max_width)
 
         # Auto-hide
         hide_ms = _hide_delay_ms(self.settings, hold_ms)
@@ -414,8 +502,15 @@ class TooltipChips:
     def _label(
         self, parent: tk.Frame, fg: str, *, size: int | None = None, bold: bool = False
     ) -> tk.Label:
-        font = ("Segoe UI", size or self.info_size, *(("bold",) if bold else ()))
-        return tk.Label(parent, text="", font=font, fg=fg, bg=BG_PANEL, anchor="w")
+        return _make_label(
+            self.root,
+            parent,
+            size or self.info_size,
+            bold=bold,
+            fg=fg,
+            bg=BG_PANEL,
+            anchor="w",
+        )
 
     def show(
         self,
@@ -446,10 +541,10 @@ class TooltipChips:
 
         active: list[str] = []
         if price_text:
-            self.price_label.config(text=price_text)
+            _set_text(self.price_label, price_text)
             self.stack_label.pack_forget()
             if stack_text:
-                self.stack_label.config(text=stack_text)
+                _set_text(self.stack_label, stack_text)
                 self.stack_label.pack(anchor="w")
             active.append(PRICE_CHIP)
         if recycle_label and recycle_text:
@@ -458,8 +553,8 @@ class TooltipChips:
                 if recycle_label == RECYCLE_LABEL_HOME_ONLY
                 else TEXT_INFO
             )
-            self.recycle_title.config(text=recycle_label, fg=title_fg)
-            self.recycle_text.config(text=recycle_text)
+            _set_text(self.recycle_title, recycle_label, fg=title_fg)
+            _set_text(self.recycle_text, recycle_text)
             active.append(RECYCLE_CHIP)
 
         # Sizes in physical pixels, measured before the chips are mapped
@@ -576,29 +671,30 @@ class StatusWindow:
         self.frame = tk.Frame(self.window, bg=BG_DARK, padx=padx, pady=pady)
         self.frame.pack()
 
-        self.status_label = tk.Label(
+        self.status_label = _make_label(
+            self.root,
             self.frame,
-            text="\u25cf Scanning...",
-            font=("Segoe UI", font_size),
+            font_size,
             fg="#888888",
             bg=BG_DARK,
         )
+        _set_text(self.status_label, "\u25cf Scanning...")
         self.status_label.pack()
         if self.on_quit:
             self.status_label.bind("<Button-3>", lambda e: self.on_quit())
             self.frame.bind("<Button-3>", lambda e: self.on_quit())
 
     def set_scanning(self) -> None:
-        self.status_label.config(text="\u25cf Scanning...", fg="#888888")
+        _set_text(self.status_label, "\u25cf Scanning...", fg="#888888")
 
     def set_active(self) -> None:
-        self.status_label.config(text="\u25cf INVENTORY", fg="#32CD32")
+        _set_text(self.status_label, "\u25cf INVENTORY", fg="#32CD32")
 
     def set_hotkey(self) -> None:
-        self.status_label.config(text="\u25cf HOTKEY SCAN", fg="#FFD700")
+        _set_text(self.status_label, "\u25cf HOTKEY SCAN", fg="#FFD700")
 
     def set_error(self, message: str) -> None:
-        self.status_label.config(text=f"\u25cf {message}", fg="#FF4444")
+        _set_text(self.status_label, f"\u25cf {message}", fg="#FF4444")
 
     def hide(self) -> None:
         self.window.withdraw()
