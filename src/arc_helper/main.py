@@ -110,6 +110,9 @@ CARD_GONE_CYCLES = 2
 NO_CARD_SLEEP_CAP_S = 0.1
 # Seconds between INVENTORY trigger rechecks while ACTIVE
 TRIGGER_RECHECK_S = 1.0
+# ACTIVE ends on a lost trigger only once the rechecks have missed for this
+# many seconds in a row (and on at least two rechecks). One hit resets it
+TRIGGER_LOST_S = 2.0
 # While the same card stays up its windows are touched at most this often,
 # well inside HOLD_FLOOR_S
 TOUCH_EVERY_S = 1.0
@@ -912,6 +915,10 @@ class Scanner:
     _last_shown_time: float = 0
     # Monotonic time of the last INVENTORY trigger check while ACTIVE
     _last_trigger_check: float = 0.0
+    # Rechecks missed in a row while ACTIVE, and the monotonic time of the
+    # first of them (None after a hit or on entry to ACTIVE)
+    _trigger_misses: int = 0
+    _trigger_miss_since: float | None = None
 
     # Monotonic start of the previous tooltip scan, for the scan period.
     # Reset on every entry to ACTIVE.
@@ -1041,7 +1048,12 @@ class Scanner:
                     elif self._trigger_lost(ocr, settings):
                         # Inventory closed: the card went with it
                         self.state = ScannerState.IDLE
-                        logger.debug("state ACTIVE -> IDLE reason=trigger_lost")
+                        logger.debug(
+                            "state ACTIVE -> IDLE reason=trigger_lost"
+                            " misses=%d span=%d ms",
+                            self._trigger_misses,
+                            self._trigger_miss_span_ms(self._last_trigger_check),
+                        )
                         self._hide_card_windows()
                         self._clear_stash("inventory_closed")
                         self._update_status("scanning")
@@ -1071,23 +1083,56 @@ class Scanner:
         self._last_scan_start = None
         self._scan_periods.clear()
         self._last_trigger_check = time.monotonic()
+        self._trigger_misses = 0
+        self._trigger_miss_since = None
         self._card_shown = None
         self._card_missed = 0
         self._card_state = "none"
 
     def _trigger_lost(self, ocr: OCREngine, settings) -> bool:
-        """Recheck INVENTORY about once a second, True when it is gone.
+        """Recheck INVENTORY about once a second, True once it is gone.
 
         The recheck runs on elapsed time, not on a cycle count, so fast
-        cycles do not check it more often.
+        cycles do not check it more often. It is gone only when the rechecks
+        have missed for TRIGGER_LOST_S in a row and at least twice, so one
+        slow or blocked read does not leave ACTIVE. One hit resets the count.
+        Each miss logs what every place read.
         """
         now = time.monotonic()
         if now - self._last_trigger_check < TRIGGER_RECHECK_S:
             return False
         self._last_trigger_check = now
-        return not ocr.check_trigger_any(
+        found = ocr.check_trigger_any(
             [settings.trigger_region, settings.trigger_region2]
         )
+        if found:
+            self._trigger_misses = 0
+            self._trigger_miss_since = None
+            return False
+        if self._trigger_miss_since is None:
+            self._trigger_miss_since = now
+        self._trigger_misses += 1
+        reads = " ".join(
+            f"{place}={text!r}" if text else f"{place}=none"
+            for place, text in getattr(ocr, "last_trigger_reads", ())
+        )
+        logger.debug(
+            "trigger miss %s check=%d ms misses=%d span=%d ms",
+            reads or "reads=none",
+            (time.monotonic() - now) * 1000,
+            self._trigger_misses,
+            self._trigger_miss_span_ms(now),
+        )
+        return (
+            self._trigger_misses >= 2
+            and now - self._trigger_miss_since >= TRIGGER_LOST_S
+        )
+
+    def _trigger_miss_span_ms(self, now: float) -> int:
+        """Milliseconds from the first missed recheck in a row to now."""
+        if self._trigger_miss_since is None:
+            return 0
+        return round((now - self._trigger_miss_since) * 1000)
 
     def _scan_cycle(self, ocr: OCREngine, settings) -> None:
         """One ACTIVE cycle: locate the card, then act on what changed.

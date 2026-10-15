@@ -211,6 +211,10 @@ class OCREngine:
     TRIGGER_BAND_BOTTOM = 0.07
     TRIGGER_BAND_RATIO = 0.8
 
+    # What the last check_trigger_any read in each place it tried, as (place,
+    # text) pairs: region1, region2 and band, in order, up to the first match
+    last_trigger_reads: tuple[tuple[str, str], ...] = ()
+
     # Item names render as uppercase letters and Roman numerals. Restricting
     # OCR to this set stops "II" being misread as "Il"/"1l" and the trailing
     # numeral from collapsing to "I" (which silently picks the wrong tier).
@@ -507,21 +511,35 @@ class OCREngine:
         The configured regions are tried first. Only when they all fail is the
         wide band across the top centre searched, which finds the word when the
         tab bar puts it elsewhere (the in-raid bar has an extra MAP tab).
+
+        What each place read is kept in last_trigger_reads, as (place, text)
+        pairs with an empty text for a blank read, so a miss can be logged.
         """
-        if any(self.check_trigger(region) for region in regions):
-            return True
-        return self.check_trigger_band()
+        self.last_trigger_reads = ()
+        for number, region in enumerate(regions, start=1):
+            found, text = self._read_trigger(region)
+            self.last_trigger_reads += ((f"region{number}", text),)
+            if found:
+                return True
+        found, words = self._read_trigger_band()
+        self.last_trigger_reads += (("band", " ".join(words)),)
+        return found
 
     def check_trigger_band(self) -> bool:
         """Search a band across the top centre of the screen for INVENTORY."""
+        return self._read_trigger_band()[0]
+
+    def _read_trigger_band(self) -> tuple[bool, list[str]]:
+        """Search the top centre band, returning the match and the words read."""
         width, height = get_screen_resolution()
         left = int(width * self.TRIGGER_BAND_LEFT)
         right = int(width * self.TRIGGER_BAND_RIGHT)
         bottom = int(height * self.TRIGGER_BAND_BOTTOM)
         if right <= left or bottom <= 0:
-            return False
+            return False, []
         band = _BandRegion(left, 0, right - left, bottom)
-        return self.band_has_trigger(self.capture_region(band))
+        words = self.band_words(self.capture_region(band))
+        return self._band_matches(words), words
 
     @classmethod
     def band_has_trigger(cls, image: Image.Image) -> bool:
@@ -532,6 +550,21 @@ class OCREngine:
         large, so this keeps Tesseract fast), and each word is matched on its
         own, so the neighbouring tabs do not hide it.
         """
+        return cls._band_matches(cls.band_words(image))
+
+    @classmethod
+    def _band_matches(cls, words: list[str]) -> bool:
+        """True when one of the band words is close to the trigger word."""
+        return any(
+            len(word) >= len(cls.TRIGGER_WORD) - 2
+            and SequenceMatcher(None, word, cls.TRIGGER_WORD).ratio()
+            >= cls.TRIGGER_BAND_RATIO
+            for word in words
+        )
+
+    @staticmethod
+    def band_words(image: Image.Image) -> list[str]:
+        """The upper case words Tesseract reads in a band image."""
         gray = ImageOps.invert(image.convert("L"))
         gray = gray.resize(
             (max(1, gray.width // 2), max(1, gray.height // 2)),
@@ -541,13 +574,8 @@ class OCREngine:
         try:
             text = pytesseract.image_to_string(gray, config="--psm 6 --oem 1")
         except pytesseract.TesseractError:
-            return False
-        return any(
-            len(word) >= len(cls.TRIGGER_WORD) - 2
-            and SequenceMatcher(None, word, cls.TRIGGER_WORD).ratio()
-            >= cls.TRIGGER_BAND_RATIO
-            for word in re.findall(r"[A-Z]+", text.upper())
-        )
+            return []
+        return re.findall(r"[A-Z]+", text.upper())
 
     @staticmethod
     def preprocess_for_ocr(
@@ -770,6 +798,10 @@ class OCREngine:
         This is optimized for speed - we just need to detect the word,
         not extract it perfectly.
         """
+        return self._read_trigger(region)[0]
+
+    def _read_trigger(self, region: RegionMixin) -> tuple[bool, str]:
+        """Read one trigger region, returning the match and the text read."""
         # Capture
         image = self.capture_region(region)
 
@@ -785,13 +817,11 @@ class OCREngine:
         config = f'--psm 7 -c tessedit_char_whitelist="{string.ascii_uppercase}"'
         try:
             text = pytesseract.image_to_string(processed, config=config)
-            if text:
-                # Fuzzy match - allow for some OCR errors
-                return self._fuzzy_match(text.strip().upper(), self.TRIGGER_WORD)
         except pytesseract.TesseractError:
-            pass
-
-        return False
+            return False, ""
+        read = text.strip().upper()
+        # Fuzzy match - allow for some OCR errors
+        return self._fuzzy_match(read, self.TRIGGER_WORD), read
 
     def extract_item_name_at_cursor(self) -> str | None:
         """
