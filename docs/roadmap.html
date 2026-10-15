@@ -190,7 +190,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="next"><span class="tick">▸</span><span class="what">Your live check of the chips<small>Hover a Power Bank, tell me where the chips land and what the game's own recycle row shows. Also a screenshot of any weapon hover where ARLO shows nothing</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Capture run for tiers I to III<small>So the stroke counter is tuned on every numeral, not only IV</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Decide the recycle chip label<small>"home only" if the game shows the field result, "field only" if it shows home</small></span><span class="when"></span></li>
-            <li class="next"><span class="tick">▸</span><span class="what">Stop the popups fading in and out<small>Still happening after two fixes. Leading suspect: a scan now takes about a second and the popup's hide timer is one second, so it can lapse between scans. First a timestamped log of one hover, then the fix it points to</small></span><span class="when recent">first thing 13 Oct</span></li>
+            <li class="next"><span class="tick">▸</span><span class="what">Stop the popups fading in and out<small>Still happening after two fixes. Leading suspect: a scan now takes about a second and the popup's hide timer is one second, so it can lapse between scans. The timestamped log is built. Next you run one 10 second hover with debug on, then the fix the log points to</small></span><span class="when recent">log built 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Replace the title reader on evidence<small>Your 320 captures are labeled. Three readers are competing on them now: today's Tesseract, Tesseract with the title line isolated, and PaddleOCR. The winner ships</small></span><span class="when recent">changed 12 Oct</span></li>
           </ul>
         </div>
@@ -332,6 +332,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>12 Oct</time><span>Flicker fixed once (timers) and a second cause found (varying reads). Rattler III, Burletta IV and Anvil I misses traced to the title reader, not the card finder. Labeling of your captures and a reader bake-off started. Blueprint data pipeline started.</span></li>
   <li><time>12 Oct</time><span>Your 320 captures labeled by eye: half the cards had their title cut off by the capture window, so the search now covers the whole screen. Second flicker cause fixed. Blueprint data inside ARLO. 209 tests. Paused for the night with the reader bake-off still running.</span></li>
   <li><time>12 Oct</time><span>You confirmed weapon identification works in game. The popups still fade in and out, so that is first thing tomorrow.</span></li>
+  <li><time>14 Oct</time><span>Captures now only on request with arc-helper --capture. The popup timing log is built and reviewed: millisecond times for every scan, show, hide and timer. 219 tests. Waiting on your 10 second hover with debug on.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

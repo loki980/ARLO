@@ -102,7 +102,13 @@ Ahead, in order:
     scans that read nothing letting the timer lapse, and KWin's fade
     animation on map and unmap. First step tomorrow: log each show, touch,
     hide and timer expiry with a timestamp during one hover, then fix the
-    cause the log shows.
+    cause the log shows. The timestamped log is built (14 Oct, reviewed):
+    with DEBUG_MODE=true, arc_helper.log now has millisecond times, each
+    scan's start, period and duration, each popup and chip show, touch and
+    hide with its reason, every hide timer armed or cancelled, and each
+    scanner state change. Changed 14 Oct. Next: Jeffrey runs with
+    DEBUG_MODE=true and hovers one item for 10 s, then the fix the log
+    points to.
 13. Search the whole screen for the card. The labeled capture library (320
     captures, 113 with a card) showed 56 cards missing their title row
     because the cursor-centred window cut tall weapon cards at the top. The
