@@ -86,6 +86,10 @@ def test_band_without_the_word_does_not_trigger(engine, monkeypatch):
     use_screen(monkeypatch, screen)
 
     assert not engine.check_trigger_any(BOXES)
+    # A miss keeps what each place read, for the trigger miss log line
+    places = [place for place, _ in engine.last_trigger_reads]
+    assert places == ["region1", "region2", "band"]
+    assert "LOGBOOK" in engine.last_trigger_reads[-1][1]
 
 
 def test_empty_screen_does_not_trigger(engine, monkeypatch):
