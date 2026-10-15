@@ -235,7 +235,34 @@ def _empty_input_shape(xid: int) -> bool:
         xdisplay.close()
 
 
-def run_live() -> int:
+def draw_scale(
+    window: tuple[int, int],
+    physical: tuple[int, int] | None,
+    gtk_scale: int,
+) -> tuple[float, float]:
+    """Factors from physical px to the window's coordinates, per axis.
+
+    With the physical screen size the factor is window / physical, so a rect in
+    physical px lands on the same physical pixels. Without it, fall back to
+    1 / gtk_scale on both axes.
+    """
+    if physical is None or physical[0] <= 0 or physical[1] <= 0:
+        return 1 / gtk_scale, 1 / gtk_scale
+    return window[0] / physical[0], window[1] / physical[1]
+
+
+def checked_physical(physical: tuple[int, int] | None) -> tuple[int, int] | None:
+    """The physical size when usable. Otherwise None, with one warning on stderr."""
+    if physical is not None and physical[0] > 0 and physical[1] > 0:
+        return physical
+    print(
+        "badge helper: no physical screen size given, scaling by GTK's factor",
+        file=sys.stderr,
+    )
+    return None
+
+
+def run_live(physical: tuple[int, int] | None = None) -> int:
     """Show the surface and redraw it on every stdin message until stdin closes."""
     if not os.environ.get("DISPLAY"):
         print(
@@ -263,6 +290,7 @@ def run_live() -> int:
             "badge helper: no composited RGBA visual on this display", file=sys.stderr
         )
         return 2
+    physical = checked_physical(physical)
     family = FONT_FAMILY if register_font() else FALLBACK_FAMILY
     root = screen.get_root_window()
     win = Gtk.Window(type=Gtk.WindowType.POPUP)  # POPUP means override-redirect
@@ -276,9 +304,11 @@ def run_live() -> int:
     area = Gtk.DrawingArea()
 
     def on_draw(_area, cr) -> bool:
-        # Badge rects are physical pixels, GTK draws in logical ones
-        scale = win.get_scale_factor()
-        cr.scale(1 / scale, 1 / scale)
+        # Badge rects are physical pixels, the window is in X root coordinates
+        sx, sy = draw_scale(
+            (root.get_width(), root.get_height()), physical, win.get_scale_factor()
+        )
+        cr.scale(sx, sy)
         draw_badges(cr, state["badges"], family)
         return True
 
@@ -338,9 +368,16 @@ def main() -> int:
     mode.add_argument("--live", action="store_true", help="show the surface")
     mode.add_argument("--png", type=Path, help="write one draw message to this PNG")
     parser.add_argument("--size", type=int, nargs=2, metavar=("W", "H"))
+    parser.add_argument(
+        "--physical",
+        type=int,
+        nargs=2,
+        metavar=("W", "H"),
+        help="physical screen size, for --live",
+    )
     args = parser.parse_args()
     if args.live:
-        return run_live()
+        return run_live(tuple(args.physical) if args.physical else None)
     if args.size is None:
         parser.error("--png needs --size W H")
     return run_png(args.png, *args.size)
