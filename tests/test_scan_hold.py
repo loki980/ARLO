@@ -1,5 +1,6 @@
 """The popup and chips hold follows the measured scan period."""
 
+from itertools import pairwise
 from types import SimpleNamespace
 from typing import ClassVar
 
@@ -35,6 +36,12 @@ def test_hold_from_log_periods(periods, display_time, expected):
 def test_hold_before_any_period_uses_the_estimate():
     # A 1.669 s first read plus the 0.3 s interval
     assert scan_hold_s(1.0, [], 1.669 + INTERVAL_S) == pytest.approx(3.938)
+
+
+def test_slow_scan_estimate_wins_over_fast_periods():
+    # The first Bantam II read in the log: two fast empty scans before it
+    hold = scan_hold_s(1.0, [0.621, 0.706], 1.669 + INTERVAL_S)
+    assert hold == pytest.approx(3.938)
 
 
 class _Clock:
@@ -138,10 +145,10 @@ def test_period_history_resets_on_entry_to_active(monkeypatch):
         held=[True, True, True, False, True, True],
         durations=[0.5, 1.0, 0.6],
     )
-    # Scan 1: estimate 0.5 + 0.3 s. Scan 2: measured period 0.8 s. Scan 3
-    # after re-entry: estimate 0.6 + 0.3 s again, not the 1.3 s period
-    # since scan 2 started
-    assert holds == [1600, 1600, 1800]
+    # Scan 1: estimate 0.5 + 0.3 s. Scan 2: period 0.8 s and estimate
+    # 1.0 + 0.3 s. Scan 3 after re-entry: estimate 0.6 + 0.3 s alone, not
+    # the 1.3 s period since scan 2 started
+    assert holds == [1600, 2600, 1800]
 
 
 def test_hold_reaches_queued_messages(monkeypatch):
@@ -156,6 +163,46 @@ def test_hold_reaches_queued_messages(monkeypatch):
         messages.append(scanner.ui_queue.get_nowait())
     shaped = [m for m in messages if m[0] in {"overlay", "chips", "touch"}]
     assert [m[0] for m in shaped] == ["overlay", "chips", "touch"]
-    assert holds == [1600, 1600]
-    assert [m[-1] for m in shaped] == [1600, 1600, 1600]
+    # Scan 2: estimate 1.2 + 0.3 s beats the 0.8 s period
+    assert holds == [1600, 3000]
+    assert [m[-1] for m in shaped] == [1600, 1600, 3000]
     assert scanner.state == ScannerState.IDLE
+
+
+# jeffrey-hover-2026-10-14.log, one ACTIVE stretch from 19:37:47.029. Times
+# are seconds past 19:37:00. Every scan start, and for each read of an item
+# the scan end, the popup hide timer armed time and the chips hide timer
+# armed time.
+LOG_SCAN_STARTS = [
+    47.029, 47.650, 48.356, 50.822, 53.167, 55.624, 57.933,
+    59.870, 61.611, 62.734, 64.104, 65.621, 67.013, 68.341,
+]  # fmt: skip
+LOG_READS = [
+    # (scan index, item, scan end, popup armed, chips armed)
+    (2, "Bantam II", 50.026, 50.036, 50.544),
+    (3, "Bantam II", 52.379, 52.429, 52.875),
+    (4, "Bantam II", 54.769, 54.797, 55.249),
+    (5, "Bantam II", 57.176, 57.234, 57.669),
+    (6, "Burletta II", 59.199, 59.216, 59.605),
+    (7, "Burletta II", 60.876, 60.930, 61.235),
+    (8, "Simple Gun Parts", 62.150, 62.196, 62.458),
+    (9, "Simple Gun Parts", 63.532, 63.569, 63.833),
+    (10, "Simple Gun Parts", 64.927, 64.990, 65.239),
+    (11, "Simple Gun Parts", 66.422, 66.468, 66.730),
+    (12, "Simple Gun Parts", 67.764, 67.789, 68.047),
+    (13, "Simple Gun Parts", 69.158, 69.190, 69.451),
+]
+
+
+def test_jeffrey_log_same_item_reads_arrive_before_hold():
+    for read, after in pairwise(LOG_READS):
+        index, item, scan_end, popup_armed, chips_armed = read
+        if after[1] != item:
+            continue
+        # The periods known when this scan ended
+        starts = LOG_SCAN_STARTS[: index + 1]
+        periods = [b - a for a, b in pairwise(starts)]
+        estimate = scan_end - starts[-1] + INTERVAL_S
+        hold = scan_hold_s(1.0, periods, estimate)
+        assert after[3] < popup_armed + hold, (item, scan_end, hold)
+        assert after[4] < chips_armed + hold, (item, scan_end, hold)

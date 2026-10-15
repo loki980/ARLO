@@ -52,8 +52,9 @@ from arc_helper.verdict import compute_verdict
 load_dotenv(Path(__file__).with_name(".env"), override=False)
 
 # The popup and chips hide this long after the last read of an item: twice
-# the slowest of the last three scan periods, capped, and never less than
-# display_time, so a hovered item stays shown until the next scan reads it.
+# the slowest of the last three scan periods and the scan just finished,
+# capped, and never less than display_time, so a hovered item stays shown
+# until the next scan reads it.
 HOLD_SCAN_PERIODS = 2
 HOLD_HISTORY = 3
 HOLD_CAP_S = 6.0
@@ -65,10 +66,11 @@ def scan_hold_s(
     """Seconds the popup and chips stay up after a read.
 
     periods are the scan periods measured in this ACTIVE stretch, oldest
-    first. estimate_s stands in for the period while none is measured yet.
+    first. estimate_s is the just-finished scan's duration plus the scan
+    interval, which counts as a period too, so a slow read after fast empty
+    scans, or the first scan of the stretch, still gets a long enough hold.
     """
-    recent = list(periods)[-HOLD_HISTORY:]
-    period = max(recent) if recent else estimate_s
+    period = max([*list(periods)[-HOLD_HISTORY:], estimate_s])
     return max(display_time, min(HOLD_SCAN_PERIODS * period, HOLD_CAP_S))
 
 
