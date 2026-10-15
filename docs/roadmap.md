@@ -311,6 +311,14 @@ since they need every cell read (phase 3). Changed 14 Oct.
    about 12 s while the icon model loads. Waiting on Jeffrey's live look.
    Follow-up from review: make the badge hand-off non-blocking so a hung
    helper can never stall the hover path. Added 14 Oct.
+6. Tiles like ARC Tracker. Jeffrey, 15 Oct, after the scale fix: "it's
+   bleeding through and doesn't look seamless", and of ARC Tracker's legend:
+   "This is great!!! Ensure this approach is implemented." The type icon is
+   covered by an opaque patch in the tile's own bar colour with the stack's
+   worth on it, a red "have/need" tag and outline on items still short, a
+   green check tag when you have enough, gold only on the hovered slot.
+   Part 1 (bar geometry and counts) built 15 Oct, in review. Part 2 draws
+   it. Added 15 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
@@ -345,14 +353,28 @@ Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
    blueprint's name and the best places to find it.
 4. Greyed icons drawn in the empty cells on the overlay surface (phase 4).
 
-## Phase 5. The stash ledger. Next, after phase 3
+## Phase 5. The stash ledger. Underway from 15 Oct, moved up 15 Oct
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start
 watching and updating a local database of my inventory?" Decided 11 Oct.
 Local only.
 
-Will contain: a guided stash scroll anchored on the header count, deltas from
-later scans, an unsure flag when the numbers disagree.
+Jeffrey, 15 Oct: "we need to work on inventory tracking and live updating of
+the inventory based on smart parsing of the visible page. This includes
+tallying inventory and stash as one. Tough but possible. It will not really
+be useful without this, you know?" Moved up 15 Oct.
+
+1. Read the anchors: the stash header (used and capacity slots, total
+   value) and the loadout header (weight and value). Underway 15 Oct.
+2. Stitch the stash across scrolling: the scrollbar position and the
+   overlap with the last frame give each visible row its absolute place.
+   Needs a capture session scrolling the whole stash. Added 15 Oct.
+3. The ledger: stash plus backpack, quick use, safe pocket and equipment
+   in one local store, updated from every still frame. Added 15 Oct.
+4. Use it: total owned feeds the have and need tags, the advice card's "You
+   have N" and "keep N more". Added 15 Oct.
+5. Unsure flag: when the ledger disagrees with the headers, say so instead
+   of showing wrong numbers. Added 15 Oct.
 
 ## Phase 6. Progress from the screen. Next, after phases 2 and 5
 
