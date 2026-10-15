@@ -53,9 +53,12 @@ from arc_helper.database import Database
 from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
+from arc_helper.grid import STILL_MEAN
 from arc_helper.grid import STILL_SCALE
 from arc_helper.grid import find_slots
 from arc_helper.grid import frames_still
+from arc_helper.grid import slot_diffs
+from arc_helper.grid import still_gray
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
 from arc_helper.hovered_cell import find_hovered_cell
@@ -404,6 +407,16 @@ def hovered_cell_on_screen(
 # per STASH_PASS_GAP_S. The watcher thread wakes at least every STASH_TICK_S.
 STASH_PASS_GAP_S = 1.0
 STASH_TICK_S = 0.1
+# Share of the inventory slots that must change at once (or the slot set
+# itself, a scroll or tab switch) to clear every badge. Fewer changed slots
+# only hide the badges on them.
+BIG_CHANGE_FRACTION = 0.4
+# Px around the game's item card the stillness compare skips: the ACTIONS tab
+# above the card (96 px tall at 3840x2160 on the jeffrey screenshots) and its
+# shadow. The card stays skipped for CARD_LINGER_S after it is gone, while it
+# fades out over a few frames on which no card is found.
+CARD_MARGIN_PX = 112
+CARD_LINGER_S = 0.6
 # Px around the game's item card that the stillness compare and the badges
 # keep clear of, for the card's shadow
 STASH_CARD_MARGIN = 16
@@ -582,6 +595,83 @@ def _takes_rects(still: Callable[..., bool]) -> bool:
         # No signature to inspect (a builtin), so assume the full form
         return True
     return True
+
+
+class GridChange(NamedTuple):
+    """How the inventory grid changed between two frames.
+
+    big is a change that clears every badge. changed are the slot rects
+    that changed on their own, slots the number of slots compared.
+    """
+
+    big: bool
+    changed: tuple[Rect, ...] = ()
+    slots: int = 0
+
+
+def stash_changes(
+    a: np.ndarray,
+    b: np.ndarray,
+    ignore: Sequence[Rect],
+    still: Callable[..., bool] = frames_still,
+    slots: Callable[[np.ndarray], Sequence[Rect]] | None = None,
+    gray: Callable[[np.ndarray], np.ndarray] | None = None,
+) -> GridChange:
+    """The slots that changed between two frames, each compared on its own.
+
+    The slots are those grid.find_slots finds on a and on b (slots, when
+    given, returns their rects for a frame instead), matched by rect within
+    half a STILL_SCALE cell. A matched slot changed when its own mean
+    difference outside ignore reaches STILL_MEAN (grid.slot_diffs). A slot
+    found on one frame only changed too, unless it meets an ignore rect
+    and may only be covered. When at least BIG_CHANGE_FRACTION of the slots
+    changed the change is big. Without a slot on either frame, or with an
+    injected still other than frames_still, the whole compare of
+    stash_still decides: not still is big. gray, when given, returns the
+    grey copy of a frame (a cached grid.still_gray).
+    """
+    if a.shape != b.shape:
+        return GridChange(big=True)
+    find = slots or (lambda rgb: [s.rect for s in find_slots(rgb)])
+    if still is not frames_still:
+        return GridChange(big=not stash_still(a, b, ignore, still, find))
+    in_a, in_b = list(find(a)), list(find(b))
+    if not in_a and not in_b:
+        return GridChange(big=not stash_still(a, b, ignore, still, lambda _rgb: []))
+    pairs, alone = _match_slots(in_a, in_b)
+    if gray is not None:
+        a, b = gray(a), gray(b)
+    means = slot_diffs(a, b, pairs, ignore)
+    changed = [r for r, m in zip(pairs, means, strict=True) if m is not None and m >= STILL_MEAN]
+    changed += [r for r in alone if not any(rects_intersect(r, h) for h in ignore)]
+    total = len(pairs) + len(alone)
+    return GridChange(
+        big=len(changed) >= BIG_CHANGE_FRACTION * total,
+        changed=tuple(changed),
+        slots=total,
+    )
+
+
+def _match_slots(a: Sequence[Rect], b: Sequence[Rect]) -> tuple[list[Rect], list[Rect]]:
+    """The rects of a matched in b (as a has them) and those of either unmatched."""
+    reach = STILL_SCALE // 2
+    left = list(b)
+    pairs, alone = [], []
+    for r in a:
+        hit = next(
+            (
+                i
+                for i, s in enumerate(left)
+                if all(abs(p - q) <= reach for p, q in zip(r, s, strict=True))
+            ),
+            None,
+        )
+        if hit is None:
+            alone.append(r)
+        else:
+            pairs.append(r)
+            del left[hit]
+    return pairs, alone + left
 
 
 def _frame_rgb(image) -> np.ndarray:

@@ -516,3 +516,47 @@ def frames_still(
     if values.size == 0:
         return True
     return float(values.mean()) < STILL_MEAN
+
+
+def still_gray(rgb: np.ndarray) -> np.ndarray:
+    """The 1/8 scale grey copy of an RGB frame that the stillness compares use."""
+    return _small_gray(rgb)
+
+
+def slot_diffs(
+    a: np.ndarray,
+    b: np.ndarray,
+    slots: Iterable[Rect],
+    ignore: Iterable[Rect] = (),
+) -> list[float | None]:
+    """The mean absolute difference of two frames inside each slot, on its own.
+
+    a and b are RGB frames of one size or their still_gray copies. Each
+    slot is compared on the grey copies over the STILL_SCALE cells wholly
+    inside it, less every cell an ignore rect touches. A slot with no such
+    cell gets None. A slot changed when its value reaches STILL_MEAN.
+    """
+    gray_a = a if a.ndim == 2 else _small_gray(a)
+    gray_b = b if b.ndim == 2 else _small_gray(b)
+    diff = cv2.absdiff(gray_a, gray_b)
+    rows, cols = diff.shape
+    scale = STILL_SCALE
+    free = np.ones(diff.shape, bool)
+    for r in ignore:
+        free[
+            max(0, r.top // scale) : max(0, -(-r.bottom // scale)),
+            max(0, r.left // scale) : max(0, -(-r.right // scale)),
+        ] = False
+    means: list[float | None] = []
+    for r in slots:
+        top, bottom = max(0, -(-r.top // scale)), min(rows, r.bottom // scale)
+        left, right = max(0, -(-r.left // scale)), min(cols, r.right // scale)
+        if top >= bottom or left >= right:
+            means.append(None)
+            continue
+        mask = free[top:bottom, left:right]
+        if not mask.any():
+            means.append(None)
+            continue
+        means.append(float(diff[top:bottom, left:right][mask].mean()))
+    return means
