@@ -99,7 +99,9 @@ Ahead, in order:
     default (no extra dependency, popup sooner), paddle stays selectable
     with OCR_ENGINE=paddle. A scan with no card now reads nothing instead
     of guessing from a box around the cursor. Waiting on Jeffrey's feel for
-    the speed in game.
+    the speed in game. Jeffrey's capture session, 14 Oct: Garnet (a weapon
+    mod card) read as "GARNET REQUIRED RESOURCES G NCIL PARTS" and showed
+    UNKNOWN. Fix on tonight's labeled captures underway 14 Oct.
 12. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
@@ -151,7 +153,16 @@ Ahead, in order:
     reviewed and merged: the frame is drawn just outside the game's glow
     ring while the verdict is keep and hides with the chips. Waiting on
     Jeffrey's look in game (the live screenshot could not be taken, the
-    screen was locked).
+    screen was locked). Jeffrey's capture session the same night showed two
+    failures: no frame when the card opens left of the cell (Stiletto I in
+    quick use), and a frame across the card's ACTIONS tab when ARLO's
+    corner popup covered the card (Anvil I). Fix underway 14 Oct.
+16. Never read a card ARLO itself covers. Found in Jeffrey's capture
+    session, 14 Oct: an Anvil I card opened under the corner popup, the
+    next scan read body text and showed UNKNOWN, the wider UNKNOWN popup
+    uncovered the title, and the popup flipped between KEEP and UNKNOWN
+    every scan. A read whose card overlaps ARLO's popup is dropped and the
+    popup moves to the other top corner. Added 14 Oct, underway 14 Oct.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -205,7 +216,11 @@ Ahead:
    from Jeffrey's screenshot, 14 Oct: the verdict as a header bar ("Keep
    all 4: 6 more needed"), a needed-for list with a progress bar (quest,
    workshop level, count), and "You have" with the stash count once phase
-   5 knows it. Replaces the corner popup. Added 14 Oct.
+   5 knows it. Replaces the corner popup. Added 14 Oct. Jeffrey, 14 Oct,
+   sharing four more ARC Tracker screenshots (keep, sell, recycle cards):
+   "This is super nice. You should just copy it." Part 1, drawing the card
+   from the verdict data, underway 14 Oct. Part 2 places it beside the
+   game's tooltip and retires the corner popup. Changed 14 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
 
