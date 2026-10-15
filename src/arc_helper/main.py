@@ -20,8 +20,10 @@ from enum import auto
 from pathlib import Path
 from threading import Thread
 
+import numpy as np
 from dotenv import load_dotenv
 
+from arc_helper.cell_border import CellBorder
 from arc_helper.clickthrough import make_click_through
 from arc_helper.config import APP_DIR
 from arc_helper.config import DEFAULT_CAPTURE_LIMIT
@@ -37,6 +39,7 @@ from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
+from arc_helper.hovered_cell import find_hovered_cell
 from arc_helper.ocr import OCREngineManager
 from arc_helper.ocr import get_ocr_engine
 from arc_helper.overlay import RECYCLE_LABEL_HOME_ONLY
@@ -45,8 +48,14 @@ from arc_helper.overlay import OverlayWindow
 from arc_helper.overlay import StatusWindow
 from arc_helper.overlay import TooltipChips
 from arc_helper.overlay import action_word
+from arc_helper.overlay import window_rect_phys
 from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
+from arc_helper.screen import get_backend
+from arc_helper.tooltip_layout import Point
+from arc_helper.tooltip_layout import Rect
+from arc_helper.tooltip_layout import to_screen
+from arc_helper.verdict import KEEP
 from arc_helper.verdict import UNKNOWN
 from arc_helper.verdict import Verdict
 from arc_helper.verdict import compute_verdict
@@ -61,6 +70,10 @@ HOLD_SCAN_PERIODS = 2
 HOLD_HISTORY = 3
 HOLD_CAP_S = 6.0
 
+# Gold frame around the hovered cell for keep items, in Tk units scaled the
+# way the chips scale
+BORDER_WIDTH_TK = 3
+
 
 def scan_hold_s(
     display_time: float, periods: Sequence[float], estimate_s: float
@@ -74,6 +87,63 @@ def scan_hold_s(
     """
     period = max([*list(periods)[-HOLD_HISTORY:], estimate_s])
     return max(display_time, min(HOLD_SCAN_PERIODS * period, HOLD_CAP_S))
+
+
+class OverlayRects:
+    """ARLO's own window rectangles, shared from the Tk thread to the scanner.
+
+    The Tk thread publishes the physical screen rectangles of every mapped
+    ARLO window, the scan thread reads a snapshot to keep them out of the
+    hovered cell search. Neither side touches Tk through this object.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._rects: tuple[Rect, ...] = ()
+
+    def publish(self, rects: Sequence[Rect]) -> None:
+        with self._lock:
+            self._rects = tuple(rects)
+
+    def snapshot(self) -> tuple[Rect, ...]:
+        with self._lock:
+            return self._rects
+
+
+def screen_to_capture(rects: Sequence[Rect], origin: Point) -> list[Rect]:
+    """Shift physical screen rectangles into a capture's own coordinates."""
+    return [
+        Rect(
+            r.left - origin.x,
+            r.top - origin.y,
+            r.right - origin.x,
+            r.bottom - origin.y,
+        )
+        for r in rects
+    ]
+
+
+def hovered_cell_on_screen(
+    capture, origin: Point | None, card: Rect | None, ignore_phys: Sequence[Rect]
+) -> Rect | None:
+    """Find the hovered cell in a cursor capture, in physical screen px.
+
+    capture is the PIL image the card was found in, origin its top left on
+    screen and card the item card in capture coordinates. ignore_phys are
+    ARLO's own windows in physical screen px. None when anything is missing
+    or no glow ring is found. Runs on the scan thread.
+    """
+    if capture is None or origin is None or card is None:
+        return None
+    rgb = np.asarray(capture.convert("RGB"))
+    start = time.perf_counter()
+    cell = find_hovered_cell(rgb, card, screen_to_capture(ignore_phys, origin))
+    logger.debug(
+        "border search found=%s duration=%.1f ms",
+        "yes" if cell is not None else "no",
+        (time.perf_counter() - start) * 1000,
+    )
+    return to_screen(cell, origin) if cell is not None else None
 
 
 class ScannerState(Enum):
@@ -208,6 +278,10 @@ class Scanner:
     # background thread silently never fires - so we marshal via a queue that
     # Application drains on a main-thread timer.
     ui_queue: "queue.Queue[tuple]" = field(default_factory=queue.Queue)
+
+    # ARLO's own window rectangles, published by the Tk thread, kept out of
+    # the hovered cell search
+    overlay_rects: OverlayRects = field(default_factory=OverlayRects)
 
     # Cooldown tracking
     _last_shown_item: str = ""
@@ -514,11 +588,29 @@ class Scanner:
             self.db.home_only_outputs(recommendation.name),
             verdict,
         )
+        border = None
+        if verdict is not None and verdict.kind == KEEP:
+            engine = get_ocr_engine()
+            border = hovered_cell_on_screen(
+                getattr(engine, "_last_capture", None),
+                getattr(engine, "_last_origin", None),
+                getattr(engine, "_last_card", None),
+                self.overlay_rects.snapshot(),
+            )
         with self._chips_lock:
             # stop() or pause() may have hidden the chips during the OCR pass
             if self._running and self.state == ScannerState.ACTIVE:
+                # border is the gold frame rect, None hides it. The hold
+                # stays the last field, as in every held message
                 self.ui_queue.put(
-                    ("chips", recommendation.name, layout, payload, self._hold_ms)
+                    (
+                        "chips",
+                        recommendation.name,
+                        layout,
+                        payload,
+                        border,
+                        self._hold_ms,
+                    )
                 )
 
     def _hide_chips(self) -> None:
@@ -560,6 +652,10 @@ class Application:
         self.chips = (
             TooltipChips(self.root) if self.settings.overlay.tooltip_chips else None
         )
+        # Gold frame around the hovered keep item, hidden with the chips
+        self.border = CellBorder(self.root) if self.chips is not None else None
+        if self.chips is not None and self.border is not None:
+            self.chips.on_hide = self.border.hide
 
         # Debug overlay for visualizing capture area (separate from debug_mode)
         self.debug_overlay = None
@@ -578,6 +674,7 @@ class Application:
             db=self.db,
             ui_queue=self.ui_queue,
         )
+        self.overlay_rects = self.scanner.overlay_rects
 
         # Bind close handler
         self.root.protocol("WM_DELETE_WINDOW", self.quit)
@@ -620,12 +717,51 @@ class Application:
                     if self.chips is not None:
                         self.chips.touch(msg[2])
                 elif msg[0] == "chips" and self.chips is not None:
-                    self.chips.show(msg[1], msg[2], **msg[3], hold_ms=msg[4])
+                    placed = self.chips.show(msg[1], msg[2], **msg[3], hold_ms=msg[5])
+                    self._apply_border(msg[4], placed=placed)
                 elif msg[0] == "chips_hide" and self.chips is not None:
                     self.chips.hide(reason="chips_hide")
         except queue.Empty:
             pass
+        self._publish_overlay_rects()
         self.root.after(50, self._pump_ui_queue)
+
+    def _border_width_px(self) -> int:
+        """Border width in physical px, BORDER_WIDTH_TK scaled like the chips."""
+        width_tk = max(1, int(BORDER_WIDTH_TK / self.chips.dpi_scale))
+        return max(1, round(width_tk * get_backend().tk_scale))
+
+    def _apply_border(self, rect: Rect | None, *, placed: bool) -> None:
+        """Show the gold frame at rect, or hide it (main thread only).
+
+        The frame only shows beside chips this layout placed, so it can
+        never outlive them.
+        """
+        if self.border is None:
+            return
+        if rect is None:
+            self.border.hide(reason="no_cell")
+        elif not placed:
+            self.border.hide(reason="no_chips")
+        else:
+            self.border.show(rect, self._border_width_px())
+
+    def _publish_overlay_rects(self) -> None:
+        """Publish ARLO's mapped window rectangles for the scan thread."""
+        tk_scale = get_backend().tk_scale
+        rects: list[Rect] = []
+        windows = [self.overlay.window, self.status.window]
+        if self.debug_overlay is not None:
+            windows.append(self.debug_overlay.window)
+        for window in windows:
+            rect = window_rect_phys(window, tk_scale)
+            if rect is not None:
+                rects.append(rect)
+        if self.chips is not None:
+            rects.extend(self.chips.shown_rects(tk_scale))
+        if self.border is not None:
+            rects.extend(self.border.bar_rects())
+        self.overlay_rects.publish(rects)
 
     def run(self) -> None:
         """Start the application."""

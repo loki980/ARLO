@@ -5,9 +5,9 @@ Usage:
     uv run python scripts/find_hovered_cell.py --captures <folder> --out <folder>
         [--labels <labels.csv>]
 
-Runs arc_helper.hovered_cell.find_hovered_cell (the method is described in
-that module) beside the card returned by find_tooltip_card, with the cursor
-taken as the image centre.
+Runs arc_helper.hovered_cell.locate_hovered_cell (the method is described
+in that module, find_hovered_cell is its app-facing wrapper) beside the card
+returned by find_tooltip_card, with the cursor taken as the image centre.
 
 Writes results.csv and, for every 3840x2160 frame, a debug PNG with the card
 in blue and the cell in gold. With --labels it also runs over the labeled

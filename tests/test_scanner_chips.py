@@ -5,6 +5,7 @@ import time
 from typing import ClassVar
 
 import pytest
+from PIL import Image
 
 import arc_helper.main as main_module
 import arc_helper.overlay as overlay_module
@@ -228,3 +229,64 @@ def test_chips_for_the_same_item_move_without_withdraw(monkeypatch):
     assert "withdraw" not in chips.windows[RECYCLE_CHIP].calls
     assert "deiconify" not in price.calls
     assert price.calls.count("geometry") == 1
+
+
+class _CaptureOcr:
+    """A layout read plus the last capture, origin and card the border uses."""
+
+    def __init__(self):
+        self._last_capture = Image.new("RGB", (400, 300))
+        self._last_origin = Point(100, 50)
+        self._last_card = Rect(200, 0, 400, 300)
+
+    def layout_from_last_capture(self):  # noqa: PLR6301
+        return LAYOUT
+
+
+def _stub_search(monkeypatch, result):
+    calls = []
+
+    def search(rgb, card, ignore=()):
+        calls.append((rgb.shape, card, list(ignore)))
+        return result
+
+    monkeypatch.setattr(main_module, "find_hovered_cell", search)
+    monkeypatch.setattr(main_module, "get_ocr_engine", _CaptureOcr)
+    return calls
+
+
+def test_keep_with_a_found_cell_queues_the_border_on_screen(monkeypatch):
+    calls = _stub_search(monkeypatch, Rect(10, 20, 30, 40))
+    scanner = _active_scanner()
+    # An ARLO chip on screen, which the search must see in capture coordinates
+    scanner.overlay_rects.publish([Rect(150, 60, 200, 100)])
+
+    scanner._queue_chips(ITEM, verdict=Verdict("keep", "k"))  # noqa: SLF001
+
+    (message,) = _drain(scanner)
+    assert message[0] == "chips"
+    assert message[4] == Rect(110, 70, 130, 90)
+    assert calls == [((300, 400, 3), Rect(200, 0, 400, 300), [Rect(50, 10, 100, 50)])]
+
+
+@pytest.mark.parametrize("kind", ["sell", "recycle"])
+def test_other_verdicts_queue_a_border_hide(monkeypatch, kind):
+    calls = _stub_search(monkeypatch, Rect(10, 20, 30, 40))
+    scanner = _active_scanner()
+
+    scanner._queue_chips(ITEM, verdict=Verdict(kind, "x"))  # noqa: SLF001
+
+    (message,) = _drain(scanner)
+    assert message[4] is None
+    assert calls == []
+
+
+def test_keep_without_a_found_cell_queues_a_border_hide(monkeypatch):
+    calls = _stub_search(monkeypatch, None)
+    scanner = _active_scanner()
+
+    scanner._queue_chips(ITEM, verdict=Verdict("keep", "k"))  # noqa: SLF001
+
+    (message,) = _drain(scanner)
+    assert message[4] is None
+    assert len(calls) == 1

@@ -26,6 +26,7 @@ from .textrender import render_photo
 from .tooltip_layout import PRICE_CHIP
 from .tooltip_layout import RECYCLE_CHIP
 from .tooltip_layout import VERDICT_CHIP
+from .tooltip_layout import Rect
 from .tooltip_layout import Size
 from .tooltip_layout import TooltipLayout
 from .tooltip_layout import place_chips
@@ -185,6 +186,35 @@ def _hide_delay_ms(settings, hold_ms: int | None) -> int:
     if hold_ms is None:
         return int(settings.overlay.display_time * 1000)
     return hold_ms
+
+
+def tk_box_to_phys(x: int, y: int, width: int, height: int, tk_scale: float) -> Rect:
+    """Rectangle of a Tk window box (tk units) in physical screen pixels."""
+    return Rect(
+        round(x * tk_scale),
+        round(y * tk_scale),
+        round((x + width) * tk_scale),
+        round((y + height) * tk_scale),
+    )
+
+
+def window_rect_phys(window: tk.Misc, tk_scale: float) -> Rect | None:
+    """Screen rectangle of a mapped window in physical pixels, else None.
+
+    Tk thread only.
+    """
+    try:
+        if not window.winfo_viewable():
+            return None
+        return tk_box_to_phys(
+            window.winfo_rootx(),
+            window.winfo_rooty(),
+            window.winfo_width(),
+            window.winfo_height(),
+            tk_scale,
+        )
+    except tk.TclError:
+        return None
 
 
 class OverlayWindow:
@@ -462,6 +492,10 @@ class TooltipChips:
     # Gap between chip and tooltip edge or label, in tk units
     PAD = 8
 
+    # Called with the hide reason whenever the chips hide (timer or
+    # chips_hide), so the gold cell border can hide with them
+    on_hide: Callable[[str], None] | None = None
+
     def __init__(self, root: tk.Tk):
         self.root = root
         self.settings = get_settings()
@@ -588,7 +622,7 @@ class TooltipChips:
         hold_ms: int | None = None,
         verdict_word: str | None = None,
         verdict_kind: str | None = None,
-    ) -> None:
+    ) -> bool:
         """Fill, measure, place and show the chips that have content.
 
         verdict_word and verdict_kind (a Verdict.kind) fill the verdict chip.
@@ -596,7 +630,8 @@ class TooltipChips:
         For the item already showing, chips are only moved with geometry,
         never withdrawn and mapped again, so the compositor does not fade
         them. A chip this layout could not place stays where it is. hold_ms
-        is the auto-hide delay, display_time when None.
+        is the auto-hide delay, display_time when None. Returns whether this
+        layout placed any chip.
         """
         same_item = item_name == self._current_item
         logger.debug(
@@ -673,6 +708,16 @@ class TooltipChips:
             self._hide_after_id = self.root.after(hide_ms, self.hide)
             self._hide_delay_ms = hide_ms
             logger.debug("chips hide timer armed delay=%d ms", hide_ms)
+        return bool(positions)
+
+    def shown_rects(self, tk_scale: float) -> list[Rect]:
+        """Physical screen rectangles of the chips now mapped. Tk thread only."""
+        rects = []
+        for key in self._shown:
+            rect = window_rect_phys(self.windows[key], tk_scale)
+            if rect is not None:
+                rects.append(rect)
+        return rects
 
     def touch(self, hold_ms: int | None = None) -> None:
         """Restart the auto-hide timer when any chip is showing.
@@ -712,6 +757,8 @@ class TooltipChips:
         self._positions.clear()
         for window in self.windows.values():
             window.withdraw()
+        if self.on_hide is not None:
+            self.on_hide(reason)
 
 
 class StatusWindow:
