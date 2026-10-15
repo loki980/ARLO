@@ -11,6 +11,7 @@ from arc_helper import stash_scan
 from arc_helper.database import Item
 from arc_helper.grid import Slot
 from arc_helper.icon_embed import EmbedGallery
+from arc_helper.slot_marks import BarGeometry
 from arc_helper.slot_marks import TierRead
 from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
@@ -195,43 +196,90 @@ def _slot_item(item: Item | None, left: int = 0) -> SlotItem:
     )
 
 
-def test_badges_gold_border_only_with_active_needs_and_price_for_every_item():
-    keep = _slot_item(Item(name="Anvil I", action="Keep", sell_price=4000), 0)
-    some = _slot_item(Item(name="Metal Parts", action="Keep", sell_price=810), 100)
-    sell = _slot_item(Item(name="Rubber Parts", action="Sell", sell_price=1250), 200)
-    free = _slot_item(Item(name="Note", action="Sell", sell_price=None), 300)
-    unknown = _slot_item(None, 400)
-    weapon = _slot_item(Item(name="Weapon", action="Keep", sell_price=500), 500)
-    outpost = (("Expedition 5 phase 2", 1),)
-    verdicts = {
-        "Anvil I": Verdict("keep", "x", 1, outpost),
-        "Metal Parts": Verdict("keep_some", "x", 2, outpost),
-        "Rubber Parts": Verdict("sell", "x"),
-        "Note": Verdict("keep", "x", 1, outpost),
-        # the weapon rule: keep with no sources
-        "Weapon": Verdict("keep", "Weapon, keep at least one", 1),
-    }
-    badges = badges_for(
-        [keep, some, sell, free, unknown, weapon], lambda s: verdicts[s.item.name]
+ICON_BOX = Rect(4, 70, 20, 86)
+
+
+def _square(item, left=0, *, bar=None, stack=None) -> SlotItem:
+    return SlotItem(
+        Rect(left, 10, left + 90, 100), "stash", item, None, stack, 0.9, 0.2, "x", bar
     )
-    borders = [b for b in badges if b["kind"] == "border"]
-    tags = [b for b in badges if b["kind"] == "tag"]
-    assert [b["rect"][0] for b in borders] == [0, 100, 300]
-    assert borders[0] == {
-        "rect": [0, 10, 90, 100],
-        "color": "#f2b134",
-        "width": 3,
-        "radius": 4,
-        "kind": "border",
-    }
-    assert [(b["rect"][0], b["text"]) for b in tags] == [
-        (0, "Φ 4k"),
-        (100, "Φ 810"),
-        (200, "Φ 1.3k"),
-        (500, "Φ 500"),
+
+
+def _bar(icon_box=ICON_BOX) -> BarGeometry:
+    return BarGeometry(
+        Rect(3, 68, 87, 88), (40, 90, 120), icon_box, Rect(70, 70, 84, 86)
+    )
+
+
+def test_square_slot_with_icon_box_gets_a_patch_in_screen_px():
+    item = Item(name="Metal Parts", action="Sell", sell_price=810)
+    badges = badges_for(
+        [_square(item, 100, bar=_bar())], lambda _s: Verdict("sell", "x")
+    )
+    assert badges == [
+        {
+            "rect": [103, 78, 187, 98],
+            "icon_right": 120,
+            "patch_right": 100 + _bar().patch_right,
+            "colour": [40, 90, 120],
+            "text": "Φ 810",
+            "radius": 6,
+            "kind": "patch",
+        }
     ]
-    assert tags[0]["corner"] == "bl"
-    assert all(b["rect"][0] != 400 for b in badges)
+
+
+def test_no_icon_box_gives_no_patch_and_wide_slots_keep_a_dark_tag():
+    item = Item(name="Metal Parts", action="Sell", sell_price=810)
+    plain = badges_for(
+        [_square(item, bar=_bar(icon_box=None))], lambda _s: Verdict("sell", "x")
+    )
+    assert plain == []
+    wide = SlotItem(Rect(0, 10, 200, 100), "stash", item, None, 2, 0.9, 0.2, "x")
+    (tag,) = badges_for([wide], lambda _s: Verdict("sell", "x"))
+    assert (tag["kind"], tag["corner"], tag["text"]) == ("tag", "tl", "Φ 1.6k")
+
+
+def test_patch_text_is_the_stacks_worth():
+    item = Item(name="Metal Parts", action="Sell", sell_price=810)
+    (patch,) = badges_for(
+        [_square(item, bar=_bar(), stack=3)], lambda _s: Verdict("sell", "x")
+    )
+    assert patch["text"] == "Φ 2.4k"
+
+
+def test_need_tag_is_red_with_an_outline_while_short_and_green_when_enough():
+    sources = (("Expedition 5 phase 2", 6), ("Gunsmith II", 4))
+    first = _square(Item(name="Metal Parts", action="Keep"), 0, stack=2)
+    second = _square(Item(name="Metal Parts", action="Keep"), 100, stack=4)
+    short = badges_for([first, second], lambda _s: Verdict("keep", "x", 10, sources))
+    tags = [b for b in short if b["kind"] == "tag"]
+    assert [(t["text"], t["fg"], t["check"]) for t in tags] == [
+        ("6/10", "#ff5c4d", False)
+    ] * 2
+    assert tags[0]["outline"] == [255, 92, 77]
+    assert tags[0]["corner"] == "tl"
+    borders = [b for b in short if b["kind"] == "border"]
+    assert [(b["rect"][0], b["color"]) for b in borders] == [
+        (0, "#ff5c4d"),
+        (100, "#ff5c4d"),
+    ]
+    enough = badges_for(
+        [first, second], lambda _s: Verdict("keep", "x", 5, (("Quest", 5),))
+    )
+    assert [(b["text"], b["fg"], b["check"]) for b in enough] == [
+        ("6/5", "#4fd36b", True)
+    ] * 2
+    assert enough[0]["outline"] == [79, 211, 107]
+    assert all(b["kind"] == "tag" for b in enough)
+
+
+def test_a_verdict_without_sources_gives_no_tag_and_no_outline():
+    weapon = _square(Item(name="Weapon", action="Keep"), 0)
+    badges = badges_for(
+        [weapon, _square(None, 100)], lambda _s: Verdict("keep", "x", 1)
+    )
+    assert badges == []
 
 
 def test_distinct_gallery_keeps_the_plain_item_of_a_shared_icon():
@@ -343,3 +391,11 @@ def test_stacks_are_read_for_identified_slots_only(stubs):
     )
     assert [s.stack for s in found] == [3, None]
     assert len(stack_reads) == 1
+
+
+def test_a_wide_slot_with_a_need_tag_moves_its_worth_tag_to_the_top_right():
+    item = Item(name="Weapon", action="Keep", sell_price=810)
+    wide = SlotItem(Rect(0, 10, 200, 100), "stash", item, None, None, 0.9, 0.2, "x")
+    badges = badges_for([wide], lambda _s: Verdict("keep", "x", 1, (("Quest", 1),)))
+    corners = {b["text"]: b["corner"] for b in badges if b["kind"] == "tag"}
+    assert corners == {"1/1": "tl", "Φ 810": "tr"}

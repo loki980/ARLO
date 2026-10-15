@@ -86,7 +86,7 @@ FILL_INSET = 0.15
 FILL_BRIGHT = 80
 FILL_COLOURFUL = 70
 FILL_FRACTION = 0.02
-# ARLO's gold frame colour (cell_border.GOLD, #f2b134) as RGB
+# ARLO's gold frame colour (cell_border.HOVER_GOLD, #f2b134) as RGB
 ARLO_GOLD = (242, 177, 52)
 GOLD_TOLERANCE = 14
 GOLD_FILL = 7

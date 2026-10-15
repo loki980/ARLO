@@ -269,7 +269,7 @@ def test_keep_with_a_found_cell_queues_the_border_on_screen(monkeypatch):
     assert calls == [((300, 400, 3), Rect(200, 0, 400, 300), [Rect(50, 10, 100, 50)])]
 
 
-def test_keep_without_active_needs_queues_a_border_hide(monkeypatch):
+def test_keep_without_active_needs_queues_the_border(monkeypatch):
     calls = _stub_search(monkeypatch, Rect(10, 20, 30, 40))
     scanner = _active_scanner()
 
@@ -277,20 +277,20 @@ def test_keep_without_active_needs_queues_a_border_hide(monkeypatch):
     scanner._queue_chips(ITEM, verdict=Verdict("keep", "Weapon"))  # noqa: SLF001
 
     (message,) = _drain(scanner)
-    assert message[4] is None
-    assert calls == []
+    assert message[4] == Rect(110, 70, 130, 90)
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("kind", ["sell", "recycle"])
-def test_other_verdicts_queue_a_border_hide(monkeypatch, kind):
+def test_other_verdicts_queue_the_border(monkeypatch, kind):
     calls = _stub_search(monkeypatch, Rect(10, 20, 30, 40))
     scanner = _active_scanner()
 
     scanner._queue_chips(ITEM, verdict=Verdict(kind, "x"))  # noqa: SLF001
 
     (message,) = _drain(scanner)
-    assert message[4] is None
-    assert calls == []
+    assert message[4] == Rect(110, 70, 130, 90)
+    assert len(calls) == 1
 
 
 def test_keep_without_a_found_cell_queues_a_border_hide(monkeypatch):

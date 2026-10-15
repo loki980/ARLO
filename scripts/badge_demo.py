@@ -1,66 +1,110 @@
 # ruff: noqa: INP001
-"""Draw badges on every slot of a capture, the way the live surface would.
+"""Draw the stash badges on a capture, the way the live surface would.
 
-Usage: uv run python scripts/badge_demo.py CAPTURE.png OUT.png [--slots S.json]
+Usage: uv run --extra icons python scripts/badge_demo.py CAPTURE.png OUT.png
 
-Finds the slots with grid.find_slots when this branch has it. Otherwise the
-slot rects come from a JSON list of [left, top, right, bottom] (or of
-{"rect": [...]} objects), given with --slots or, when that is left out,
-read from OUT's name with .slots.json in place of .png. Each slot gets a gold
-border and a placeholder price tag, drawn by the badge helper's PNG mode and
-composited over the capture.
+Runs the live stash pass on the capture (stash_identifier with stacks, then
+stash_badge_maker), so the tiles get the same patches, have/need tags and
+outlines as on screen. The badge helper's PNG mode draws them and they are
+composited over the capture to OUT. OUT's name with .zoom.png in place of
+.png gets a 3x crop of the first four identified square slots in reading
+order, the original on the left and the badged tile on the right. Prints
+what each of the four shows.
 """
 
-import argparse
-import json
 import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-from arc_helper.badge_surface import Border
-from arc_helper.badge_surface import Tag
 from arc_helper.badge_surface import render_png
+from arc_helper.config import get_settings
+from arc_helper.database import Database
+from arc_helper.main import stash_badge_maker
+from arc_helper.main import stash_identifier
+from arc_helper.main import surface_badges
+from arc_helper.stash_scan import is_wide
 
-PLACEHOLDER_PRICE = "Φ 1k"
+ZOOM = 3
+TILES = 4
+PAD = 8
 
 
-def slot_rects(capture: Image.Image, slots_file: Path) -> tuple[list, str]:
-    """The slot rects and where they came from."""
-    try:
-        from arc_helper.grid import find_slots
-    except ImportError:
-        if not slots_file.is_file():
-            msg = f"grid.find_slots is not on this branch and {slots_file} is missing"
-            raise SystemExit(msg) from None
-        entries = json.loads(slots_file.read_text(encoding="utf-8"))
-        rects = [tuple(e["rect"] if isinstance(e, dict) else e) for e in entries]
-        return rects, str(slots_file)
-    slots = find_slots(np.asarray(capture.convert("RGB")))
-    return [tuple(s.rect) for s in slots], "grid.find_slots"
+def describe(tile: list[dict]) -> str:
+    """The badges drawn on one tile, with their texts."""
+    parts = []
+    for b in tile:
+        text = f"{b['kind']} {b.get('text', '')}".strip()
+        if b["kind"] == "tag" and b.get("outline"):
+            text += " (check)" if b.get("check") else " (outlined)"
+        parts.append(text)
+    return ", ".join(parts) or "no badge"
+
+
+def tile_badges(badges: list[dict], rect: tuple) -> list[dict]:
+    """The badges that lie within one slot's rect."""
+    left, top, right, bottom = rect
+    return [
+        b
+        for b in badges
+        if left <= b["rect"][0] < right and top <= b["rect"][1] < bottom
+    ]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("capture", type=Path)
-    parser.add_argument("out", type=Path)
-    parser.add_argument("--slots", type=Path, help="JSON slot rects, see above")
-    args = parser.parse_args()
-    capture = Image.open(args.capture).convert("RGBA")
-    slots_file = args.slots or args.out.with_suffix(".slots.json")
-    rects, source = slot_rects(capture, slots_file)
-    badges = []
-    for rect in rects:
-        badges.extend((Border(rect), Tag(rect, PLACEHOLDER_PRICE)))
-    layer_path = args.out.with_suffix(".layer.png")
-    if not render_png(badges, capture.size, layer_path):
+    if len(sys.argv) != 3:
+        print(__doc__)
+        return 2
+    capture_path, out = Path(sys.argv[1]), Path(sys.argv[2])
+    capture = Image.open(capture_path).convert("RGB")
+    db = Database()
+    settings = get_settings()
+    identify = stash_identifier(db, settings.icon_cache_dir)
+    make = stash_badge_maker(db, lambda: settings.show_ended_projects)
+    slot_items = identify(np.asarray(capture))
+    badges = make(slot_items)
+    layer_path = out.with_suffix(".layer.png")
+    if not render_png(surface_badges(badges), capture.size, layer_path):
         print("The badge helper could not draw the PNG, see the log above.")
         return 1
-    layer = Image.open(layer_path).convert("RGBA")
-    capture.alpha_composite(layer)
-    capture.convert("RGB").save(args.out)
-    print(f"{len(rects)} slots from {source}, badges drawn to {args.out}")
+    with Image.open(layer_path) as layer:
+        shown = Image.alpha_composite(capture.convert("RGBA"), layer.convert("RGBA"))
+    layer_path.unlink()
+    shown = shown.convert("RGB")
+    shown.save(out)
+    print(f"{len(slot_items)} slots, {len(badges)} badges drawn to {out}")
+
+    squares = sorted(
+        (s for s in slot_items if s.item is not None and not is_wide(s.rect)),
+        key=lambda s: (s.rect.top, s.rect.left),
+    )[:TILES]
+    crops = []
+    for slot in squares:
+        box = tuple(slot.rect)
+        pair = [
+            img.crop(box).resize(
+                ((box[2] - box[0]) * ZOOM, (box[3] - box[1]) * ZOOM), Image.NEAREST
+            )
+            for img in (capture, shown)
+        ]
+        crops.append(pair)
+        print(
+            f"{slot.item.name} stack={slot.stack}: {describe(tile_badges(badges, box))}"
+        )
+    if crops:
+        width = max(p[0].width for p in crops)
+        height = max(p[0].height for p in crops)
+        sheet = Image.new(
+            "RGB",
+            (2 * width + 3 * PAD, len(crops) * (height + PAD) + PAD),
+            (20, 20, 20),
+        )
+        for row, (before, after) in enumerate(crops):
+            y = PAD + row * (height + PAD)
+            sheet.paste(before, (PAD, y))
+            sheet.paste(after, (2 * PAD + width, y))
+        sheet.save(out.with_suffix(".zoom.png"))
     return 0
 
 
