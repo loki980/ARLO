@@ -7,7 +7,9 @@ from PIL import Image
 
 from arc_helper.cell_border import FrameBars
 from arc_helper.cell_border import frame_bars
+from arc_helper.grid import Slot
 from arc_helper.hovered_cell import find_hovered_cell
+from arc_helper.hovered_cell import snap_to_slot
 from arc_helper.tooltip_layout import Rect
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -111,3 +113,29 @@ def test_frame_bars_sit_wholly_outside_the_rect() -> None:
         left=Rect(94, 200, 100, 350),
         right=Rect(300, 200, 306, 350),
     )
+
+
+# Slots and the hovered ring box found on Jeffrey's 15 Oct Stiletto IV
+# screenshot (stiletto-frame-4k.png): the ring box covers only the right part
+# of the wide first weapon slot
+STILETTO_RING = Rect(1582, 777, 2001, 1194)
+WIDE_WEAPON = Slot(Rect(1384, 784, 1994, 1186), "equipment", filled=True)
+SECOND_WEAPON = Slot(Rect(1384, 1216, 1994, 1618), "equipment", filled=True)
+SHIELD = Slot(Rect(1704, 544, 1994, 738), "equipment", filled=True)
+LOADOUT = [SHIELD, WIDE_WEAPON, SECOND_WEAPON]
+
+
+def test_ring_box_snaps_to_the_wide_weapon_slot_under_its_centre():
+    assert snap_to_slot(STILETTO_RING, LOADOUT) == WIDE_WEAPON
+
+
+def test_ring_box_without_its_centre_in_a_slot_takes_the_largest_overlap():
+    # Centre (1700, 1210) falls in the gap between the two weapon slots,
+    # with 94 rows over the second and 76 over the first
+    ring = Rect(1500, 1110, 1900, 1310)
+    assert snap_to_slot(ring, LOADOUT) == SECOND_WEAPON
+
+
+def test_ring_box_away_from_every_slot_has_no_slot():
+    assert snap_to_slot(Rect(10, 10, 200, 200), LOADOUT) is None
+    assert snap_to_slot(STILETTO_RING, []) is None

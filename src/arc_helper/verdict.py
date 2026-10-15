@@ -21,8 +21,9 @@ KEEP_SOME = "keep_some"
 SELL = "sell"
 RECYCLE = "recycle"
 USE = "use"
+LEARN = "learn"
 UNKNOWN = "unknown"
-KINDS = (KEEP, KEEP_SOME, SELL, RECYCLE, USE, UNKNOWN)
+KINDS = (KEEP, KEEP_SOME, SELL, RECYCLE, USE, LEARN, UNKNOWN)
 
 # Action string keywords, resolved by whichever appears first in the string
 ACTION_KEYWORDS = (SELL, RECYCLE, KEEP, USE)
@@ -36,7 +37,11 @@ MAX_REASON_SOURCES = 3
 ROMAN = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI"}
 
 WEAPON_CATEGORY = "weapon"
+BLUEPRINT_CATEGORY = "blueprint"
 UNKNOWN_REASON = "Item not in database"
+KNOWN_BLUEPRINT_REASON = "You already know this blueprint"
+UNLEARNED_REASON = "You have not learned this blueprint yet"
+MAYBE_LEARNED_REASON = "Learn it unless you already know it"
 
 
 class Verdict(NamedTuple):
@@ -150,6 +155,11 @@ def is_weapon(item: Item, blueprint: str | None) -> bool:
     return blueprint is not None and split_tier(item.name)[1] is not None
 
 
+def is_blueprint(item: Item) -> bool:
+    """A blueprint by its catalog type."""
+    return (item.category or "").strip().lower() == BLUEPRINT_CATEGORY
+
+
 def compute_verdict(
     item: Item | None,
     needs: Iterable[Need],
@@ -160,8 +170,17 @@ def compute_verdict(
     *,
     blueprint: str | None = None,
     home_outputs: Iterable | None = None,
+    learned: bool | None = None,
+    recorded_learned: bool = False,
 ) -> Verdict:
     """Advice for an item, applying the rules in order.
+
+    A blueprint (catalog type Blueprint) comes first. It counts as learned
+    when the check mark read on its hovered slot says so (learned True or
+    False), or, when the mark could not be read (learned None), when
+    recorded_learned says so. One not learned gives learn. A learned one
+    goes through the rules below, its reason led by "You already know this
+    blueprint".
 
     0. A weapon is kept, at least one, and more while its blueprint (the
        catalog name of the "<base> Blueprint" entry, when one exists) is not
@@ -180,6 +199,32 @@ def compute_verdict(
     if item is None:
         return Verdict(UNKNOWN, UNKNOWN_REASON)
 
+    if is_blueprint(item):
+        if learned is False:
+            return Verdict(LEARN, UNLEARNED_REASON)
+        if learned is None and not recorded_learned:
+            return Verdict(LEARN, MAYBE_LEARNED_REASON)
+        known = _item_verdict(
+            item, needs, progress, owned, today, show_ended, blueprint, home_outputs
+        )
+        return known._replace(reason=f"{KNOWN_BLUEPRINT_REASON}. {known.reason}")
+
+    return _item_verdict(
+        item, needs, progress, owned, today, show_ended, blueprint, home_outputs
+    )
+
+
+def _item_verdict(
+    item: Item,
+    needs: Iterable[Need],
+    progress: Mapping[tuple[str, str], int],
+    owned: int | None,
+    today: datetime.date,
+    show_ended: bool,  # noqa: FBT001
+    blueprint: str | None,
+    home_outputs: Iterable | None,
+) -> Verdict:
+    """compute_verdict's rules 0 to 3 for a known item."""
     if is_weapon(item, blueprint):
         reason = "Weapon, keep at least one"
         if blueprint:

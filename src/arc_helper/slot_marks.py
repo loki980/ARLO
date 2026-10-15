@@ -23,6 +23,10 @@ the boxes of the type icon and the right mark, for painting over the icon:
   or III, a narrow run then a wide one is IV.
 - A stack count is white ink that starts with a short x glyph. The digits
   after it are read by Tesseract.
+
+learned_check takes a whole frame and a slot rect, and reads the slot's top
+right corner for the white check mark the game draws on a learned
+blueprint (see the constants above it for the measured mark).
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from __future__ import annotations
 import logging
 from typing import NamedTuple
 
+import cv2
 import numpy as np
 import pytesseract
 from PIL import Image
@@ -416,3 +421,171 @@ def bar_geometry(slot_rgb: np.ndarray) -> BarGeometry | None:
     return BarGeometry(
         bar.rect, (int(colour[0]), int(colour[1]), int(colour[2])), icon_box, mark_box
     )
+
+
+# Learned blueprint check: the game draws a small white check mark in the
+# top right corner of a learned blueprint's tile. Measured on the Vertical
+# Grip III Blueprint tile of Jeffrey's 15 Oct screenshot, scaled to a 194 px
+# slot: the mark spans 0.79 to 0.91 of the slot width and 0.10 to 0.19 of
+# its height (about 24 by 17 px), its ink is about (222, 213, 208) on the
+# blueprint grid, whose lines have a lowest channel under 100, 27 percent of
+# its box is inked and 4 to 5 percent of its ink lies in the box's top left
+# quarter. The tracked item eye drawn in the same corner spans 0.78 to 0.93
+# by 0.09 to 0.20, fills 39 to 41 percent of its box, has 23 to 25 percent
+# of its ink in the top left quarter and encloses 31 to 33 percent of its
+# box around the pupil. All shares are of the slot's own width and height,
+# so a screenshot stretched on one axis reads the same.
+CHECK_ZONE = (0.70, 0.04, 0.97, 0.27)  # left, top, right, bottom shares
+# Where the mark itself sits. Item art from outside the zone reaching in
+# here can hide a mark, so the corner cannot be judged
+CHECK_CORE = (0.77, 0.08, 0.93, 0.21)
+_CHECK_INK_MIN = 150.0  # lowest channel of mark ink
+_CHECK_INK_SPREAD = 60.0  # highest minus lowest channel of mark ink
+_CHECK_MIN_AREA = 0.0012  # of the slot area, the mark is 0.0029
+_CHECK_WIDTH = (0.08, 0.17)  # box width over slot width, the mark is 0.12
+_CHECK_HEIGHT = (0.05, 0.14)  # box height over slot height, the mark is 0.09
+_CHECK_FILL_MAX = 0.34  # inked share of the box, the mark 0.27, the eye 0.4
+_CHECK_QUARTER_MAX = 0.12  # ink share in the top left quarter, 0.05 vs 0.23
+_CHECK_HOLE_MAX = 0.05  # enclosed unlit share of the box, 0 vs the eye's 0.31
+# Slot width over height outside which the corner is not read. Blueprints
+# sit in 1 by 1 slots, and Jeffrey's screenshot stretched to 16:9 has 1.25
+_CHECK_ASPECT = (0.74, 1.35)
+_COVER_LUMA = 170.0  # luminance that counts as covering the corner
+_COVER_SHARE = 0.5  # zone share of covering pixels that hides the mark
+
+
+class _Ink(NamedTuple):
+    """One white ink component in the zone, in slot shares and zone px."""
+
+    width: float
+    height: float
+    fill: float
+    quarter: float
+    hole: float
+    box: Rect
+
+
+def _hole_share(own: np.ndarray) -> float:
+    """Share of a component's box that is unlit but enclosed by its ink."""
+    padded = np.pad(own.astype(np.uint8), 1)
+    mask = np.zeros((padded.shape[0] + 2, padded.shape[1] + 2), np.uint8)
+    cv2.floodFill(padded, mask, (0, 0), 1)
+    return float(np.count_nonzero(padded == 0)) / own.size
+
+
+def _inks(zone: np.ndarray, slot_w: int, slot_h: int) -> list[_Ink]:
+    """The white ink components in the mark zone, small specks dropped."""
+    pixels = zone.astype(np.float32)
+    low = pixels.min(axis=2)
+    spread = pixels.max(axis=2) - low
+    ink = ((low >= _CHECK_INK_MIN) & (spread <= _CHECK_INK_SPREAD)).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(ink, connectivity=8)
+    found = []
+    for label in range(1, count):
+        left, top, width, height, area = (int(v) for v in stats[label][:5])
+        if area < _CHECK_MIN_AREA * slot_w * slot_h:
+            continue
+        own = labels[top : top + height, left : left + width] == label
+        quarter = own[: max(1, height // 2), : max(1, width // 2)]
+        found.append(
+            _Ink(
+                width / slot_w,
+                height / slot_h,
+                area / (width * height),
+                float(np.count_nonzero(quarter)) / area,
+                _hole_share(own),
+                Rect(left, top, left + width, top + height),
+            )
+        )
+    return found
+
+
+def _is_check(ink: _Ink, zone_w: int, zone_h: int) -> bool:
+    inside = (
+        ink.box.left > 0
+        and ink.box.top > 0
+        and ink.box.right < zone_w
+        and ink.box.bottom < zone_h
+    )
+    return (
+        inside
+        and _CHECK_WIDTH[0] <= ink.width <= _CHECK_WIDTH[1]
+        and _CHECK_HEIGHT[0] <= ink.height <= _CHECK_HEIGHT[1]
+        and ink.fill <= _CHECK_FILL_MAX
+        and ink.quarter <= _CHECK_QUARTER_MAX
+        and ink.hole <= _CHECK_HOLE_MAX
+    )
+
+
+def _share_box(rect: Rect, shares: tuple[float, float, float, float]) -> Rect:
+    width, height = rect.right - rect.left, rect.bottom - rect.top
+    return Rect(
+        rect.left + round(shares[0] * width),
+        rect.top + round(shares[1] * height),
+        rect.left + round(shares[2] * width),
+        rect.top + round(shares[3] * height),
+    )
+
+
+def learned_check(rgb: np.ndarray, slot_rect: Rect) -> bool | None:
+    """Whether a slot shows the game's learned blueprint check mark.
+
+    rgb is an RGB frame and slot_rect a slot in its pixels (as from
+    grid.find_slots). Reads the top right corner zone (CHECK_ZONE) for a
+    white check shaped component: inside the zone, check sized, thin (low
+    fill), with almost no ink in its top left quarter and no enclosed hole
+    (which rules out the tracked item eye). True with the mark, False
+    without. None when the corner cannot be judged: the zone is off the
+    frame, the slot is not about square, at least half the zone is bright
+    (the item card or another window over it) or white item art reaching in
+    from outside the zone covers the mark's own spot (CHECK_CORE).
+    """
+    width = slot_rect.right - slot_rect.left
+    height = slot_rect.bottom - slot_rect.top
+    if width <= 0 or height <= 0:
+        return None
+    if not _CHECK_ASPECT[0] <= width / height <= _CHECK_ASPECT[1]:
+        return None
+    zone_rect = _share_box(slot_rect, CHECK_ZONE)
+    frame_h, frame_w = rgb.shape[:2]
+    if (
+        zone_rect.left < 0
+        or zone_rect.top < 0
+        or zone_rect.right > frame_w
+        or zone_rect.bottom > frame_h
+    ):
+        return None
+    zone = np.asarray(
+        rgb[zone_rect.top : zone_rect.bottom, zone_rect.left : zone_rect.right, :3]
+    )
+    if zone.size == 0:
+        return None
+    if float(np.mean(_luminance(zone) >= _COVER_LUMA)) >= _COVER_SHARE:
+        return None
+    zone_h, zone_w = zone.shape[:2]
+    inks = _inks(zone, width, height)
+    if any(_is_check(ink, zone_w, zone_h) for ink in inks):
+        return True
+    core = _share_box(slot_rect, CHECK_CORE)
+    core = Rect(
+        core.left - zone_rect.left,
+        core.top - zone_rect.top,
+        core.right - zone_rect.left,
+        core.bottom - zone_rect.top,
+    )
+    for ink in inks:
+        reaches_in = (
+            ink.box.left == 0
+            or ink.box.top == 0
+            or ink.box.right >= zone_w
+            or ink.box.bottom >= zone_h
+        )
+        overlaps_core = (
+            ink.box.left < core.right
+            and core.left < ink.box.right
+            and ink.box.top < core.bottom
+            and core.top < ink.box.bottom
+        )
+        if reaches_in and overlaps_core:
+            return None
+    return False
