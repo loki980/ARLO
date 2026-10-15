@@ -30,10 +30,12 @@ dropped names as twins. A slot whose top name has twins is identified only
 when the tier numeral settles which one it is.
 
 badges_for turns the identified slots into badge dicts in the badge
-surface's message format (badge_surface.encode_message on branch
-badge-surface): a gold border on every item an unfinished goal still needs and a price
-pill bottom left on every identified item with a sell price (top left on
-wide slots, where the game draws the ammo count bottom left).
+surface's message format (badge_surface.encode_message): for every
+identified item with a sell price, a patch over the type icon of a square
+slot's bottom bar (a dark pill top left on wide slots) showing the stack's
+worth. For an item an unfinished goal still needs, a have/need tag top left,
+red with a red tile outline while the stash is short, green with a check mark
+when it is enough.
 
 Pure functions, no Tk or screen access. The embedder is only touched when a
 frame has filled slots.
@@ -373,7 +375,7 @@ def patch_badge(slot: SlotItem, worth: int) -> dict | None:
         "icon_right": left + bar.icon_box.right,
         "patch_right": left + bar.patch_right,
         "colour": list(bar.colour),
-        "text": format_price(worth),
+        "text": PRICE_PREFIX + format_price(worth),
         "radius": PATCH_RADIUS,
         "kind": "patch",
     }

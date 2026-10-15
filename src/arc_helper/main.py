@@ -114,7 +114,7 @@ TRIGGER_RECHECK_S = 1.0
 # well inside HOLD_FLOOR_S
 TOUCH_EVERY_S = 1.0
 
-# Gold frame around the hovered cell for keep items, in Tk units scaled the
+# Gold frame around the hovered cell of an identified item, in Tk units scaled the
 # way the chips scale
 BORDER_WIDTH_TK = 3
 
@@ -287,8 +287,8 @@ def hovered_cell_on_screen(
     return to_screen(cell, origin) if cell is not None else None
 
 
-# Stash badges: a price on every identified slot and a gold border on keep
-# items, drawn while the inventory grid is still. A pass starts at most once
+# Stash badges: the stack's worth on every identified slot and a need tag and
+# outline on needed items, drawn while the inventory grid is still. A pass starts at most once
 # per STASH_PASS_GAP_S. The watcher thread wakes at least every STASH_TICK_S.
 STASH_PASS_GAP_S = 1.0
 STASH_TICK_S = 0.1
@@ -1509,7 +1509,7 @@ class Application:
         self.chips = (
             TooltipChips(self.root) if self.settings.overlay.tooltip_chips else None
         )
-        # Gold frame around the hovered keep item, hidden with the chips
+        # Gold frame around the hovered item, hidden with the chips
         self.border = CellBorder(self.root) if self.chips is not None else None
         if self.chips is not None and self.border is not None:
             self.chips.on_hide = self.border.hide

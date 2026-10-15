@@ -222,7 +222,7 @@ def test_square_slot_with_icon_box_gets_a_patch_in_screen_px():
             "icon_right": 120,
             "patch_right": 100 + _bar().patch_right,
             "colour": [40, 90, 120],
-            "text": "810",
+            "text": "Φ 810",
             "radius": 6,
             "kind": "patch",
         }
@@ -245,7 +245,7 @@ def test_patch_text_is_the_stacks_worth():
     (patch,) = badges_for(
         [_square(item, bar=_bar(), stack=3)], lambda _s: Verdict("sell", "x")
     )
-    assert patch["text"] == "2.4k"
+    assert patch["text"] == "Φ 2.4k"
 
 
 def test_need_tag_is_red_with_an_outline_while_short_and_green_when_enough():
@@ -391,3 +391,11 @@ def test_stacks_are_read_for_identified_slots_only(stubs):
     )
     assert [s.stack for s in found] == [3, None]
     assert len(stack_reads) == 1
+
+
+def test_a_wide_slot_with_a_need_tag_moves_its_worth_tag_to_the_top_right():
+    item = Item(name="Weapon", action="Keep", sell_price=810)
+    wide = SlotItem(Rect(0, 10, 200, 100), "stash", item, None, None, 0.9, 0.2, "x")
+    badges = badges_for([wide], lambda _s: Verdict("keep", "x", 1, (("Quest", 1),)))
+    corners = {b["text"]: b["corner"] for b in badges if b["kind"] == "tag"}
+    assert corners == {"1/1": "tl", "Φ 810": "tr"}
