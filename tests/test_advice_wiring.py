@@ -16,15 +16,15 @@ from arc_helper.database import Item
 from arc_helper.database import Need
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
-from arc_helper.layout_home import loadout_box
+from arc_helper.layout_home import fixed_home
 from arc_helper.main import POPUP
 from arc_helper.main import POPUP_CORNER
 from arc_helper.main import POPUP_HOME
+from arc_helper.main import POPUP_RIGHT
 from arc_helper.main import Application
 from arc_helper.main import OverlayRects
 from arc_helper.main import Scanner
 from arc_helper.main import ScannerState
-from arc_helper.main import popup_spot_rects
 from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 from arc_helper.verdict import KEEP
@@ -32,10 +32,9 @@ from arc_helper.verdict import Verdict
 
 SCREEN = (3840, 2160)
 CORNER = Point(100, 100)
-BOX = loadout_box(SCREEN)
+# The fixed home, the LOADOUT box down to the floor at 2009
+BOX = fixed_home(SCREEN)
 BOX_WIDTH = BOX.right - BOX.left
-# A card in the upper middle of the screen, clear of both spots
-CLEAR_CARD = Rect(1500, 300, 2200, 1200)
 
 
 def _card(title="Keep 7"):
@@ -90,13 +89,17 @@ class _Recorder:
 
 @pytest.fixture
 def advice(monkeypatch):
-    """A real AdviceWindow on stub Tk whose rendered card is 200 px tall."""
+    """A real AdviceWindow on stub Tk whose card is 200 px tall at box width.
+
+    The fake card's height scales with the render scale like a real one.
+    """
     backend = SimpleNamespace(tk_scale=1.0, resolution=lambda: SCREEN)
     renders = []
 
     def fake_render(card, scale):
         renders.append((card, scale))
-        return Image.new("RGBA", (round(560 * scale), fake_render.height))
+        height = round(fake_render.height * scale * 560 / BOX_WIDTH)
+        return Image.new("RGBA", (round(560 * scale), height))
 
     fake_render.height = 200
     monkeypatch.setattr(advice_window.tk, "Toplevel", _FakeWidget)
@@ -208,52 +211,58 @@ def test_advice_card_rect_is_published_as_the_popup(monkeypatch, advice):
 
 def test_spots_use_the_card_size(monkeypatch, advice):
     app = _app(monkeypatch, advice)
-    # Before the first show the spots are the size of the LOADOUT box
+    # Before the first show the spots are the size of the home box
     home, corner = app._popup_spots()  # noqa: SLF001
     assert home == BOX
     assert corner == Rect(100, 100, 100 + BOX_WIDTH, 100 + BOX.bottom - BOX.top)
 
-    # A tall card shifts home up to the floor, and the spot is where it shows
+    # A card too tall for the box is scaled down, never raised above home
     advice.render.height = 500
     _pump(app, ("advice", "Battery", _card(), 3000))
+    rect = advice.rect_phys()
+    assert (rect.left, rect.top) == (BOX.left, BOX.top)
+    assert rect.bottom <= BOX.bottom
+    assert rect.right - rect.left < BOX_WIDTH
     home, corner = app._popup_spots()  # noqa: SLF001
-    assert (home, corner) == popup_spot_rects(SCREEN, (BOX_WIDTH, 500), CORNER)
-    assert advice.rect_phys() == home
+    assert home == rect
     labelled = app.overlay_rects.labelled()
     assert (labelled[POPUP_HOME], labelled[POPUP_CORNER]) == (home, corner)
 
 
-def test_card_moves_to_the_corner_and_back_home(monkeypatch, advice):
+def test_card_moves_to_escape_spots_and_back_home(monkeypatch, advice):
     app = _app(monkeypatch, advice)
     _pump(app, ("advice", "Battery", _card(), 3000))
 
-    # A game card under the advice card sends it to the corner at once
-    _pump(app, ("popup_spot", POPUP_CORNER, None))
+    # A game card under the advice card sends it aside at once, same size
+    _pump(app, ("popup_spot", POPUP_RIGHT, Rect(2200, BOX.top, 2880, BOX.top + 200)))
+    assert advice.rect_phys() == Rect(2200, BOX.top, 2880, BOX.top + 200)
+    assert app.overlay_rects.popup_away()
+
+    _pump(app, ("popup_spot", POPUP_CORNER, Rect(100, 100, 780, 300)))
     assert advice.rect_phys() == Rect(100, 100, 100 + BOX_WIDTH, 300)
     assert app.overlay_rects.popup_away()
 
-    # A taller card for the next item would cover the game card at home,
-    # so it stays in the corner
-    covering = Rect(1300, 1400, 2000, 1600)
-    advice.render.height = 500
-    _pump(
-        app,
-        ("popup_spot", POPUP_HOME, covering),
-        ("advice", "Anvil I", _card("Keep 1"), 3000),
-    )
-    assert app._popup_spot == POPUP_CORNER  # noqa: SLF001
-    assert advice.rect_phys().left == 100
+    # The next card shown while away keeps the size it has at home
+    _pump(app, ("advice", "Anvil I", _card("Keep 1"), 3000))
+    assert advice.rect_phys() == Rect(100, 100, 100 + BOX_WIDTH, 300)
 
-    # A card clear of home brings it back after the show
-    _pump(
-        app,
-        ("popup_spot", POPUP_HOME, CLEAR_CARD),
-        ("advice", "Battery", _card(), 3000),
-    )
-    home, _ = popup_spot_rects(SCREEN, (BOX_WIDTH, 500), CORNER)
-    assert app._popup_spot == POPUP_HOME  # noqa: SLF001
-    assert advice.rect_phys() == home
+    _pump(app, ("popup_spot", POPUP_HOME, None))
+    assert advice.rect_phys() == Rect(BOX.left, BOX.top, BOX.right, BOX.top + 200)
     assert not app.overlay_rects.popup_away()
+
+
+def test_found_home_moves_the_card_beneath_the_second_gun(monkeypatch, advice):
+    app = _app(monkeypatch, advice)
+    _pump(app, ("advice", "Battery", _card(), 3000))
+
+    # Home beneath the second gun on the base stash screen: as wide as the
+    # gun, 13 px below it
+    gun_home = Rect(1384, 1631, 1994, 2009)
+    _pump(app, ("popup_home", gun_home))
+    rect = advice.rect_phys()
+    assert (rect.left, rect.top) == (1384, 1631)
+    assert rect.right - rect.left <= 610
+    assert app.overlay_rects.labelled()[POPUP_HOME] == rect
 
 
 def test_advice_card_false_keeps_the_popup_path(monkeypatch):
