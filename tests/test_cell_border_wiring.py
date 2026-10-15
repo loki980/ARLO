@@ -51,7 +51,7 @@ def test_border_shows_beside_placed_chips(monkeypatch):
     app = _app(monkeypatch)
     app._apply_border(CELL, placed=True)  # noqa: SLF001
     # 3 Tk px at a 1.75 Tk scale
-    assert app.border.calls == [("show", CELL, 5)]
+    assert app.border.calls == [("show", CELL, 10)]
 
 
 def test_border_hides_when_the_chips_message_placed_no_chip(monkeypatch):
@@ -97,8 +97,8 @@ def test_border_bar_rects_follow_the_shown_frame():
     border = CellBorder.__new__(CellBorder)
     border._shown = None  # noqa: SLF001
     assert border.bar_rects() == ()
-    border._shown = (CELL, 5, "#f2b134")  # noqa: SLF001
-    assert border.bar_rects() == tuple(frame_bars(CELL, 5))
+    border._shown = (CELL, 10, "#ffc83d")  # noqa: SLF001
+    assert border.bar_rects() == tuple(frame_bars(CELL, 10))
 
 
 def test_screen_rects_shift_into_capture_coordinates():
@@ -201,7 +201,7 @@ def test_hovered_gold_frame_shows_for_a_sell_verdict(monkeypatch):
     # The app shows the frame beside placed chips
     app = _app(monkeypatch)
     app._apply_border(message[4], placed=True)  # noqa: SLF001
-    assert app.border.calls == [("show", CELL, 5)]
+    assert app.border.calls == [("show", CELL, 10)]
 
 
 class _StubEngine:

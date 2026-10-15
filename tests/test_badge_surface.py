@@ -17,7 +17,7 @@ from arc_helper.badge_surface import encode_message
 from arc_helper.badge_surface import find_system_python
 from arc_helper.badge_surface import render_png
 
-GOLD = (0xF2, 0xB1, 0x34)
+GOLD = (0xFF, 0xC8, 0x3D)
 
 
 def test_draw_message_round_trips_through_the_helper_parser():
@@ -31,7 +31,7 @@ def test_draw_message_round_trips_through_the_helper_parser():
         {
             "kind": "border",
             "rect": [10, 20, 110, 120],
-            "color": "#f2b134",
+            "color": "#ffc83d",
             "width": 3,
             "radius": 4,
         },

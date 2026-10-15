@@ -16,7 +16,7 @@ from .screen import phys_to_tk
 from .tooltip_layout import Rect
 
 # The hovered-cell gold, the one gold every ARLO frame and border uses
-HOVER_GOLD = "#f2b134"
+HOVER_GOLD = "#ffc83d"
 
 
 class FrameBars(NamedTuple):

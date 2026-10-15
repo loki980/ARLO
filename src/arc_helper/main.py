@@ -116,7 +116,7 @@ TOUCH_EVERY_S = 1.0
 
 # Gold frame around the hovered cell of an identified item, in Tk units scaled the
 # way the chips scale
-BORDER_WIDTH_TK = 3
+BORDER_WIDTH_TK = 6
 
 
 def scan_hold_s(

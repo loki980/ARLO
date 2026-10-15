@@ -78,7 +78,7 @@ TIER = re.compile(r"\s+(I|II|III|IV|V)$")
 # cell's frame (cell_border.HOVER_GOLD), never a stash outline
 SHORT_RED = "#ff5c4d"
 ENOUGH_GREEN = "#4fd36b"
-BORDER_WIDTH = 3
+BORDER_WIDTH = 5
 BORDER_RADIUS = 4
 PRICE_PREFIX = "Φ "
 NEED_CORNER = "tl"
