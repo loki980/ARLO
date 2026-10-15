@@ -23,7 +23,11 @@ the search runs in a window on each side of the card rectangle:
    80 px, area over width plus height at most 14) and reach within 130 px
    of the card edge. The band is wider than the gap to the card because the
    ring's side next to the card can be dim or lie under ARLO's gold frame,
-   leaving only the far sides as seeds.
+   leaving only the far sides as seeds. A seed is a straight run or an L or
+   U of the ring's sides, so its pixels lie within 14 px of its own bounding
+   box edges. A seed with more than 30 percent of its pixels further inside
+   is a slanted part of an item icon (a gun's grip cut off by the window
+   edge passes the line test) and is dropped.
 5. the left side of the card is searched first, the right side only when
    the left has no seed. Seeds are tried largest first. The cell is the
    bounding box of the seed's component in the closed mask, which also
@@ -61,6 +65,8 @@ BLOB_SIDE = 21
 SEED_MIN_LENGTH = 80
 SEED_MAX_THICKNESS = 14
 EDGE_BAND = 130
+SEED_INNER_MARGIN = 14
+SEED_INNER_MAX = 0.3
 CARD_GAP = 3
 WINDOW_WIDTH = 720
 WINDOW_ABOVE = 100
@@ -185,6 +191,14 @@ def _clear_ignored(
             mask[top:bottom, left:right] = 0
 
 
+def _inner_share(mask: np.ndarray) -> float:
+    """Share of a seed's pixels away from its bounding box edges."""
+    inner = mask[
+        SEED_INNER_MARGIN:-SEED_INNER_MARGIN, SEED_INNER_MARGIN:-SEED_INNER_MARGIN
+    ]
+    return int(np.count_nonzero(inner)) / max(1, int(np.count_nonzero(mask)))
+
+
 def _cell_sized(width: int, height: int) -> bool:
     return (
         CELL_MIN_SIDE <= width <= CELL_MAX_SIDE
@@ -229,11 +243,14 @@ def _search_side(
     count, labels, stats, _ = cv2.connectedComponentsWithStats(thick)
     seeds = []
     for label in range(1, count):
-        left, _, w, h, area = (int(v) for v in stats[label][:5])
+        left, top, w, h, area = (int(v) for v in stats[label][:5])
         if max(w, h) < SEED_MIN_LENGTH or area / (w + h) > SEED_MAX_THICKNESS:
             continue
         near = left + w >= edge - EDGE_BAND if side == LEFT else left <= EDGE_BAND
-        if near:
+        if not near:
+            continue
+        own = labels[top : top + h, left : left + w] == label
+        if _inner_share(own) <= SEED_INNER_MAX:
             seeds.append((area, label))
     if not seeds:
         return None
