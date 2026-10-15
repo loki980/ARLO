@@ -53,6 +53,7 @@ from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
 from arc_helper.grid import STILL_SCALE
+from arc_helper.grid import find_slots
 from arc_helper.grid import frames_still
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
@@ -144,7 +145,8 @@ class OverlayRects:
     (POPUP and STATUS, only while mapped) and the popup's two spots
     (POPUP_HOME and POPUP_CORNER, sized like the popup), so the scanner can
     tell them apart from the chips and the gold frame, which sit on the card
-    by design. popup_away is True while the popup sits in its corner spot.
+    by design. popup_away is True while the popup sits at any spot but home
+    (beside or below the card, or the corner).
     """
 
     def __init__(self) -> None:
@@ -183,8 +185,18 @@ POPUP = "popup"
 STATUS = "status"
 POPUP_HOME = "popup_home"
 POPUP_CORNER = "popup_corner"
+# Spots beside or below the item card the popup moves to while the card
+# covers home
+POPUP_LEFT = "popup_left"
+POPUP_RIGHT = "popup_right"
+POPUP_BELOW = "popup_below"
 # ARLO windows that make a read unusable when they cover the card
 COVERING_WINDOWS = (POPUP, STATUS)
+# Gap between the item card and an escape spot beside or below it, as a
+# fraction of the screen height (22 px at 2160)
+ESCAPE_GAP = 0.01
+# Seconds between looks for the weapon slots that place home
+HOME_REFRESH_S = 1.0
 
 
 def rects_intersect(a: Rect, b: Rect) -> bool:
@@ -203,48 +215,99 @@ def covering_window(card: Rect, labelled: Mapping[str, Rect]) -> str | None:
     return None
 
 
-def popup_escape_spot(card: Rect, labelled: Mapping[str, Rect]) -> str | None:
-    """Spot the popup moves to so it stops covering the card.
+def _on_screen(rect: Rect, screen: tuple[int, int]) -> bool:
+    return (
+        rect.left >= 0
+        and rect.top >= 0
+        and rect.right <= screen[0]
+        and rect.bottom <= screen[1]
+    )
 
-    The other spot from the one the card overlaps, and only when the card
-    leaves that one free. None when neither spot helps.
+
+def popup_escape_spot(
+    card: Rect, labelled: Mapping[str, Rect], screen: tuple[int, int]
+) -> tuple[str, Rect] | None:
+    """Spot and rect the popup moves to so it stops covering the card.
+
+    Candidates are rects the size of the popup at home (the labelled home
+    spot): home itself, left and right of the card at home's height, below
+    the card at home's left, then the corner spot. Left and right go in
+    order of the smaller horizontal move from home, left on a tie. The first
+    candidate that stays on screen and clear of the card wins, None when
+    none does. The gap to the card is ESCAPE_GAP of the screen height.
     """
     home = labelled.get(POPUP_HOME)
-    corner = labelled.get(POPUP_CORNER)
-    if home is None or corner is None:
+    if home is None:
         return None
-    on_home = rects_intersect(card, home)
-    on_corner = rects_intersect(card, corner)
-    if on_home and not on_corner:
-        return POPUP_CORNER
-    if on_corner and not on_home:
-        return POPUP_HOME
+    width = home.right - home.left
+    height = home.bottom - home.top
+    gap = round(screen[1] * ESCAPE_GAP)
+
+    def at(x: int, y: int) -> Rect:
+        return Rect(x, y, x + width, y + height)
+
+    beside = [
+        (POPUP_LEFT, at(card.left - gap - width, home.top)),
+        (POPUP_RIGHT, at(card.right + gap, home.top)),
+    ]
+    beside.sort(key=lambda spot: abs(spot[1].left - home.left))
+    candidates = [(POPUP_HOME, home), *beside]
+    candidates.append((POPUP_BELOW, at(home.left, card.bottom + gap)))
+    corner = labelled.get(POPUP_CORNER)
+    if corner is not None:
+        candidates.append((POPUP_CORNER, corner))
+    for label, rect in candidates:
+        if _on_screen(rect, screen) and not rects_intersect(rect, card):
+            return label, rect
     return None
 
 
-# The popup's home: the LOADOUT panel box (see layout_home). Its top left is
-# the popup's top left. A taller popup grows downward but never below
-# POPUP_HOME_FLOOR.
+def home_is_free(card: Rect | None, labelled: Mapping[str, Rect]) -> bool:
+    """True when the popup at home would leave the card (if any) uncovered."""
+    if card is None:
+        return True
+    home = labelled.get(POPUP_HOME)
+    return home is not None and not rects_intersect(card, home)
+
+
+# The fixed home's fractions (see layout_home), kept for the demo scripts
 POPUP_HOME_LEFT = layout_home.LEFT
 POPUP_HOME_TOP = layout_home.TOP
 POPUP_HOME_FLOOR = layout_home.FLOOR
 
 
+# Home moves only when an edge moves by more than this fraction of the
+# screen height (4 px at 2160), more than the slot finder's jitter
+HOME_MOVE = 0.002
+
+
+def home_moved(old: Rect | None, new: Rect, screen: tuple[int, int]) -> bool:
+    """True when the new home box differs from the old one beyond jitter."""
+    if old is None:
+        return True
+    limit = screen[1] * HOME_MOVE
+    return any(abs(a - b) > limit for a, b in zip(old, new, strict=True))
+
+
 def popup_spot_rects(
-    screen: tuple[int, int], size: tuple[int, int], corner: Point
+    screen: tuple[int, int],
+    size: tuple[int, int],
+    corner: Point,
+    home: Rect | None = None,
 ) -> tuple[Rect, Rect]:
     """The popup's home and top left corner spots in physical px.
 
     screen is the screen size, size the popup's or advice card's size and
-    corner the top left spot (OVERLAY_X and OVERLAY_Y), used while a card
-    covers home.
+    corner the top left spot (OVERLAY_X and OVERLAY_Y). home is the home box
+    (layout_home), the fixed LOADOUT box when None. The spot's top left is
+    the box's, raised only to keep a taller popup's bottom on the floor.
     """
-    screen_w, screen_h = screen
+    if home is None:
+        home = layout_home.fixed_home(screen)
     width, height = size
-    x = round(screen_w * POPUP_HOME_LEFT)
-    y = min(
-        round(screen_h * POPUP_HOME_TOP), round(screen_h * POPUP_HOME_FLOOR) - height
-    )
+    floor = round(screen[1] * layout_home.FLOOR)
+    x = home.left
+    y = min(home.top, floor - height)
     return (
         Rect(x, y, x + width, y + height),
         Rect(corner.x, corner.y, corner.x + width, corner.y + height),
@@ -925,6 +988,11 @@ class Scanner:
     _card_state: str = "none"
     _last_touch: float = 0.0
 
+    # Monotonic time of the last look for the weapon slots and the home box
+    # last sent to the Tk thread, None until one was found
+    _home_checked: float = float("-inf")
+    _home_sent: Rect | None = None
+
     # Scan periods measured in this ACTIVE stretch (seconds) and the hold
     # computed after the latest scan (ms), sent with every overlay, touch and
     # chips message. None until the first scan, which leaves display_time.
@@ -1107,6 +1175,8 @@ class Scanner:
         locate_s = time.monotonic() - start
         self.stats.tooltip_scans += 1
         self._feed_stash(ocr)
+        self._refresh_home(ocr)
+        self._return_home(None if sighting is None else self._card_rect(ocr))
 
         if sighting is None:
             sleep_s = min(settings.scan.tooltip_scan_interval, NO_CARD_SLEEP_CAP_S)
@@ -1171,6 +1241,48 @@ class Scanner:
         card = getattr(ocr, "_last_card", None)
         self.stash.feed(capture, card, self.overlay_rects.snapshot())
 
+    def _refresh_home(self, ocr: OCREngine) -> None:
+        """Send home beneath the second gun when the weapon slots moved.
+
+        At most once every HOME_REFRESH_S, find_slots looks at this cycle's
+        capture when it is the full screen. Home is sent only when both
+        weapon slots are found and it moved by more than HOME_MOVE of the
+        screen height, so the slot finder's pixel jitter does not re-render
+        the card.
+        """
+        now = time.monotonic()
+        if now - self._home_checked < HOME_REFRESH_S:
+            return
+        self._home_checked = now
+        capture = getattr(ocr, "_last_capture", None)
+        origin = getattr(ocr, "_last_origin", None)
+        if capture is None or origin is None or (origin.x, origin.y) != (0, 0):
+            return
+        rgb = _frame_rgb(capture)
+        screen = (rgb.shape[1], rgb.shape[0])
+        if screen != get_screen_resolution():
+            return
+        home = layout_home.home_below_weapons(
+            layout_home.weapon_slots(find_slots(rgb)), screen
+        )
+        if home is None or not home_moved(self._home_sent, home, screen):
+            return
+        logger.debug("popup home box=%s", tuple(home))
+        self._home_sent = home
+        self.ui_queue.put(("popup_home", home))
+
+    def _return_home(self, card: Rect | None) -> None:
+        """Queue the popup's return home while it is away and home is free.
+
+        Runs on every scan, so the popup goes home on the first scan whose
+        card (the same item or not) leaves home free, or that has no card.
+        Hiding the windows after CARD_GONE_CYCLES is a separate event.
+        """
+        if not self.overlay_rects.popup_away():
+            return
+        if home_is_free(card, self.overlay_rects.labelled()):
+            self._queue_popup_spot((POPUP_HOME, None))
+
     def _clear_stash(self, reason: str) -> None:
         if self.stash is not None:
             self.stash.clear(reason)
@@ -1234,7 +1346,9 @@ class Scanner:
             if covering is not None:
                 logger.debug("read discarded: card covered by %s", covering)
                 if covering == POPUP:
-                    self._queue_popup_spot(popup_escape_spot(card, labelled))
+                    self._queue_popup_spot(
+                        popup_escape_spot(card, labelled, get_screen_resolution())
+                    )
                 return False
 
         # Look up first: raw reads of one item vary between scans (ANVIL IV,
@@ -1282,14 +1396,6 @@ class Scanner:
 
         verdict = self._verdict_for(recommendation, settings.show_ended_projects)
 
-        # A new item may bring the popup back home. The same item never
-        # moves it. Home depends on the new item's popup size (a taller
-        # popup shifts it up, a shorter one down), so every candidate goes
-        # to the Tk thread with its card, which moves the popup only when
-        # the card leaves home free at the size after the show.
-        if self.overlay_rects.popup_away() and not same_item and card is not None:
-            self._queue_popup_spot(POPUP_HOME, card)
-
         # Show overlay (must be done on main thread)
         self._show_overlay(shown_name, recommendation, verdict)
 
@@ -1304,22 +1410,25 @@ class Scanner:
     @staticmethod
     def _card_on_screen() -> Rect | None:
         """The last scan's item card in physical screen px, None without one."""
-        engine = get_ocr_engine()
+        return Scanner._card_rect(get_ocr_engine())
+
+    @staticmethod
+    def _card_rect(engine) -> Rect | None:
+        """The engine's last item card in physical screen px, None without one."""
         origin = getattr(engine, "_last_origin", None)
         card = getattr(engine, "_last_card", None)
         if origin is None or card is None:
             return None
         return to_screen(card, origin)
 
-    def _queue_popup_spot(self, spot: str | None, card: Rect | None = None) -> None:
-        """Queue the popup's move to a spot. None queues nothing.
+    def _queue_popup_spot(self, spot: tuple[str, Rect | None] | None) -> None:
+        """Queue the popup's move to a spot and its rect. None queues nothing.
 
-        With a card, the move home waits for the next popup show and only
-        happens when the card leaves home free at the popup's new size.
+        Home goes without a rect: the Tk thread knows where home is.
         """
         if spot is None:
             return
-        self.ui_queue.put(("popup_spot", spot, card))
+        self.ui_queue.put(("popup_spot", *spot))
 
     def _verdict_for(self, recommendation: Item | None, show_ended: bool) -> Verdict:  # noqa: FBT001
         """Advice for the item from its needs and the recorded progress.
@@ -1465,6 +1574,8 @@ def _ui_message_detail(msg: tuple) -> str:
         return f"item={msg[1]}"
     if msg[0] == "popup_spot":
         return f"spot={msg[1]}"
+    if msg[0] == "popup_home":
+        return f"box={tuple(msg[1])}"
     return ""
 
 
@@ -1479,6 +1590,11 @@ class Application:
     _advice_card: AdviceCard | None = None
     _advice_size: tuple[int, int] | None = None
     _advice_hide_id: str | None = None
+    # Home box beneath the second gun from the scanner, None until the
+    # weapon slots were found (the fixed LOADOUT box then), and the top left
+    # of the popup's spot while away from home
+    _home_box: Rect | None = None
+    _popup_away_at: Point | None = None
 
     def __init__(self):
         """Initialize the application."""
@@ -1498,12 +1614,10 @@ class Application:
         # popup itself stays hidden
         if self.settings.overlay.advice_card:
             self.advice = AdviceWindow(self.root)
-        # OVERLAY_X and OVERLAY_Y now set the top left corner spot the popup
-        # moves to while a card covers its home in the LOADOUT panel
+        # OVERLAY_X and OVERLAY_Y now set the top left corner spot, the last
+        # spot the popup moves to while a card covers its home
         self._popup_corner = Point(self.overlay.overlay_x, self.overlay.overlay_y)
         self._popup_spot = POPUP_HOME
-        # Card of a queued return home, checked after the next popup show
-        self._home_card: Rect | None = None
         self._place_popup()
         self.status = StatusWindow(self.root, on_quit=self.quit)
         self.chips = (
@@ -1590,6 +1704,9 @@ class Application:
                     self._after_popup_show()
                 elif msg[0] == "popup_spot":
                     self._apply_popup_spot(msg[1], msg[2])
+                elif msg[0] == "popup_home":
+                    self._home_box = msg[1]
+                    self._place_popup()
                 elif msg[0] == "touch":
                     if self.advice is not None:
                         self._touch_advice(msg[1], msg[2])
@@ -1669,21 +1786,28 @@ class Application:
         if rect is not None:
             self._advice_size = (rect.right - rect.left, rect.bottom - rect.top)
 
+    def _home_rect(self) -> Rect:
+        """Home box: beneath the second gun once found, else the fixed one."""
+        if self._home_box is not None:
+            return self._home_box
+        return layout_home.fixed_home(get_screen_resolution())
+
     def _advice_box(self) -> Rect:
         """The box the advice card is placed in for the current spot.
 
-        Home is the LOADOUT box. The corner spot is a box of the same size
-        at OVERLAY_X and OVERLAY_Y, so the card keeps its scale.
+        Home is the home box. Away it is a box of home's size at the spot's
+        top left, cut at the screen's bottom, so the card keeps its scale.
         """
-        box = layout_home.loadout_box(get_screen_resolution())
-        if self._popup_spot != POPUP_CORNER:
-            return box
-        corner = self._popup_corner
+        home = self._home_rect()
+        if self._popup_spot == POPUP_HOME:
+            return home
+        at = self._popup_away_at or self._popup_corner
+        screen_h = get_screen_resolution()[1]
         return Rect(
-            corner.x,
-            corner.y,
-            corner.x + box.right - box.left,
-            corner.y + box.bottom - box.top,
+            at.x,
+            at.y,
+            at.x + home.right - home.left,
+            min(screen_h, at.y + home.bottom - home.top),
         )
 
     def _border_width_px(self) -> int:
@@ -1710,49 +1834,42 @@ class Application:
         """The popup's home and corner spots at its current size (main thread).
 
         With the advice card on, the size is the card's: its last shown
-        size, the LOADOUT box before the first show.
+        size, the home box before the first show.
         """
         screen = get_screen_resolution()
+        home = self._home_rect()
         if self.advice is not None:
             size = self._advice_size
             if size is None:
-                box = layout_home.loadout_box(screen)
-                size = (box.right - box.left, box.bottom - box.top)
-            return popup_spot_rects(screen, size, self._popup_corner)
+                size = (home.right - home.left, home.bottom - home.top)
+            return popup_spot_rects(screen, size, self._popup_corner, home)
         tk_scale = get_backend().tk_scale
         size = (
             round(self.overlay.window.winfo_width() * tk_scale),
             round(self.overlay.window.winfo_height() * tk_scale),
         )
-        return popup_spot_rects(screen, size, self._popup_corner)
+        return popup_spot_rects(screen, size, self._popup_corner, home)
 
-    def _apply_popup_spot(self, spot: str, card: Rect | None) -> None:
+    def _apply_popup_spot(self, spot: str, rect: Rect | None) -> None:
         """Apply a popup_spot message (main thread only).
 
-        A move home with a card waits for the next popup show, see
-        _after_popup_show. Any other move happens now.
+        Home needs no rect. Any other spot is the rect's top left, the
+        corner spot without a rect is OVERLAY_X and OVERLAY_Y.
         """
-        if spot == POPUP_HOME and card is not None:
-            self._home_card = card
-            return
-        self._home_card = None
         self._popup_spot = spot
+        if spot == POPUP_HOME:
+            self._popup_away_at = None
+        elif rect is not None:
+            self._popup_away_at = Point(rect.left, rect.top)
+        else:
+            self._popup_away_at = self._popup_corner
         self._place_popup()
 
     def _after_popup_show(self) -> None:
         """Place the popup after a show changed its size (main thread only).
 
-        A taller popup shifts home up to stay above the floor. A pending
-        return home only happens when the card leaves home free at the new
-        size, else the popup stays in its corner.
+        A taller popup shifts home up to stay above the floor.
         """
-        if self._home_card is not None:
-            home, _ = self._popup_spots()
-            if rects_intersect(self._home_card, home):
-                logger.debug("popup stays in corner: card covers home at new size")
-            else:
-                self._popup_spot = POPUP_HOME
-            self._home_card = None
         self._place_popup()
 
     def _place_popup(self) -> None:
@@ -1766,13 +1883,17 @@ class Application:
                 self.advice.show(self._advice_card, self._advice_box())
                 self._note_advice_size()
             return
-        home, corner = self._popup_spots()
-        spot = corner if self._popup_spot == POPUP_CORNER else home
-        if (spot.left, spot.top) != (self.overlay.overlay_x, self.overlay.overlay_y):
+        home, _ = self._popup_spots()
+        spot = (
+            Point(home.left, home.top)
+            if self._popup_spot == POPUP_HOME
+            else self._popup_away_at or self._popup_corner
+        )
+        if (spot.x, spot.y) != (self.overlay.overlay_x, self.overlay.overlay_y):
             logger.debug(
-                "popup move spot=%s x=%d y=%d", self._popup_spot, spot.left, spot.top
+                "popup move spot=%s x=%d y=%d", self._popup_spot, spot.x, spot.y
             )
-            self.overlay.set_position(spot.left, spot.top)
+            self.overlay.set_position(spot.x, spot.y)
 
     def _publish_overlay_rects(self) -> None:
         """Publish ARLO's mapped window rectangles for the scan thread."""
@@ -1801,7 +1922,7 @@ class Application:
         if self.border is not None:
             rects.extend(self.border.bar_rects())
         self.overlay_rects.publish(
-            rects, labelled, popup_away=self._popup_spot == POPUP_CORNER
+            rects, labelled, popup_away=self._popup_spot != POPUP_HOME
         )
 
     def run(self) -> None:

@@ -11,6 +11,7 @@ from arc_helper.advice_window import AdviceWindow
 from arc_helper.advice_window import fit_scale
 from arc_helper.advice_window import flatten_on_panel
 from arc_helper.advice_window import place_card
+from arc_helper.advice_window import render_in_box
 from arc_helper.tooltip_layout import Rect
 
 BOX_4K = Rect(1367, 1635, 2045, 1927)
@@ -33,9 +34,40 @@ def test_place_card_qhd_inside_floor():
     assert place_card(BOX_QHD, (453, 150), 1440) == (911, 1090)
 
 
-def test_place_card_shifts_up_past_floor():
-    # floor is round(2160 * 0.93) = 2009, a 500 px card must start at 1509
-    assert place_card(BOX_4K, (678, 500), 2160) == (1367, 1509)
+def test_place_card_never_raises_a_tall_card():
+    # The card is scaled down to fit instead, see render_in_box
+    assert place_card(BOX_4K, (678, 500), 2160) == (1367, 1635)
+
+
+def test_render_in_box_scales_a_tall_card_down_to_the_box(monkeypatch):
+    # A card 400 px tall at scale 1.0, home beneath the second gun on the
+    # base stash screen: 610 wide, 1631 down to the floor at 2009
+    renders = []
+
+    def fake_render(_card, scale):
+        renders.append(scale)
+        return Image.new("RGBA", (round(560 * scale), round(400 * scale)))
+
+    monkeypatch.setattr(advice_window, "render_advice_card", fake_render)
+    box = Rect(1384, 1631, 1994, 2009)
+
+    image = render_in_box(AdviceCard("keep", "Keep 7", None, 7, None, ()), box)
+
+    assert image.size[1] <= 378
+    assert image.size[0] <= 610
+    assert renders[0] == pytest.approx(610 / 560)
+    assert len(renders) >= 2
+
+
+def test_render_in_box_keeps_the_width_scale_when_the_card_fits(monkeypatch):
+    monkeypatch.setattr(
+        advice_window,
+        "render_advice_card",
+        lambda _card, scale: Image.new("RGBA", (round(560 * scale), 200)),
+    )
+    box = Rect(1384, 1631, 1994, 2009)
+    image = render_in_box(AdviceCard("keep", "Keep 7", None, 7, None, ()), box)
+    assert image.size == (610, 200)
 
 
 def test_flatten_puts_panel_colour_in_transparent_corner():
