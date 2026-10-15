@@ -62,6 +62,7 @@ HEADER_RADIUS = 8
 STRIPE = 4
 TITLE_SIZE = 26
 SUBTITLE_SIZE = 17
+SUBTITLE_MAX_LINES = 2
 BODY_SIZE = 18
 KIND_COLUMN = 96
 ROW_GAP = 10
@@ -326,9 +327,15 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
     if card.subtitle:
         y += s(2)
         sub_h = _line_height(fonts, SUBTITLE_SIZE, REGULAR)
-        for line in _wrap(
-            fonts, card.subtitle, SUBTITLE_SIZE, REGULAR, text_right - text_left
-        ):
+        sub_limit = text_right - text_left
+        sub_lines = _wrap(fonts, card.subtitle, SUBTITLE_SIZE, REGULAR, sub_limit)
+        if len(sub_lines) > SUBTITLE_MAX_LINES:
+            keep = SUBTITLE_MAX_LINES - 1
+            tail = fonts.fit(
+                " ".join(sub_lines[keep:]), SUBTITLE_SIZE, REGULAR, sub_limit
+            )
+            sub_lines = [*sub_lines[:keep], tail]
+        for line in sub_lines:
             canvas.text(text_left, y, line, SUBTITLE_SIZE, REGULAR, MUTED)
             y += sub_h
     y += s(16)

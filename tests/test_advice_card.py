@@ -144,10 +144,18 @@ def test_recycle_subtitle_quantities_above_one():
     assert card.subtitle == "Recycles into 2 Magnet, Wires"
 
 
-def test_long_recycle_subtitle_renders_ellipsized():
-    outs = [_out(f"Component Number {i}", 3) for i in range(30)]
-    card = build_advice_card(RECYCLE, [], None, outs, frozenset({"Component Number 9"}))
-    assert render_advice_card(card).width == 560
+def test_long_recycle_subtitle_is_capped_at_two_lines():
+    def card_for(count):
+        outs = [_out(f"Component Number {i}", 3) for i in range(count)]
+        return build_advice_card(
+            RECYCLE, [], None, outs, frozenset({"Component Number 9"})
+        )
+
+    ten = render_advice_card(card_for(10))
+    thirty = render_advice_card(card_for(30))
+    assert thirty.width == 560
+    assert ten.height == thirty.height
+    assert thirty.height < 200
 
 
 def test_needed_parts_uses_the_callables():
