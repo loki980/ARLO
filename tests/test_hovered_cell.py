@@ -42,6 +42,14 @@ POPUP_FIXTURE = FIXTURES / "hovered_cell_popup_capture.png"
 POPUP_CARD = Rect(468, 234, 1227, 1202)
 POPUP_CELL = Rect(236, 456, 444, 665)
 
+# Crop (2080, 960)-(3230, 1640) of 20261014-211019-500_GRAPPLING-HOOK.png:
+# the right-click ACTIONS menu for the Grappling Hook in the Safe Pocket,
+# opened left of the cell over the backpack. Left of the card, the slanted
+# grip of a backpack icon cut off by the search window passes the line test.
+MENU_FIXTURE = FIXTURES / "hovered_cell_menu_capture.png"
+MENU_CARD = Rect(136, 120, 895, 801)
+MENU_CELL = Rect(920, 456, 1128, 665)
+
 # A detection matches a by-eye label when every edge is within this many px
 MATCH_PX = 12
 
@@ -74,6 +82,10 @@ def test_chip_stays_out_of_the_box_with_or_without_its_ignore_rect() -> None:
 
 def test_finds_ring_right_of_a_card_opened_left() -> None:
     assert find_hovered_cell(_load(LEFT_OPEN_FIXTURE), LEFT_OPEN_CARD) == LEFT_OPEN_CELL
+
+
+def test_slanted_icon_left_of_the_actions_menu_is_not_a_seed() -> None:
+    assert find_hovered_cell(_load(MENU_FIXTURE), MENU_CARD) == MENU_CELL
 
 
 def test_ring_under_the_corner_popup_is_squared_up() -> None:
