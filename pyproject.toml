@@ -33,6 +33,9 @@ wayland = [
 paddle = [
     "rapidocr-onnxruntime>=1.4.4",
 ]
+icons = [
+    "onnxruntime>=1.17",
+]
 
 [project.scripts]
 arc-helper = "arc_helper.main:main"
