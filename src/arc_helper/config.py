@@ -330,6 +330,12 @@ class Settings(BaseSettings):
         default="auto", description="Screen backend: auto, x11 or wayland"
     )
 
+    # Card title reader: tesseract_title | paddle | tesseract
+    ocr_engine: str = Field(
+        default="tesseract_title",
+        description="Card title reader: tesseract_title, paddle or tesseract",
+    )
+
     # Hold-to-scan hotkey, evdev key name (Wayland/Linux only)
     hotkey_key: str = Field(
         default="KEY_RIGHTCTRL", description="evdev key name for hold-to-scan"
@@ -420,6 +426,9 @@ class Settings(BaseSettings):
             "# Platform settings",
             f"SCREEN_BACKEND={self.screen_backend}",
             f"HOTKEY_KEY={self.hotkey_key}",
+            "",
+            "# Card title reader",
+            f"OCR_ENGINE={self.ocr_engine}",
         ]
 
         with Path(env_path).open("w", encoding="utf-8") as f:

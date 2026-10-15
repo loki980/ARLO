@@ -152,3 +152,46 @@ def test_tier_vote_for_missing_tier_is_ignored(tmp_path):
     assert (
         _tier_db(tmp_path).lookup("ARPEGGIO V", _vote("V", 0.9)).name == "Arpeggio IV"
     )
+
+
+# Tolerant lookup, the last resort for partial and one-edit reads
+
+_TOLERANT = [
+    *(f"Rattler {t}" for t in ("I", "II", "III", "IV")),
+    *(f"Burletta {t}" for t in ("I", "II", "III", "IV")),
+    "Ferro",
+    "Fervo",
+]
+
+
+def _tolerant_db(tmp_path):
+    path = tmp_path / "tolerant.db"
+    db = Database(db_path=path)
+    db.clear()
+    with db._get_connection() as conn:  # noqa: SLF001 - test seam
+        conn.executemany(
+            "INSERT INTO items (name, action) VALUES (?, ?)",
+            [(name, "Keep") for name in _TOLERANT],
+        )
+        conn.commit()
+    return Database(db_path=path)
+
+
+def test_tolerant_dropped_numeral_takes_vote_tier(tmp_path):
+    db = _tolerant_db(tmp_path)
+    assert db.lookup("RATTLER", _vote("III", 0.9)).name == "Rattler III"
+
+
+def test_tolerant_one_edit_in_base_keeps_read_tier(tmp_path):
+    assert _tolerant_db(tmp_path).lookup("BURLETT IV").name == "Burletta IV"
+
+
+def test_tolerant_fused_numeral_needs_a_vote(tmp_path):
+    db = _tolerant_db(tmp_path)
+    assert db.lookup("RATTLERH") is None
+    assert db.lookup("RATTLERH", _vote("III", 0.9)).name == "Rattler III"
+
+
+def test_tolerant_read_matching_two_names_stays_unknown(tmp_path):
+    # One substitution from both Ferro and Fervo
+    assert _tolerant_db(tmp_path).lookup("FERDO") is None
