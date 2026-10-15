@@ -15,7 +15,8 @@ from .config import logger
 from .screen import phys_to_tk
 from .tooltip_layout import Rect
 
-GOLD = "#f2b134"
+# The hovered-cell gold, the one gold every ARLO frame and border uses
+HOVER_GOLD = "#f2b134"
 
 
 class FrameBars(NamedTuple):
@@ -72,7 +73,7 @@ class CellBorder:
         make_click_through(window)
         return window
 
-    def show(self, rect_phys: Rect, width_px: int, color: str = GOLD) -> None:
+    def show(self, rect_phys: Rect, width_px: int, color: str = HOVER_GOLD) -> None:
         """Frame rect_phys with bars width_px wide, outside the rect.
 
         Showing the same frame again does nothing, so the windows are not

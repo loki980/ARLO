@@ -20,6 +20,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from arc_helper.cell_border import HOVER_GOLD
 from arc_helper.config import get_screen_resolution
 from arc_helper.config import logger
 
@@ -34,7 +35,6 @@ IMPORT_CHECK = (
 )
 CHECK_TIMEOUT_S = 10
 STOP_TIMEOUT_S = 2
-GOLD = "#f2b134"
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ class Border:
     """A rounded outline whose outer edge lies on rect."""
 
     rect: tuple[int, int, int, int]
-    color: str = GOLD
+    color: str = HOVER_GOLD
     width: int = 3
     radius: int = 4
     kind: str = "border"
