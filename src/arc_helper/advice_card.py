@@ -23,6 +23,7 @@ from .textrender import _runs
 from .textrender import find_font_file
 from .verdict import KEEP
 from .verdict import KEEP_SOME
+from .verdict import KNOWN_BLUEPRINT_REASON
 from .verdict import LEARN
 from .verdict import RECYCLE
 from .verdict import SELL
@@ -175,6 +176,15 @@ def _recycle_subtitle(
     return text
 
 
+def _known_subtitle(kind: str, subtitle: str | None) -> str:
+    """A known blueprint's subtitle: the known line, then the usual one."""
+    if kind == SELL or not subtitle:
+        return KNOWN_BLUEPRINT_REASON
+    if subtitle.startswith(KNOWN_BLUEPRINT_REASON):
+        return subtitle
+    return f"{KNOWN_BLUEPRINT_REASON}. {subtitle}"
+
+
 def build_advice_card(
     verdict: Verdict,
     needs: Iterable[Need],
@@ -214,6 +224,8 @@ def build_advice_card(
         title, subtitle, total = "Learn it", verdict.reason, None
     else:
         title, total = "Not in the database", None
+    if kind != LEARN and verdict.reason.startswith(KNOWN_BLUEPRINT_REASON):
+        subtitle = _known_subtitle(kind, subtitle)
     return AdviceCard(kind, title, subtitle, total, owned, rows)
 
 

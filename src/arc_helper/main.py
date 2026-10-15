@@ -1695,6 +1695,7 @@ class Scanner:
             home_outputs=home,
             learned=learned,
             recorded_learned=recorded,
+            owned_blueprints=self.db.owned_blueprints(),
         )
 
     def _show_overlay(

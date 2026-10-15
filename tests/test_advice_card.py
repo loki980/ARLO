@@ -183,3 +183,24 @@ def test_needed_parts_uses_the_callables():
     outs = [_out("Magnet"), _out("Wires")]
     got = needed_parts(outs, lambda c: [c], lambda _c, needs: needs == ["Magnet"])
     assert got == frozenset({"Magnet"})
+
+
+def test_known_blueprint_sell_card_says_you_know_it():
+    verdict = Verdict("sell", "You already know this blueprint. Sell")
+    assert build_advice_card(verdict, []).subtitle == "You already know this blueprint"
+
+
+def test_known_blueprint_keep_card_adds_the_needs_line_after():
+    verdict = Verdict(
+        "keep",
+        "You already know this blueprint. 1 for Wires Crossed, then sell",
+        1,
+        (("Wires Crossed", 1),),
+    )
+    card = build_advice_card(verdict, [_need("quest", "Wires Crossed", None, 1)])
+    assert card.subtitle == "You already know this blueprint. For Wires Crossed"
+
+
+def test_plain_sell_card_is_unchanged():
+    card = build_advice_card(Verdict("sell", "Sell"), [])
+    assert card.subtitle == "Nothing you track needs it"
