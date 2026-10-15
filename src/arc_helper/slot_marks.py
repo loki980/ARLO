@@ -77,6 +77,13 @@ _ICON_START_MAX = 0.3  # the type icon starts in this share of the bar width
 PATCH_FALLBACK = 0.55  # the patch boundary, of the bar width, without a mark
 _PATCH_GAP = 0.1  # of the bar height, kept clear left of the right mark
 _ROW_TRIM = 3.0  # an edge row whose 90th percentile is this much brighter
+# A real bar sits under a lighter tile body (about 13 brighter, a blocked or
+# all-dark slot about 1) and spans most of the slot (about 0.89 of the width,
+# 0.23 of the height)
+_BODY_ABOVE = 6.0
+_BODY_ROWS = 5
+_BAR_MIN_WIDTH = 0.7  # of the slot width
+_BAR_MAX_HEIGHT = 0.35  # of the slot height
 
 
 class TierRead(NamedTuple):
@@ -333,6 +340,8 @@ def _inner_bar(slot_rgb: np.ndarray) -> _Bar | None:
     above, which also cuts its columns short under the swoosh. Here edge
     rows lighter than the bar are trimmed first, then the columns are the
     ones dark in the trimmed edge rows, which stops at the rounded outline.
+    A dark region is only a bar when it spans most of the slot's width, is
+    not too tall, and the tile body just above it is lighter than it.
     """
     found = _find_bar(slot_rgb)
     if found is None:
@@ -353,10 +362,14 @@ def _inner_bar(slot_rgb: np.ndarray) -> _Bar | None:
         (lum[top : top + _BAR_EDGE_ROWS], lum[bottom - _BAR_EDGE_ROWS : bottom])
     )
     left, right = _longest_run(edge_rows.max(axis=0) <= _BAR_EDGE_MAX)
-    if right - left < bottom - top:
+    height, width = lum.shape
+    if right - left < _BAR_MIN_WIDTH * width or bottom - top > _BAR_MAX_HEIGHT * height:
         return None
     bar = lum[top:bottom, left:right]
     background = float(np.median(bar))
+    body = lum[max(0, top - _BODY_ROWS - 1) : top - 1, left:right]
+    if body.size == 0 or float(np.median(body)) < background + _BODY_ABOVE:
+        return None
     return _Bar(
         bar, bar > background + _INK_ABOVE, background, Rect(left, top, right, bottom)
     )

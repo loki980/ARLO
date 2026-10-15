@@ -64,8 +64,21 @@ def test_a_slot_without_a_dark_bar_reads_nothing() -> None:
     plain = np.full((200, 200, 3), 120, dtype=np.uint8)
     assert read_tier(plain) is None
     assert read_stack(plain) is None
-
     assert bar_geometry(plain) is None
+
+
+# Blocked slots from 20261014-210939-441_252-X22.png, cut at (3216, 752,
+# 3408, 946) and (3424, 1424, 3616, 1618): dark tile bodies with a red
+# no-entry sign and no bottom bar
+@pytest.mark.parametrize("name", ["blocked_slot_a", "blocked_slot_b"])
+def test_bar_geometry_is_none_on_a_blocked_slot(name: str) -> None:
+    assert bar_geometry(_slot(name)) is None
+
+
+def test_bar_geometry_is_none_on_a_uniform_dark_crop() -> None:
+    dark = np.zeros((190, 190, 3), dtype=np.uint8)
+    dark[:] = (9, 12, 25)
+    assert bar_geometry(dark) is None
 
 
 # A synthetic 190 px tile: bright frame, tile body, then a dark bar with a

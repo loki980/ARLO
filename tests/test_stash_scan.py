@@ -304,7 +304,15 @@ def test_owned_totals_adds_stacks_and_skips_unidentified_slots():
 
 
 @pytest.mark.usefixtures("stubs")
-def test_identify_gives_bar_geometry_to_square_slots_only():
+def test_identify_gives_bar_geometry_to_square_slots_only(monkeypatch):
+    geometry = object()
+    calls = []
+
+    def fake_geometry(crop):
+        calls.append(crop.shape)
+        return geometry
+
+    monkeypatch.setattr(stash_scan, "bar_geometry", fake_geometry)
     square = Slot(Rect(0, 0, 90, 90), "stash", filled=True)
     wide = Slot(Rect(100, 0, 280, 90), "equipment", filled=True)
     slots = [square, wide]
@@ -315,8 +323,9 @@ def test_identify_gives_bar_geometry_to_square_slots_only():
         embedder=QueueEmbedder([[0, 0, 0, 1, 0], [0, 0, 0, 1, 0]]),
         slots=slots,
     )
-    assert found[0].bar is not None
+    assert found[0].bar is geometry
     assert found[1].bar is None
+    assert calls == [(90, 90, 3)]
 
 
 def test_stacks_are_read_for_identified_slots_only(stubs):
