@@ -60,7 +60,7 @@ TOOLTIP_SCAN_INTERVAL=0.3        # Seconds between tooltip scans
 # CARD TITLE READER
 # =============================================================================
 
-OCR_ENGINE=paddle                # paddle, tesseract_title or tesseract
+OCR_ENGINE=tesseract_title       # tesseract_title, paddle or tesseract
 
 # =============================================================================
 # DEBUG SETTINGS
@@ -108,11 +108,11 @@ When no card is found in the window, ARLO falls back to the `TOOLTIP_CAPTURE_*` 
 
 | Value | What it does |
 |-------|--------------|
-| `paddle` (default) | PP-OCRv4 through the optional `rapidocr-onnxruntime` package. One pass reads every line of the card, so the price and recycle chips find their rows without a second OCR pass |
-| `tesseract_title` | Finds the title line by the card's layout and reads only that line with Tesseract. No extra package |
+| `tesseract_title` (default) | Finds the title line by the card's layout and reads only that line with Tesseract. No extra package. The popup shows fastest (about 140 ms per card), the chips follow about 250 ms later |
+| `paddle` | PP-OCRv4 through the optional `rapidocr-onnxruntime` package. One pass reads every line of the card (about 400 ms), so the popup and the chips appear together without a second OCR pass |
 | `tesseract` | The earlier reader: two Tesseract passes over the whole card |
 
-Install the paddle reader with `uv sync --extra paddle` (`uv sync --all-extras` includes it). When the package is missing, ARLO logs one warning with that command and uses `tesseract_title`. An unknown value falls back the same way. The `INVENTORY` trigger check always uses Tesseract. With `paddle` or `tesseract_title` a scan that finds no card reads nothing, with `tesseract` it still reads the `TOOLTIP_CAPTURE_*` box. Debug mode logs the reader name and the read time of every scan.
+Install the paddle reader with `uv sync --extra paddle` (`uv sync --all-extras` includes it). When `OCR_ENGINE=paddle` and the package is missing, ARLO logs one warning with that command and uses `tesseract_title`. An unknown value falls back the same way. The `INVENTORY` trigger check always uses Tesseract. With `paddle` or `tesseract_title` a scan that finds no card reads nothing, with `tesseract` it still reads the `TOOLTIP_CAPTURE_*` box. Debug mode logs the reader name and the read time of every scan.
 
 ### Debug Mode
 

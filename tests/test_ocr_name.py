@@ -20,7 +20,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture(autouse=True)
 def tesseract_engine(monkeypatch):
-    """These tests cover the tesseract reader's path, not the default paddle."""
+    """These tests cover the tesseract reader's path, not the default tesseract_title."""
     monkeypatch.setenv("OCR_ENGINE", "tesseract")
     monkeypatch.setattr(get_settings(), "ocr_engine", "tesseract")
 

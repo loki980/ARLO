@@ -330,10 +330,10 @@ class Settings(BaseSettings):
         default="auto", description="Screen backend: auto, x11 or wayland"
     )
 
-    # Card title reader: paddle | tesseract_title | tesseract
+    # Card title reader: tesseract_title | paddle | tesseract
     ocr_engine: str = Field(
-        default="paddle",
-        description="Card title reader: paddle, tesseract_title or tesseract",
+        default="tesseract_title",
+        description="Card title reader: tesseract_title, paddle or tesseract",
     )
 
     # Hold-to-scan hotkey, evdev key name (Wayland/Linux only)

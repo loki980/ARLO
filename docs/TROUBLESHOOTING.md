@@ -33,7 +33,7 @@ When a weapon shows the wrong tier (I, II, III, IV, V), collect captures so the 
 
 ### "OCR_ENGINE=paddle needs the rapidocr-onnxruntime package"
 
-The default title reader needs an optional package. Install it from the ARLO folder with `uv sync --extra paddle` (or `uv sync --all-extras`), then restart ARLO. Until then ARLO reads titles with `tesseract_title` and logs this warning once per start. To stop the warning without installing, set `OCR_ENGINE=tesseract_title` in `.env`.
+The paddle title reader, chosen with `OCR_ENGINE=paddle`, needs an optional package. Install it from the ARLO folder with `uv sync --extra paddle` (or `uv sync --all-extras`), then restart ARLO. Until then ARLO reads titles with `tesseract_title`, the default, and logs this warning once per start. To stop the warning without installing, remove `OCR_ENGINE=paddle` from `.env`.
 
 ### "Application won't start"
 

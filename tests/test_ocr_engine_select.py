@@ -52,8 +52,8 @@ def _warnings(monkeypatch) -> list[str]:
     return seen
 
 
-def test_default_engine_is_paddle():
-    assert type(get_settings()).model_fields["ocr_engine"].default == "paddle"
+def test_default_engine_is_tesseract_title():
+    assert type(get_settings()).model_fields["ocr_engine"].default == "tesseract_title"
 
 
 @pytest.mark.parametrize("engine", ["tesseract", "tesseract_title", "paddle"])
