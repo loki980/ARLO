@@ -247,6 +247,18 @@ Ahead:
    LOADOUT panel box, done 14 Oct. Hooked into the scanner in place of the
    corner popup (ADVICE_CARD=false brings the popup back), done 14 Oct,
    reviewed. Waiting on Jeffrey's look in game. Changed 14 Oct.
+8. The advice card stays under the second gun. Jeffrey, 15 Oct: "The popup
+   has moved back to the upper left?? It should be beneath my 2nd gun".
+   Home is found from the weapon slots on screen (base and raid differ),
+   the card steps just aside when a game card opens over it and comes back
+   as soon as it is free. Underway 15 Oct. Added 15 Oct.
+9. Learn or sell a blueprint. Jeffrey, 15 Oct, of the Bettina Blueprint:
+   "Unlearned blueprint ... def not sell, should learn this." Then "if
+   already know it, should sell, though", and "vertical grip 3, sell,
+   bettina, consume/learn." The game draws a check mark on a learned
+   blueprint's tile, so ARLO reads it: no mark gives "Learn it", a mark
+   gives the usual advice. Each read is remembered for the weapon rule.
+   Underway 15 Oct. Added 15 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
 
@@ -323,6 +335,20 @@ since they need every cell read (phase 3). Changed 14 Oct.
    obvious." The hovered frame is now twice as thick and a brighter gold,
    and the red outline on short items is thicker too. Done 15 Oct. Added
    15 Oct.
+8. A steady inventory trigger. Jeffrey, 15 Oct: "the \"fade in fade out\"
+   problem is back. Also, the grid doesn't work back in base either". The
+   log showed ARLO deciding the inventory closed 54 times in an hour after
+   one missed check each, hiding the popups and clearing the badges. It
+   now waits for misses over 2 seconds and logs why each check missed.
+   Underway 15 Oct. Added 15 Oct.
+9. Badges over a live background. Jeffrey, 15 Oct: "grid doesn't work in
+   game inventory". In raid the game world moves behind the inventory, and
+   the stillness check compared the whole screen, so every pass was thrown
+   away. It now compares only the slots. Underway 15 Oct. Added 15 Oct.
+10. The gold frame fits wide slots. Jeffrey, 15 Oct: "yellow misdraws
+    sometimes." On a weapon slot the frame covered only its right part. It
+    now snaps to the whole slot found under the cursor. Built with Phase 2,
+    step 9. Underway 15 Oct. Added 15 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 

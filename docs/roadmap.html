@@ -160,7 +160,11 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span></span><span>Nothing underway. The ARC Tracker style tiles and the bolder gold frame are merged and waiting on your look in game. Phase 5, step 2, Stitch the stash across scrolling, waits on your screen recording of a slow scroll through the whole stash.</span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 8, A steady inventory trigger</a><small>Stop the popups fading and the badges vanishing when one check misses</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 9, Badges over a live background</a><small>Badges in raid, where the game world moves behind the inventory</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 10, The gold frame fits wide slots</a><small>The whole weapon slot, not a square on part of it</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 8, The advice card stays under your second gun</a><small>Found from your weapon slots, steps aside and comes back</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 9, Learn or sell a blueprint</a><small>Read from the check mark the game draws on learned blueprints</small></span></li>
   </ul>
 </section>
 
@@ -228,14 +232,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase2">
-    <div class="slot">2</div>
+    <div class="slot now">2</div>
     <article class="card" data-tab="Phase 2">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Advice with a reason</h2>
       <p>Instead of a bare "Keep", the popup says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell.</p>
-      <div class="gauge" aria-label="Phase 2 about 70 percent done">
-        <div class="bar"><i style="width:70%"></i></div>
-        <div class="read">~70%<small>4 of 7 steps</small></div>
+      <div class="gauge" aria-label="Phase 2 about 60 percent done">
+        <div class="bar"><i style="width:60%"></i></div>
+        <div class="read">~60%<small>4 of 9 steps</small></div>
       </div>
       
       <div class="split">
@@ -251,6 +255,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
+            <li class="now"><span class="nowmark">NOW</span><span class="what">Step 8, The advice card stays under your second gun<small>It went to the top-left corner when a card covered its spot and never came back. Home now comes from your weapon slots on screen</small></span><span class="when recent">added 15 Oct</span></li>
+            <li class="now"><span class="nowmark">NOW</span><span class="what">Step 9, Learn or sell a blueprint<small>No check mark on the tile: learn it. A check mark: the usual advice, sell. Remembered for the weapon rule</small></span><span class="when recent">added 15 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Step 7, A card that looks like part of the game<small>Built: ARC Tracker's card in your LOADOUT box in place of the corner popup, with the recycle line naming parts you still need. Waiting on your look in game</small></span><span class="when recent">changed 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Step 6, A big KEEP on the item and readable text<small>Built and merged: a KEEP chip on the game card in a game-style font. Your session showed it can cover the card's own text, so the advice card in step 7 may replace it</small></span><span class="when recent">changed 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
@@ -281,15 +287,15 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     </article>
   </li>
 
-  <li class="phase">
-    <div class="slot">4</div>
+  <li class="phase" id="phase4">
+    <div class="slot now">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
-      <div class="gauge" aria-label="Phase 4 about 90 percent done">
-        <div class="bar"><i style="width:90%"></i></div>
-        <div class="read">~90%<small>6 of 7 steps</small></div>
+      <div class="gauge" aria-label="Phase 4 about 75 percent done">
+        <div class="bar"><i style="width:75%"></i></div>
+        <div class="read">~75%<small>6 of 10 steps</small></div>
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
@@ -298,6 +304,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <li class="done"><span class="tick">✓</span><span class="what">Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Tiles like ARC Tracker<small>The stack's worth on a solid patch over the type icon, a red have/need tag and outline when you are short, a green check when you have enough, gold only on the hovered slot</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">A bolder gold frame<small>Twice as thick and brighter, the red outline on short items thicker too. Waiting on your look in game</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Your run decides the drawing mode<small>X11 works today. The Wayland-native mode needs one optional package</small></span><span class="when"></span></li>
       </ul>
     </article>
@@ -395,6 +404,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>14 Oct</time><span>The advice card now replaces the corner popup, and ARLO wakes up in raid. Phase 3 step 1 measured. 385 tests. ARLO restarted with all of it.</span></li>
   <li><time>15 Oct</time><span>Phase 3 done: slots found, icons identified by a learned model, tiers and stacks read. Gold borders and prices on every icon now draw live while your grid is still. Paused once at your usage limit, resumed. 446 tests.</span></li>
   <li><time>15 Oct</time><span>Tiles now look like ARC Tracker's: worth on a solid patch, red have/need tags and outlines, green checks, gold only on the hovered slot. Phase 5 moved up at your ask and its header reader built. The needs data checked against ARC Tracker once, privately: quests and projects match, Sheet Metal fixed. You asked for a more obvious gold frame, now twice as thick and brighter. 493 tests.</span></li>
+  <li><time>15 Oct</time><span>Your four reports placed: popups fading and badges missing traced to the inventory trigger dropping on one missed check, badges in raid to the moving world behind the inventory, the advice card stuck in the corner, the frame on wide weapon slots. Blueprints get learn or sell from the game's check mark. Four workers running side by side.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
