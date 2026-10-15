@@ -232,7 +232,52 @@ def test_distinct_gallery_keeps_the_plain_item_of_a_shared_icon():
         ("Anvil Blueprint", "Anvil I", "Metal Parts", "Rubber Parts"),
         vectors,
     )
-    kept = distinct_gallery(gallery)
+    kept, twins = distinct_gallery(gallery)
+    assert twins == {"Anvil I": ("Anvil Blueprint",)}
     assert kept.names == ("Anvil I", "Metal Parts", "Rubber Parts")
     assert kept.item_ids == ("gun", "metal", "other")
     assert kept.vectors.shape == (3, 2)
+
+
+@pytest.mark.parametrize(
+    ("twins", "numeral", "expected"),
+    [
+        ({"Anvil I": ("Anvil Blueprint",)}, "III", "Anvil III"),
+        ({"Anvil I": ("Anvil Blueprint",)}, None, None),
+        ({"Anvil I": ("Anvil Blueprint", "Amplified Anvil II")}, "III", None),
+    ],
+)
+def test_twins_need_the_numeral_to_settle_the_item(stubs, twins, numeral, expected):
+    tiers, _ = stubs
+    slots = _slots(1)
+    if numeral:
+        tiers[0] = numeral
+    embedder = QueueEmbedder([[1, 0.3, 0.2, 0, 0]])
+    found = identify_slots(
+        _frame(slots), _gallery(), _catalog, embedder=embedder, slots=slots, twins=twins
+    )
+    assert (found[0].item.name if found[0].item else None) == expected
+    assert found[0].guess == "Anvil I"
+
+
+def test_an_untiered_item_with_twins_is_unidentified(stubs):
+    tiers, _ = stubs
+    tiers[0] = "II"
+    slots = _slots(1)
+    gallery = EmbedGallery(
+        ("hook", "metal"),
+        ("Grappling Hook", "Metal Parts"),
+        np.eye(2, dtype=np.float32),
+    )
+    twins = {"Grappling Hook": ("Grappling Hook Blueprint",)}
+    found = identify_slots(
+        _frame(slots),
+        gallery,
+        lambda name: Item(name=name, action="Sell", sell_price=1200),
+        embedder=QueueEmbedder([[1, 0]]),
+        slots=slots,
+        twins=twins,
+    )
+    assert found[0].item is None
+    assert found[0].guess == "Grappling Hook"
+    assert found[0].confidence == pytest.approx(1.0)

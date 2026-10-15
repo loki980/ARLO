@@ -195,7 +195,7 @@ def main() -> int:
     gallery = icon_embed.build_gallery(icons, embedder, cache_dir / "stash_gallery.npz")
     built = time.perf_counter() - start
     full_size = len(gallery)
-    gallery = distinct_gallery(gallery)
+    gallery, twins = distinct_gallery(gallery)
     db = Database()
     kind_of = verdict_kinds(db)
     embedder.embed(
@@ -217,11 +217,11 @@ def main() -> int:
         with Image.open(path) as image:
             rgb = np.asarray(image.convert("RGB"))
         start = time.perf_counter()
-        identify_slots(rgb, gallery, db.lookup, embedder=embedder)
+        identify_slots(rgb, gallery, db.lookup, embedder=embedder, twins=twins)
         plain = time.perf_counter() - start
         start = time.perf_counter()
         found = identify_slots(
-            rgb, gallery, db.lookup, embedder=embedder, read_stacks=True
+            rgb, gallery, db.lookup, embedder=embedder, read_stacks=True, twins=twins
         )
         stacked = time.perf_counter() - start
         plain_times.append(plain)

@@ -20,7 +20,9 @@ identify_slots runs the pieces of phase 3 over one full-screen frame:
    a slot with a count, so it is off by default).
 
 distinct_gallery drops the gallery entries whose icon equals another
-item's, which would otherwise never clear the lead rule.
+item's, which would otherwise never clear the lead rule, and returns the
+dropped names as twins. A slot whose top name has twins is identified only
+when the tier numeral settles which one it is.
 
 badges_for turns the identified slots into badge dicts in the badge
 surface's message format (badge_surface.encode_message on branch
@@ -35,6 +37,7 @@ import datetime
 import re
 from collections.abc import Callable
 from collections.abc import Iterable
+from collections.abc import Mapping
 from collections.abc import Sequence
 from typing import NamedTuple
 
@@ -121,32 +124,37 @@ def base_lead(found: Sequence[EmbedCandidate]) -> float:
 
 def distinct_gallery(
     gallery: EmbedGallery, threshold: float = DUPLICATE_SIMILARITY
-) -> EmbedGallery:
-    """The gallery with one entry per distinct icon.
+) -> tuple[EmbedGallery, dict[str, tuple[str, ...]]]:
+    """The gallery with one entry per distinct icon, and each kept name's twins.
 
     Many catalog items share one icon (a weapon and its blueprint, the
     variants of an amplified weapon, the security codes). Their embeddings
     are equal, so no slot can lead over its twins. Of each group whose
     similarity reaches threshold the shortest name is kept (the plain item
-    before its blueprint or variant).
+    before its blueprint or variant). The second value maps a kept name to
+    the names it absorbed, for identify_slots' twins.
     """
     order = sorted(
         range(len(gallery)), key=lambda i: (len(gallery.names[i]), gallery.names[i])
     )
     kept: list[int] = []
+    absorbed: dict[str, list[str]] = {}
     for i in order:
-        if (
-            kept
-            and float(np.max(gallery.vectors[kept] @ gallery.vectors[i])) >= threshold
-        ):
-            continue
+        if kept:
+            similarity = gallery.vectors[kept] @ gallery.vectors[i]
+            best = int(np.argmax(similarity))
+            if float(similarity[best]) >= threshold:
+                owner = gallery.names[kept[best]]
+                absorbed.setdefault(owner, []).append(gallery.names[i])
+                continue
         kept.append(i)
     kept.sort()
-    return EmbedGallery(
+    distinct = EmbedGallery(
         tuple(gallery.item_ids[i] for i in kept),
         tuple(gallery.names[i] for i in kept),
         gallery.vectors[kept],
     )
+    return distinct, {name: tuple(names) for name, names in absorbed.items()}
 
 
 def _rank(vectors: np.ndarray, gallery: EmbedGallery) -> list[list[EmbedCandidate]]:
@@ -167,17 +175,26 @@ def _resolve(
     found: Sequence[EmbedCandidate],
     read: str | None,
     lookup: Callable[[str], Item | None],
+    twins: Mapping[str, Sequence[str]],
 ) -> tuple[Item | None, str | None, float]:
-    """The catalog item, its tier and the lead for one slot's candidates."""
+    """The catalog item, its tier and the lead for one slot's candidates.
+
+    When the top name has twins (items with the same icon), the item is kept
+    only when the read numeral settles it: the top name is tiered, a numeral
+    was read and no twin is tiered (an untiered blueprint or variant cannot
+    show a numeral).
+    """
     lead = base_lead(found)
     top = found[0]
     catalog_tier = name_tier(top.name)
     tier = read or catalog_tier
     if top.similarity < MIN_SIMILARITY or lead < MIN_LEAD:
         return None, tier, lead
-    name = top.name
-    if catalog_tier is not None and read is not None:
-        name = f"{base_name(top.name)} {read}"
+    settled = catalog_tier is not None and read is not None
+    alike = twins.get(top.name, ())
+    if alike and not (settled and all(name_tier(t) is None for t in alike)):
+        return None, tier, lead
+    name = f"{base_name(top.name)} {read}" if settled else top.name
     return lookup(name), tier, lead
 
 
@@ -189,13 +206,15 @@ def identify_slots(
     embedder=None,
     read_stacks: bool = False,
     slots: Iterable[Slot] | None = None,
+    twins: Mapping[str, Sequence[str]] | None = None,
 ) -> list[SlotItem]:
     """Every filled slot on an RGB frame with its item, tier, stack and confidence.
 
     lookup resolves a catalog name (base plus tier) to an item, usually
     Database.lookup. embedder defaults to icon_embed.default_embedder().
-    slots defaults to grid.find_slots(rgb). Slots come back in find_slots
-    order.
+    slots defaults to grid.find_slots(rgb). twins maps a gallery name to the
+    names sharing its icon (from distinct_gallery), None means no groups.
+    Slots come back in find_slots order.
     """
     if slots is None:
         slots = find_slots(rgb)
@@ -210,7 +229,7 @@ def identify_slots(
     for slot, crop, found in zip(filled, crops, _rank(vectors, gallery), strict=True):
         tier_read = read_tier(crop)
         item, tier, lead = _resolve(
-            found, tier_read.tier if tier_read else None, lookup
+            found, tier_read.tier if tier_read else None, lookup, twins or {}
         )
         stack = read_stack(crop) if read_stacks else None
         result.append(
