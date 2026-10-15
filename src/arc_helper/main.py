@@ -42,8 +42,11 @@ from arc_helper.database import get_database
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
 from arc_helper.hovered_cell import find_hovered_cell
+from arc_helper.ocr import CardSignature
+from arc_helper.ocr import OCREngine
 from arc_helper.ocr import OCREngineManager
 from arc_helper.ocr import get_ocr_engine
+from arc_helper.ocr import same_card
 from arc_helper.overlay import RECYCLE_LABEL_HOME_ONLY
 from arc_helper.overlay import RECYCLE_LABEL_HOME_RECYCLER
 from arc_helper.overlay import OverlayWindow
@@ -64,13 +67,28 @@ from arc_helper.verdict import compute_verdict
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
 
-# The popup and chips hide this long after the last read of an item: twice
-# the slowest of the last three scan periods and the scan just finished,
-# capped, and never less than display_time, so a hovered item stays shown
-# until the next scan reads it.
+# The popup and chips hide this long after the last show or touch of an
+# item: twice the slowest of the last three scan periods and the scan just
+# finished, capped, and never less than display_time, so a hovered item stays
+# shown until the next scan sees its card.
 HOLD_SCAN_PERIODS = 2
 HOLD_HISTORY = 3
 HOLD_CAP_S = 6.0
+# The hold is only a safety net for a stalled scanner: the scan loop hides
+# the windows itself once the card is gone, so the hold is never shorter
+HOLD_FLOOR_S = 3.0
+
+# A shown card missing from this many cycles in a row hides the popup, chips
+# and frame at once
+CARD_GONE_CYCLES = 2
+# A cycle without a card sleeps at most this long before the next one. A
+# cycle that found a card does not sleep at all
+NO_CARD_SLEEP_CAP_S = 0.1
+# Seconds between INVENTORY trigger rechecks while ACTIVE
+TRIGGER_RECHECK_S = 1.0
+# While the same card stays up its windows are touched at most this often,
+# well inside HOLD_FLOOR_S
+TOUCH_EVERY_S = 1.0
 
 # Gold frame around the hovered cell for keep items, in Tk units scaled the
 # way the chips scale
@@ -384,11 +402,20 @@ class Scanner:
     # Cooldown tracking
     _last_shown_item: str = ""
     _last_shown_time: float = 0
-    _trigger_check_counter: int = 0
+    # Monotonic time of the last INVENTORY trigger check while ACTIVE
+    _last_trigger_check: float = 0.0
 
-    # Monotonic start of the previous tooltip scan, for the scan period in
-    # the debug log. Reset on every entry to ACTIVE.
+    # Monotonic start of the previous tooltip scan, for the scan period.
+    # Reset on every entry to ACTIVE.
     _last_scan_start: float | None = None
+
+    # Signature of the card the shown windows belong to, None while nothing
+    # is shown. Cycles in a row without a card, the last card state logged
+    # (none, new, same, gone, hide) and when the windows were last touched.
+    _card_shown: CardSignature | None = None
+    _card_missed: int = 0
+    _card_state: str = "none"
+    _last_touch: float = 0.0
 
     # Scan periods measured in this ACTIVE stretch (seconds) and the hold
     # computed after the latest scan (ms), sent with every overlay, touch and
@@ -426,7 +453,7 @@ class Scanner:
         with self._chips_lock:
             self._running = False
             self.state = ScannerState.STOPPED
-            self._hide_chips()
+            self._hide_card_windows()
         if self._scan_thread:
             self._scan_thread.join(timeout=2.0)
         self.hotkey.stop()
@@ -438,7 +465,7 @@ class Scanner:
             was_active = self.state == ScannerState.ACTIVE
             self.state = ScannerState.PAUSED
             if was_active:
-                self._hide_chips()
+                self._hide_card_windows()
 
     def resume(self) -> None:
         """Resume scanning."""
@@ -497,55 +524,20 @@ class Scanner:
                             self._hotkey_override = False
                             self.state = ScannerState.IDLE
                             logger.debug("state ACTIVE -> IDLE reason=hotkey_released")
-                            self._hide_chips()
+                            self._hide_card_windows()
                             self._update_status("scanning")
                             logger.info("Hotkey released - returning to idle")
                             continue
-                    else:
-                        # Inventory mode: check trigger every 3rd scan
-                        self._trigger_check_counter += 1
-                        should_check_trigger = self._trigger_check_counter % 3 == 0
+                    elif self._trigger_lost(ocr, settings):
+                        # Inventory closed: the card went with it
+                        self.state = ScannerState.IDLE
+                        logger.debug("state ACTIVE -> IDLE reason=trigger_lost")
+                        self._hide_card_windows()
+                        self._update_status("scanning")
+                        logger.info("INVENTORY closed - returning to idle")
+                        continue
 
-                        if should_check_trigger and not ocr.check_trigger_any(
-                            [settings.trigger_region, settings.trigger_region2]
-                        ):
-                            # Inventory closed, go back to idle
-                            self.state = ScannerState.IDLE
-                            logger.debug("state ACTIVE -> IDLE reason=trigger_lost")
-                            self._hide_chips()
-                            self._update_status("scanning")
-                            logger.info("INVENTORY closed - returning to idle")
-                            continue
-
-                    # Scan tooltip at cursor position
-                    scan_start = time.monotonic()
-                    if self._last_scan_start is None:
-                        logger.debug("scan start period=none")
-                    else:
-                        period = scan_start - self._last_scan_start
-                        self._scan_periods.append(period)
-                        logger.debug("scan start period=%d ms", period * 1000)
-                    self._last_scan_start = scan_start
-                    item_name = ocr.extract_item_name_at_cursor()
-                    scan_s = time.monotonic() - scan_start
-                    logger.debug(
-                        "scan end %d ms read=%s",
-                        scan_s * 1000,
-                        item_name or "none",
-                    )
-                    hold_s = scan_hold_s(
-                        settings.overlay.display_time,
-                        self._scan_periods,
-                        scan_s + settings.scan.tooltip_scan_interval,
-                    )
-                    self._hold_ms = round(hold_s * 1000)
-                    self.stats.tooltip_scans += 1
-
-                    if item_name:
-                        self._handle_detected_item(item_name)
-
-                    # Wait before next tooltip scan
-                    time.sleep(settings.scan.tooltip_scan_interval)
+                    self._scan_cycle(ocr, settings)
 
             except ScreenCaptureUnavailable as e:
                 logger.error(f"Screen capture lost permanently: {e}")
@@ -559,12 +551,138 @@ class Scanner:
                 time.sleep(1.0)  # Back off on error
 
     def _reset_scan_timing(self) -> None:
-        """Forget scan timing on entry to ACTIVE."""
+        """Forget scan timing and the shown card on entry to ACTIVE.
+
+        The trigger was just checked (or the hotkey is held), so the next
+        trigger recheck is TRIGGER_RECHECK_S away.
+        """
         self._last_scan_start = None
         self._scan_periods.clear()
+        self._last_trigger_check = time.monotonic()
+        self._card_shown = None
+        self._card_missed = 0
+        self._card_state = "none"
 
-    def _handle_detected_item(self, item_name: str) -> None:
-        """Handle a detected item name."""
+    def _trigger_lost(self, ocr: OCREngine, settings) -> bool:
+        """Recheck INVENTORY about once a second, True when it is gone.
+
+        The recheck runs on elapsed time, not on a cycle count, so fast
+        cycles do not check it more often.
+        """
+        now = time.monotonic()
+        if now - self._last_trigger_check < TRIGGER_RECHECK_S:
+            return False
+        self._last_trigger_check = now
+        return not ocr.check_trigger_any(
+            [settings.trigger_region, settings.trigger_region2]
+        )
+
+    def _scan_cycle(self, ocr: OCREngine, settings) -> None:
+        """One ACTIVE cycle: locate the card, then act on what changed.
+
+        The same card as the one shown is not read again, only touched. A
+        new card is read and shown at once. A shown card missing for
+        CARD_GONE_CYCLES cycles hides the popup, chips and frame at once.
+        Only a cycle without a card sleeps, and briefly.
+        """
+        start = time.monotonic()
+        period_s = None
+        if self._last_scan_start is not None:
+            period_s = start - self._last_scan_start
+            self._scan_periods.append(period_s)
+        self._last_scan_start = start
+        sighting = ocr.locate_card_at_cursor()
+        locate_s = time.monotonic() - start
+        self.stats.tooltip_scans += 1
+
+        if sighting is None:
+            sleep_s = min(settings.scan.tooltip_scan_interval, NO_CARD_SLEEP_CAP_S)
+            self._set_hold(settings, locate_s + sleep_s)
+            self._card_absent()
+            time.sleep(sleep_s)
+            return
+
+        self._card_missed = 0
+        if self._card_shown is not None and same_card(self._card_shown, sighting):
+            self._set_hold(settings, locate_s)
+            self._log_card_state("same")
+            now = time.monotonic()
+            if now - self._last_touch >= TOUCH_EVERY_S:
+                self._last_touch = now
+                self.ui_queue.put(("touch", self._last_shown_item, self._hold_ms))
+            return
+
+        item_name = ocr.read_located_card()
+        scan_s = time.monotonic() - start
+        self._set_hold(settings, scan_s)
+        self._log_card_state(
+            "new",
+            "rect=%s read=%s locate=%d ms read=%d ms period=%s",
+            tuple(sighting.rect),
+            item_name or "none",
+            locate_s * 1000,
+            (scan_s - locate_s) * 1000,
+            "none" if period_s is None else f"{period_s * 1000:.0f} ms",
+        )
+        # A new card with no name hides the old item's windows at once, and
+        # the next cycle reads this card again
+        if not item_name:
+            if self._card_shown is not None:
+                self._log_card_state("hide", "reason=no_read")
+                self._hide_card_windows()
+            return
+        # A discarded read (card under ARLO's popup) keeps the shown card, so
+        # the next cycle reads this card again once the popup moved aside
+        if self._handle_detected_item(item_name, new_card=True):
+            self._card_shown = sighting
+            self._last_touch = time.monotonic()
+
+    def _set_hold(self, settings, estimate_s: float) -> None:
+        """Set the hold sent with the next messages from this cycle's estimate."""
+        hold_s = scan_hold_s(
+            settings.overlay.display_time, self._scan_periods, estimate_s
+        )
+        self._hold_ms = round(max(HOLD_FLOOR_S, hold_s) * 1000)
+
+    def _card_absent(self) -> None:
+        """A cycle found no card: hide the shown windows on the second miss."""
+        self._card_missed += 1
+        if self._card_shown is None:
+            self._card_state = "none"
+            return
+        if self._card_missed < CARD_GONE_CYCLES:
+            self._log_card_state("gone")
+            return
+        self._log_card_state("hide")
+        self._hide_card_windows()
+
+    def _hide_card_windows(self) -> None:
+        """Queue an immediate hide of the popup, chips and frame.
+
+        The shown item is forgotten too, so the same item read again later
+        shows instead of only touching hidden windows.
+        """
+        self._card_shown = None
+        self._last_shown_item = ""
+        self.ui_queue.put(("hide",))
+
+    def _log_card_state(self, state: str, detail: str = "", *args) -> None:
+        """Log a card state once per change. A new card always logs."""
+        if state == self._card_state and state != "new":
+            return
+        self._card_state = state
+        message = f"card {state} {detail}".rstrip()
+        logger.debug(message, *args)
+
+    def _handle_detected_item(self, item_name: str, *, new_card: bool = False) -> bool:
+        """Handle a detected item name.
+
+        new_card is True when the scan loop read a card it had not shown,
+        which always takes the show path, so the popup, chips and frame
+        follow the card even for the same item inside the cooldown. Returns
+        whether the windows now show (or keep showing) this item, False
+        when the read was discarded.
+        """
         settings = get_settings()
         current_time = time.time()
 
@@ -579,7 +697,7 @@ class Scanner:
                 logger.debug("read discarded: card covered by %s", covering)
                 if covering == POPUP:
                     self._queue_popup_spot(popup_escape_spot(card, labelled))
-                return
+                return False
 
         # Look up first: raw reads of one item vary between scans (ANVIL IV,
         # ANVILIV), so the cooldown and the popup key on the catalog name
@@ -592,6 +710,7 @@ class Scanner:
         # Check cooldown - don't spam the same item
         if (
             same_item
+            and not new_card
             and current_time - self._last_shown_time < settings.overlay.cooldown
         ):
             # Still hovered: keep the popup and chips from auto-hiding
@@ -602,7 +721,7 @@ class Scanner:
                 (current_time - self._last_shown_time) * 1000,
             )
             self.ui_queue.put(("touch", shown_name, self._hold_ms))
-            return
+            return True
 
         logger.debug(
             "detect read=%s item=%s path=show same_item=%s",
@@ -625,18 +744,12 @@ class Scanner:
 
         verdict = self._verdict_for(recommendation, settings.show_ended_projects)
 
-        # A new item whose card leaves the home spot free brings the popup
-        # back home. The same item never moves it. The new item's popup may
-        # be taller, which shifts home up, so the Tk thread checks the card
-        # again against home at the new size before it moves the popup.
-        home = labelled.get(POPUP_HOME)
-        if (
-            self.overlay_rects.popup_away()
-            and not same_item
-            and card is not None
-            and home is not None
-            and not rects_intersect(card, home)
-        ):
+        # A new item may bring the popup back home. The same item never
+        # moves it. Home depends on the new item's popup size (a taller
+        # popup shifts it up, a shorter one down), so every candidate goes
+        # to the Tk thread with its card, which moves the popup only when
+        # the card leaves home free at the size after the show.
+        if self.overlay_rects.popup_away() and not same_item and card is not None:
             self._queue_popup_spot(POPUP_HOME, card)
 
         # Show overlay (must be done on main thread)
@@ -648,6 +761,7 @@ class Scanner:
         # Update cooldown tracking
         self._last_shown_item = shown_name
         self._last_shown_time = current_time
+        return True
 
     @staticmethod
     def _card_on_screen() -> Rect | None:
@@ -878,10 +992,23 @@ class Application:
                     self._apply_border(msg[4], placed=placed)
                 elif msg[0] == "chips_hide" and self.chips is not None:
                     self.chips.hide(reason="chips_hide")
+                elif msg[0] == "hide":
+                    self._hide_card_windows()
         except queue.Empty:
             pass
         self._publish_overlay_rects()
         self.root.after(50, self._pump_ui_queue)
+
+    def _hide_card_windows(self) -> None:
+        """Hide the popup, chips and frame at once (main thread only).
+
+        The scanner queues this when the card is gone. The chips' hide hook
+        hides the frame with them.
+        """
+        if self.overlay.is_visible():
+            self.overlay.hide()
+        if self.chips is not None:
+            self.chips.hide(reason="card_gone")
 
     def _border_width_px(self) -> int:
         """Border width in physical px, BORDER_WIDTH_TK scaled like the chips."""

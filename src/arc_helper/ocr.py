@@ -8,6 +8,7 @@ import re
 import string
 import threading
 import time
+from dataclasses import dataclass
 from datetime import datetime
 
 import numpy as np
@@ -49,6 +50,51 @@ CAPTURE_QUEUE_SIZE = 4
 
 # Margin kept around the located card when it is cropped for OCR
 CARD_CROP_MARGIN = 8
+
+# Card signature: the top band of the card (its title area) as a fraction of
+# the card height, shrunk to a tiny grey thumbnail of SIGNATURE_SIZE (width,
+# height). Two sightings are the same card when every rect edge is within
+# SIGNATURE_RECT_TOL_PX and the thumbnails differ by at most
+# SIGNATURE_THUMB_TOL grey levels on average.
+SIGNATURE_BAND = 0.3
+SIGNATURE_SIZE = (32, 8)
+SIGNATURE_RECT_TOL_PX = 4
+SIGNATURE_THUMB_TOL = 12.0
+
+
+@dataclass(frozen=True, eq=False)
+class CardSignature:
+    """A cheap fingerprint of one sighting of the item card.
+
+    rect is the card in physical screen px, thumb a tiny grey thumbnail of
+    its top band (SIGNATURE_SIZE, uint8).
+    """
+
+    rect: Rect
+    thumb: np.ndarray
+
+
+def card_signature(
+    image: Image.Image, card: Rect, origin: LayoutPoint
+) -> CardSignature:
+    """Signature of the card found at card (capture px) in a capture at origin."""
+    band_bottom = card.top + max(1, round(card.height * SIGNATURE_BAND))
+    band = image.crop((card.left, card.top, card.right, band_bottom))
+    thumb = np.asarray(
+        band.convert("L").resize(SIGNATURE_SIZE, Image.Resampling.BILINEAR),
+        dtype=np.uint8,
+    )
+    return CardSignature(to_screen(card, origin), thumb)
+
+
+def same_card(a: CardSignature, b: CardSignature) -> bool:
+    """True when two sightings show the same card at the same place."""
+    if any(
+        abs(p - q) > SIGNATURE_RECT_TOL_PX for p, q in zip(a.rect, b.rect, strict=True)
+    ):
+        return False
+    diff = np.abs(a.thumb.astype(np.int16) - b.thumb.astype(np.int16))
+    return float(diff.mean()) <= SIGNATURE_THUMB_TOL
 
 
 def build_reader(engine: str) -> TitleReader:
@@ -188,6 +234,9 @@ class OCREngine:
         self._last_lines: list[TextLine] | None = None
         # Offset from the OCR crop to the located card, set by _locate_card
         self._crop_to_card = LayoutPoint(0, 0)
+        # OCR crop of the card the last locate_card_at_cursor found, read by
+        # read_located_card. None when that locate found no card.
+        self._card_crop: Image.Image | None = None
 
         # Card title reader chosen by OCR_ENGINE
         self.reader = build_reader(settings.ocr_engine)
@@ -703,7 +752,39 @@ class OCREngine:
         else:
             image, _ = self.capture_around_cursor()
             library_image = image
+        return self._read_and_keep(
+            image, library_image, card_found=card_crop is not None
+        )
 
+    def locate_card_at_cursor(self) -> CardSignature | None:
+        """Capture the search window and locate the item card, without reading.
+
+        Returns the card's signature, or None when no card is found. The
+        capture, its origin and the card stay as the last capture for
+        read_located_card and layout_from_last_capture.
+        """
+        self.last_tier_vote = None
+        window, cursor = self.capture_search_window()
+        self._card_crop = self._locate_card(cursor)
+        if self._card_crop is None or self._last_card is None:
+            return None
+        return card_signature(window, self._last_card, self._last_origin)
+
+    def read_located_card(self) -> str | None:
+        """Read the title of the card the last locate_card_at_cursor found.
+
+        Returns the cleaned item name, or None without a located card or a
+        read. The search window goes to the capture library as for
+        extract_item_name_at_cursor.
+        """
+        if self._card_crop is None or self._last_capture is None:
+            return None
+        return self._read_and_keep(self._card_crop, self._last_capture, card_found=True)
+
+    def _read_and_keep(
+        self, image: Image.Image, library_image: Image.Image, *, card_found: bool
+    ) -> str | None:
+        """Read the title from image, log its time and keep the capture."""
         # Save debug image if enabled
         if self.debug_mode:
             image.save(self.debug_dir / "tooltip_capture_raw.png")
@@ -721,7 +802,7 @@ class OCREngine:
 
         start = time.perf_counter()
         try:
-            item_name = self._read_title(image, card_found=card_crop is not None)
+            item_name = self._read_title(image, card_found=card_found)
         except pytesseract.TesseractError as e:
             logger.error(f"OCR Error: {e}")
             item_name = None

@@ -4,14 +4,17 @@ from itertools import pairwise
 from types import SimpleNamespace
 from typing import ClassVar
 
+import numpy as np
 import pytest
 
 import arc_helper.main as main_module
 from arc_helper.database import Item
 from arc_helper.main import HOLD_CAP_S
+from arc_helper.main import HOLD_FLOOR_S
 from arc_helper.main import Scanner
 from arc_helper.main import ScannerState
 from arc_helper.main import scan_hold_s
+from arc_helper.ocr import CardSignature
 from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import TooltipLayout
 from arc_helper.verdict import Verdict
@@ -74,7 +77,11 @@ class _Hotkey:
 
 
 class _Ocr:
-    """Each read takes the next duration on the fake clock."""
+    """Each card search takes the next duration on the fake clock.
+
+    With read set every search finds the same card and reads it as read,
+    without it no search finds a card.
+    """
 
     last_tier_vote = None
 
@@ -82,9 +89,13 @@ class _Ocr:
         self.clock = clock
         self.durations = list(durations)
         self.read = read
+        self.card = CardSignature(Rect(10, 10, 400, 600), np.zeros((8, 32), np.uint8))
 
-    def extract_item_name_at_cursor(self):
+    def locate_card_at_cursor(self):
         self.clock.now += self.durations.pop(0)
+        return self.card if self.read else None
+
+    def read_located_card(self):
         return self.read
 
     @staticmethod
@@ -140,33 +151,39 @@ def _run_loop(monkeypatch, held, durations, read=None):
 
 
 def test_period_history_resets_on_entry_to_active(monkeypatch):
-    # Enter, scan twice, release, enter again, scan once
+    # Enter, scan twice, release, enter again, scan once. No card, so each
+    # scan sleeps the 0.1 s cap
     _, holds = _run_loop(
         monkeypatch,
         held=[True, True, True, False, True, True],
-        durations=[0.5, 1.0, 0.6],
+        durations=[1.6, 2.0, 1.7],
     )
-    # Scan 1: estimate 0.5 + 0.3 s. Scan 2: period 0.8 s and estimate
-    # 1.0 + 0.3 s. Scan 3 after re-entry: estimate 0.6 + 0.3 s alone, not
-    # the 1.3 s period since scan 2 started
-    assert holds == [1600, 2600, 1800]
+    # Scan 1: estimate 1.6 + 0.1 s. Scan 2: period 1.7 s and estimate
+    # 2.0 + 0.1 s. Scan 3 after re-entry: estimate 1.7 + 0.1 s alone, not
+    # the 2.1 s period since scan 2 started
+    assert holds == [3400, 4200, 3600]
+
+
+def test_hold_never_drops_below_the_safety_floor(monkeypatch):
+    _, holds = _run_loop(monkeypatch, held=[True, True], durations=[0.2])
+    assert holds == [HOLD_FLOOR_S * 1000]
 
 
 def test_hold_reaches_queued_messages(monkeypatch):
-    scanner, holds = _run_loop(
+    scanner, _ = _run_loop(
         monkeypatch,
         held=[True, True, True],
-        durations=[0.5, 1.2],
+        durations=[0.5, 2.1],
         read="Battery",
     )
     messages = []
     while not scanner.ui_queue.empty():
         messages.append(scanner.ui_queue.get_nowait())
     shaped = [m for m in messages if m[0] in {"overlay", "chips", "touch"}]
+    # The same card again is touched, not read
     assert [m[0] for m in shaped] == ["overlay", "chips", "touch"]
-    # Scan 2: estimate 1.2 + 0.3 s beats the 0.8 s period
-    assert holds == [1600, 3000]
-    assert [m[-1] for m in shaped] == [1600, 1600, 3000]
+    # Scan 1: the 3 s floor. Scan 2: estimate 2.1 s beats the 0.5 s period
+    assert [m[-1] for m in shaped] == [3000, 3000, 4200]
     assert scanner.state == ScannerState.IDLE
 
 
