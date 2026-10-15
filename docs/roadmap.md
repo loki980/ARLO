@@ -114,7 +114,8 @@ Ahead, in order:
     test, saving a 2 MB full-screen image about every 2 seconds on the scan
     thread (471 files, 285 MB). It now turns on only with
     `uv run arc-helper --capture`, ignores .env, stops after a per-run limit,
-    and saves on a background thread. Added 14 Oct, building now.
+    and saves on a background thread. Added 14 Oct, done 14 Oct, accepted
+    by Codex with no items.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
