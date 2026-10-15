@@ -10,7 +10,7 @@ MIN_FILLED filled slots, then SAMPLE frames spread evenly over those.
 The gallery is every arctracker item outside the types that never sit in an
 inventory slot (EXCLUDED_TYPES), its icons downloaded once into the icon
 cache, cut to one entry per distinct icon (distinct_gallery). Items resolve
-through Database.lookup and badges use verdict_kinds.
+through Database.lookup and badges use verdicts_for.
 
 Each frame is timed twice through the whole pass (find_slots, embedding,
 tier reads, lookups), without and with stack reads. The model is loaded and
@@ -45,6 +45,7 @@ from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import format_price
 from arc_helper.stash_scan import identify_slots
 from arc_helper.stash_scan import verdict_kinds
+from arc_helper.stash_scan import verdicts_for
 
 FULL_SIZE = (3840, 2160)
 EVERY = 12
@@ -198,6 +199,7 @@ def main() -> int:
     gallery, twins = distinct_gallery(gallery)
     db = Database()
     kind_of = verdict_kinds(db)
+    verdict_of = verdicts_for(db)
     embedder.embed(
         [np.zeros((icon_embed.INPUT_SIDE, icon_embed.INPUT_SIDE, 3), np.uint8)]
     )
@@ -226,7 +228,7 @@ def main() -> int:
         stacked = time.perf_counter() - start
         plain_times.append(plain)
         stack_times.append(stacked)
-        badges = badges_for(found, kind_of)
+        badges = badges_for(found, verdict_of)
         rows = [_row(path, s, kind_of) for s in found]
         rows_out.extend(rows)
         _sheet(rgb, rows, icon_paths, out / f"sheet_{n:02d}_{path.stem}.png")
