@@ -24,6 +24,11 @@ from threading import Thread
 import numpy as np
 from dotenv import load_dotenv
 
+from arc_helper import layout_home
+from arc_helper.advice_card import AdviceCard
+from arc_helper.advice_card import build_advice_card
+from arc_helper.advice_card import needed_parts
+from arc_helper.advice_window import AdviceWindow
 from arc_helper.cell_border import CellBorder
 from arc_helper.clickthrough import make_click_through
 from arc_helper.config import APP_DIR
@@ -61,6 +66,7 @@ from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import to_screen
 from arc_helper.verdict import KEEP
+from arc_helper.verdict import KEEP_SOME
 from arc_helper.verdict import UNKNOWN
 from arc_helper.verdict import Verdict
 from arc_helper.verdict import compute_verdict
@@ -198,12 +204,12 @@ def popup_escape_spot(card: Rect, labelled: Mapping[str, Rect]) -> str | None:
     return None
 
 
-# The popup's home: the empty part of the LOADOUT panel below the second
-# weapon slot, as fractions of the screen size. Its top left is the popup's
-# top left. A taller popup grows downward but never below POPUP_HOME_FLOOR.
-POPUP_HOME_LEFT = 0.356
-POPUP_HOME_TOP = 0.757
-POPUP_HOME_FLOOR = 0.93
+# The popup's home: the LOADOUT panel box (see layout_home). Its top left is
+# the popup's top left. A taller popup grows downward but never below
+# POPUP_HOME_FLOOR.
+POPUP_HOME_LEFT = layout_home.LEFT
+POPUP_HOME_TOP = layout_home.TOP
+POPUP_HOME_FLOOR = layout_home.FLOOR
 
 
 def popup_spot_rects(
@@ -211,8 +217,9 @@ def popup_spot_rects(
 ) -> tuple[Rect, Rect]:
     """The popup's home and top left corner spots in physical px.
 
-    screen is the screen size, size the popup's size and corner the top
-    left spot (OVERLAY_X and OVERLAY_Y), used while a card covers home.
+    screen is the screen size, size the popup's or advice card's size and
+    corner the top left spot (OVERLAY_X and OVERLAY_Y), used while a card
+    covers home.
     """
     screen_w, screen_h = screen
     width, height = size
@@ -398,6 +405,10 @@ class Scanner:
     # ARLO's own window rectangles, published by the Tk thread, kept out of
     # the hovered cell search
     overlay_rects: OverlayRects = field(default_factory=OverlayRects)
+
+    # True when the advice card replaces the corner popup (ADVICE_CARD). The
+    # Application passes the setting, a bare Scanner keeps the popup path
+    advice_card: bool = False
 
     # Cooldown tracking
     _last_shown_item: str = ""
@@ -811,9 +822,47 @@ class Scanner:
     def _show_overlay(
         self, item_name: str, recommendation: Item | None, verdict: Verdict
     ) -> None:
-        """Queue an overlay update for the main (GUI) thread to apply."""
+        """Queue an overlay update for the main (GUI) thread to apply.
+
+        With the advice card on, the card is built here on the scan thread
+        and only rendered and shown on the Tk thread.
+        """
+        if self.advice_card:
+            card = self._advice_card_for(recommendation, verdict)
+            self.ui_queue.put(("advice", item_name, card, self._hold_ms))
+            return
         self.ui_queue.put(
             ("overlay", item_name, recommendation, verdict, self._hold_ms)
+        )
+
+    def _advice_card_for(
+        self, recommendation: Item | None, verdict: Verdict
+    ) -> AdviceCard:
+        """The advice card for an item and its verdict (scan thread).
+
+        A home recycle output counts as still needed when its own verdict is
+        keep or keep_some. The owned count stays None until the stash ledger
+        exists.
+        """
+        if recommendation is None:
+            return build_advice_card(verdict, [])
+        show_ended = get_settings().show_ended_projects
+        home = [
+            o
+            for o in self.db.recycle_outputs(recommendation.name)
+            if o.location == HOME
+        ]
+
+        def is_needed(component: str, _needs) -> bool:
+            part = self.db.lookup(component)
+            return self._verdict_for(part, show_ended).kind in {KEEP, KEEP_SOME}
+
+        return build_advice_card(
+            verdict,
+            self.db.needs_for(recommendation.name),
+            None,
+            home,
+            needed_parts(home, self.db.needs_for, is_needed),
         )
 
     def _queue_chips(
@@ -885,7 +934,7 @@ def _ui_message_detail(msg: tuple) -> str:
     """Short text for a ui_queue message in the debug log."""
     if msg[0] == "status":
         return f"status={msg[1]}"
-    if msg[0] in {"touch", "overlay", "chips"}:
+    if msg[0] in {"touch", "overlay", "advice", "chips"}:
         return f"item={msg[1]}"
     if msg[0] == "popup_spot":
         return f"spot={msg[1]}"
@@ -894,6 +943,15 @@ def _ui_message_detail(msg: tuple) -> str:
 
 class Application:
     """Main application controller."""
+
+    # The advice card window, None with ADVICE_CARD=false (the corner popup)
+    advice: AdviceWindow | None = None
+    # Item and card the advice window shows, its last size in physical px
+    # and its hold timer
+    _advice_item: str | None = None
+    _advice_card: AdviceCard | None = None
+    _advice_size: tuple[int, int] | None = None
+    _advice_hide_id: str | None = None
 
     def __init__(self):
         """Initialize the application."""
@@ -909,6 +967,10 @@ class Application:
 
         # Create overlay and status windows
         self.overlay = OverlayWindow(self.root)
+        # With ADVICE_CARD on the advice card takes the popup's place, the
+        # popup itself stays hidden
+        if self.settings.overlay.advice_card:
+            self.advice = AdviceWindow(self.root)
         # OVERLAY_X and OVERLAY_Y now set the top left corner spot the popup
         # moves to while a card covers its home in the LOADOUT panel
         self._popup_corner = Point(self.overlay.overlay_x, self.overlay.overlay_y)
@@ -941,6 +1003,7 @@ class Application:
             status=self.status,
             db=self.db,
             ui_queue=self.ui_queue,
+            advice_card=self.advice is not None,
         )
         self.overlay_rects = self.scanner.overlay_rects
 
@@ -981,10 +1044,16 @@ class Application:
                         item_name, recommendation, verdict, home_outputs, hold_ms
                     )
                     self._after_popup_show()
+                elif msg[0] == "advice":
+                    self._show_advice(msg[1], msg[2], msg[3])
+                    self._after_popup_show()
                 elif msg[0] == "popup_spot":
                     self._apply_popup_spot(msg[1], msg[2])
                 elif msg[0] == "touch":
-                    self.overlay.touch(msg[1], msg[2])
+                    if self.advice is not None:
+                        self._touch_advice(msg[1], msg[2])
+                    else:
+                        self.overlay.touch(msg[1], msg[2])
                     if self.chips is not None:
                         self.chips.touch(msg[2])
                 elif msg[0] == "chips" and self.chips is not None:
@@ -1007,8 +1076,74 @@ class Application:
         """
         if self.overlay.is_visible():
             self.overlay.hide()
+        if self.advice is not None:
+            self._hide_advice()
         if self.chips is not None:
             self.chips.hide(reason="card_gone")
+
+    def _show_advice(
+        self, item_name: str, card: AdviceCard, hold_ms: int | None
+    ) -> None:
+        """Show the advice card at the popup's spot (main thread only).
+
+        The same card at the same spot is neither rendered nor mapped again,
+        only its hold timer restarts.
+        """
+        self._advice_item = item_name
+        self._advice_card = card
+        self.advice.show(card, self._advice_box())
+        self._note_advice_size()
+        self._arm_advice_hold(hold_ms)
+
+    def _touch_advice(self, item_name: str, hold_ms: int | None) -> None:
+        """Keep the advice card up while item_name is the item showing."""
+        if self._advice_item == item_name and self.advice.is_visible():
+            self._arm_advice_hold(hold_ms)
+
+    def _arm_advice_hold(self, hold_ms: int | None) -> None:
+        """Restart the advice card's auto-hide timer, display_time without hold."""
+        if self._advice_hide_id is not None:
+            self.root.after_cancel(self._advice_hide_id)
+        if hold_ms is None:
+            hold_ms = round(self.settings.overlay.display_time * 1000)
+        self._advice_hide_id = self.root.after(hold_ms, self._advice_hold_ended)
+
+    def _advice_hold_ended(self) -> None:
+        """The hold ran out without a touch: hide the advice card."""
+        self._advice_hide_id = None
+        logger.debug("advice hide reason=timer item=%s", self._advice_item)
+        self._hide_advice()
+
+    def _hide_advice(self) -> None:
+        """Hide the advice card and stop its hold timer (main thread only)."""
+        if self._advice_hide_id is not None:
+            self.root.after_cancel(self._advice_hide_id)
+            self._advice_hide_id = None
+        self._advice_item = None
+        self.advice.hide()
+
+    def _note_advice_size(self) -> None:
+        """Remember the advice card's size after a show, for the spot logic."""
+        rect = self.advice.rect_phys()
+        if rect is not None:
+            self._advice_size = (rect.right - rect.left, rect.bottom - rect.top)
+
+    def _advice_box(self) -> Rect:
+        """The box the advice card is placed in for the current spot.
+
+        Home is the LOADOUT box. The corner spot is a box of the same size
+        at OVERLAY_X and OVERLAY_Y, so the card keeps its scale.
+        """
+        box = layout_home.loadout_box(get_screen_resolution())
+        if self._popup_spot != POPUP_CORNER:
+            return box
+        corner = self._popup_corner
+        return Rect(
+            corner.x,
+            corner.y,
+            corner.x + box.right - box.left,
+            corner.y + box.bottom - box.top,
+        )
 
     def _border_width_px(self) -> int:
         """Border width in physical px, BORDER_WIDTH_TK scaled like the chips."""
@@ -1031,13 +1166,24 @@ class Application:
             self.border.show(rect, self._border_width_px())
 
     def _popup_spots(self) -> tuple[Rect, Rect]:
-        """The popup's home and corner spots at its current size (main thread)."""
+        """The popup's home and corner spots at its current size (main thread).
+
+        With the advice card on, the size is the card's: its last shown
+        size, the LOADOUT box before the first show.
+        """
+        screen = get_screen_resolution()
+        if self.advice is not None:
+            size = self._advice_size
+            if size is None:
+                box = layout_home.loadout_box(screen)
+                size = (box.right - box.left, box.bottom - box.top)
+            return popup_spot_rects(screen, size, self._popup_corner)
         tk_scale = get_backend().tk_scale
         size = (
             round(self.overlay.window.winfo_width() * tk_scale),
             round(self.overlay.window.winfo_height() * tk_scale),
         )
-        return popup_spot_rects(get_screen_resolution(), size, self._popup_corner)
+        return popup_spot_rects(screen, size, self._popup_corner)
 
     def _apply_popup_spot(self, spot: str, card: Rect | None) -> None:
         """Apply a popup_spot message (main thread only).
@@ -1069,7 +1215,16 @@ class Application:
         self._place_popup()
 
     def _place_popup(self) -> None:
-        """Move the popup to its current spot if it is elsewhere."""
+        """Move the popup to its current spot if it is elsewhere.
+
+        With the advice card on, a showing card moves instead. A hidden one
+        is placed at its spot by the next show.
+        """
+        if self.advice is not None:
+            if self.advice.is_visible() and self._advice_card is not None:
+                self.advice.show(self._advice_card, self._advice_box())
+                self._note_advice_size()
+            return
         home, corner = self._popup_spots()
         spot = corner if self._popup_spot == POPUP_CORNER else home
         if (spot.left, spot.top) != (self.overlay.overlay_x, self.overlay.overlay_y):
@@ -1083,7 +1238,15 @@ class Application:
         tk_scale = get_backend().tk_scale
         rects: list[Rect] = []
         labelled: dict[str, Rect] = {}
-        windows = [(POPUP, self.overlay.window), (STATUS, self.status.window)]
+        windows = [(STATUS, self.status.window)]
+        if self.advice is None:
+            windows.insert(0, (POPUP, self.overlay.window))
+        else:
+            # The advice card covers a card just like the popup does
+            rect = self.advice.rect_phys()
+            if rect is not None:
+                rects.append(rect)
+                labelled[POPUP] = rect
         if self.debug_overlay is not None:
             windows.append(("debug", self.debug_overlay.window))
         for label, window in windows:

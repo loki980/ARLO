@@ -237,6 +237,12 @@ class OverlaySettings(BaseSettings):
         validation_alias="TOOLTIP_CHIPS",
         description="Show price and recycle chips beside the game tooltip",
     )
+    # Read from ADVICE_CARD. False brings back the text popup
+    advice_card: bool = Field(
+        default=True,
+        validation_alias="ADVICE_CARD",
+        description="Show the advice card in the LOADOUT panel box",
+    )
 
 
 class ScanSettings(BaseSettings):
@@ -411,6 +417,7 @@ class Settings(BaseSettings):
             f"OVERLAY_DISPLAY_TIME={self.overlay.display_time}",
             f"OVERLAY_COOLDOWN={self.overlay.cooldown}",
             f"TOOLTIP_CHIPS={str(self.overlay.tooltip_chips).lower()}",
+            f"ADVICE_CARD={str(self.overlay.advice_card).lower()}",
             f"SHOW_ENDED_PROJECTS={str(self.show_ended_projects).lower()}",
             "",
             "# Scan intervals",

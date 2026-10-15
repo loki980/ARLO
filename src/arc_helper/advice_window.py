@@ -14,6 +14,7 @@ from .advice_card import AdviceCard
 from .advice_card import render_advice_card
 from .clickthrough import make_click_through
 from .config import logger
+from .layout_home import FLOOR
 from .screen import get_backend
 from .screen import phys_to_tk
 from .tooltip_layout import Rect
@@ -21,7 +22,7 @@ from .tooltip_layout import Rect
 # Width of render_advice_card at scale 1.0, in px.
 CARD_BASE_WIDTH = 560
 # The card may not reach below this fraction of the screen height.
-FLOOR_FRACTION = 0.93
+FLOOR_FRACTION = FLOOR
 # LOADOUT panel colour sampled from the lower area of the box in a 3840x2160
 # capture (debug/captures/20261014-211438-853_none.png), the most common
 # pixel value, #0B0D19. The card's transparent corners are composited onto it.
