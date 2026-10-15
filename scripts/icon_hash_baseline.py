@@ -46,6 +46,19 @@ FIRST_CAPTURE = "20261012-001659"
 ITEMS_URL = "https://arctracker.io/api/items"
 SHEET_COLUMNS = 6
 TILE = 128
+# Capture file name prefix to why the label is not a fair test, checked by eye
+BAD_LABELS = {
+    "20261014-211224": "shows a Great Mullein, not the labeled Defibrillator",
+    "20261014-211227": "shows a Great Mullein, not the labeled Defibrillator",
+    "20261014-211303": "shows a Zipline, not the labeled Adrenaline Shot",
+    "20261014-210936": "hovered cell is not the Grappling Hook",
+    "20261014-211019": "hovered cell is not the Grappling Hook",
+    "20261014-211021": "hovered cell is not the Grappling Hook",
+    "20261014-211024": "hovered cell is not the Grappling Hook",
+    "20261014-211226": "hovered cell is not the Grappling Hook",
+    "20261014-210220": "tooltip fragment lies over the slot",
+    "20261014-210922": "two-cell crop, not one slot",
+}
 
 
 def _arctracker_items(cache_dir: Path) -> list[dict]:
@@ -138,7 +151,11 @@ def _pct(hits: int, total: int) -> str:
 
 
 def _measure(
-    labeled: list[dict], label_ids: dict[str, str], icons: dict, method: str
+    labeled: list[dict],
+    label_ids: dict[str, str],
+    icons: dict,
+    method: str,
+    title: str = "",
 ) -> tuple[list[str], list[dict]]:
     gallery = build_gallery(icons, method)
     rows = []
@@ -159,7 +176,7 @@ def _measure(
                 "top5": item_id in ids,
             }
         )
-    lines = [f"== {method} ({len(gallery)} icons in the gallery) =="]
+    lines = [title or f"== {method} ({len(gallery)} icons in the gallery) =="]
     lines.append(
         f"top-1 per crop: {_pct(sum(r['top1'] for r in rows), len(rows))}"
         f"  top-5 per crop: {_pct(sum(r['top5'] for r in rows), len(rows))}"
@@ -261,10 +278,27 @@ def main() -> int:
         "",
     ]
     report.extend(f"skipped {s}" for s in skipped)
+    report.extend(["", "known bad labels, excluded from the cleaned tables only:"])
+    report.extend(
+        f"  {r['file']}: {BAD_LABELS[k]}"
+        for r in labeled
+        for k in BAD_LABELS
+        if r["file"].startswith(k)
+    )
     report.append("")
     for method in METHODS:
         lines, rows = _measure(labeled, label_ids, icons, method)
         report.extend(lines)
+        report.append("")
+        clean = [r for r in labeled if not r["file"].startswith(tuple(BAD_LABELS))]
+        clean_lines, _ = _measure(
+            clean,
+            label_ids,
+            icons,
+            method,
+            f"== {method}, known bad labels removed ({len(labeled) - len(clean)}) ==",
+        )
+        report.extend(clean_lines)
         report.append("")
         _contact_sheet(rows, icons, out / f"contact_{method}.png")
         with (out / f"labeled_{method}.csv").open("w", newline="") as f:
