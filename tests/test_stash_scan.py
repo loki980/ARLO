@@ -14,6 +14,7 @@ from arc_helper.icon_embed import EmbedGallery
 from arc_helper.slot_marks import TierRead
 from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
+from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import format_price
 from arc_helper.stash_scan import identify_slots
 from arc_helper.tooltip_layout import Rect
@@ -222,3 +223,16 @@ def test_badges_gold_border_for_keep_and_price_for_every_item():
     ]
     assert tags[0]["corner"] == "bl"
     assert all(b["rect"][0] != 400 for b in badges)
+
+
+def test_distinct_gallery_keeps_the_plain_item_of_a_shared_icon():
+    vectors = np.array([[1, 0], [1, 0], [0, 1], [0.6, 0.8]], dtype=np.float32)
+    gallery = EmbedGallery(
+        ("bp", "gun", "metal", "other"),
+        ("Anvil Blueprint", "Anvil I", "Metal Parts", "Rubber Parts"),
+        vectors,
+    )
+    kept = distinct_gallery(gallery)
+    assert kept.names == ("Anvil I", "Metal Parts", "Rubber Parts")
+    assert kept.item_ids == ("gun", "metal", "other")
+    assert kept.vectors.shape == (3, 2)

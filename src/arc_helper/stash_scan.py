@@ -19,6 +19,9 @@ identify_slots runs the pieces of phase 3 over one full-screen frame:
 5. With read_stacks, slot_marks.read_stack reads the xN count (about 68 ms
    a slot with a count, so it is off by default).
 
+distinct_gallery drops the gallery entries whose icon equals another
+item's, which would otherwise never clear the lead rule.
+
 badges_for turns the identified slots into badge dicts in the badge
 surface's message format (badge_surface.encode_message on branch
 badge-surface): a gold border on every keep and keep_some item and a price
@@ -53,6 +56,7 @@ from .verdict import KEEP
 from .verdict import KEEP_SOME
 from .verdict import compute_verdict
 
+DUPLICATE_SIMILARITY = 0.995
 MIN_SIMILARITY = 0.65
 MIN_LEAD = 0.04
 TOP_N = 5
@@ -113,6 +117,36 @@ def base_lead(found: Sequence[EmbedCandidate]) -> float:
     others = [c.similarity for c in found[1:] if base_name(c.name).casefold() != top]
     rest = others[0] if others else found[-1].similarity
     return found[0].similarity - rest if len(found) > 1 else found[0].similarity
+
+
+def distinct_gallery(
+    gallery: EmbedGallery, threshold: float = DUPLICATE_SIMILARITY
+) -> EmbedGallery:
+    """The gallery with one entry per distinct icon.
+
+    Many catalog items share one icon (a weapon and its blueprint, the
+    variants of an amplified weapon, the security codes). Their embeddings
+    are equal, so no slot can lead over its twins. Of each group whose
+    similarity reaches threshold the shortest name is kept (the plain item
+    before its blueprint or variant).
+    """
+    order = sorted(
+        range(len(gallery)), key=lambda i: (len(gallery.names[i]), gallery.names[i])
+    )
+    kept: list[int] = []
+    for i in order:
+        if (
+            kept
+            and float(np.max(gallery.vectors[kept] @ gallery.vectors[i])) >= threshold
+        ):
+            continue
+        kept.append(i)
+    kept.sort()
+    return EmbedGallery(
+        tuple(gallery.item_ids[i] for i in kept),
+        tuple(gallery.names[i] for i in kept),
+        gallery.vectors[kept],
+    )
 
 
 def _rank(vectors: np.ndarray, gallery: EmbedGallery) -> list[list[EmbedCandidate]]:
