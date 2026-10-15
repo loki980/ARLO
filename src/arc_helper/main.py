@@ -453,7 +453,7 @@ class Scanner:
         with self._chips_lock:
             self._running = False
             self.state = ScannerState.STOPPED
-            self._hide_chips()
+            self._hide_card_windows()
         if self._scan_thread:
             self._scan_thread.join(timeout=2.0)
         self.hotkey.stop()
@@ -465,7 +465,7 @@ class Scanner:
             was_active = self.state == ScannerState.ACTIVE
             self.state = ScannerState.PAUSED
             if was_active:
-                self._hide_chips()
+                self._hide_card_windows()
 
     def resume(self) -> None:
         """Resume scanning."""
@@ -524,7 +524,7 @@ class Scanner:
                             self._hotkey_override = False
                             self.state = ScannerState.IDLE
                             logger.debug("state ACTIVE -> IDLE reason=hotkey_released")
-                            self._hide_chips()
+                            self._hide_card_windows()
                             self._update_status("scanning")
                             logger.info("Hotkey released - returning to idle")
                             continue
@@ -624,9 +624,16 @@ class Scanner:
             (scan_s - locate_s) * 1000,
             "none" if period_s is None else f"{period_s * 1000:.0f} ms",
         )
-        # A failed or discarded read keeps the shown card, so the next cycle
-        # reads this card again and the shown one is still known
-        if item_name and self._handle_detected_item(item_name, new_card=True):
+        # A new card with no name hides the old item's windows at once, and
+        # the next cycle reads this card again
+        if not item_name:
+            if self._card_shown is not None:
+                self._log_card_state("hide", "reason=no_read")
+                self._hide_card_windows()
+            return
+        # A discarded read (card under ARLO's popup) keeps the shown card, so
+        # the next cycle reads this card again once the popup moved aside
+        if self._handle_detected_item(item_name, new_card=True):
             self._card_shown = sighting
             self._last_touch = time.monotonic()
 

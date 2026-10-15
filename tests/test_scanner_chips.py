@@ -74,11 +74,11 @@ def _drain(scanner):
     return messages
 
 
-def test_pause_from_active_hides_chips():
+def test_pause_from_active_hides_the_card_windows():
     scanner = _active_scanner()
     scanner.pause()
     assert scanner.state == ScannerState.PAUSED
-    assert _drain(scanner) == [("chips_hide",)]
+    assert _drain(scanner) == [("hide",)]
 
 
 def test_chips_queued_while_active(monkeypatch):
@@ -136,7 +136,7 @@ def test_no_chips_after_leaving_active_during_layout_ocr(monkeypatch, leave):
     ocr.release.set()
     worker.join(timeout=5)
 
-    assert _drain(scanner) == [("chips_hide",)]
+    assert _drain(scanner) == [("hide",)]
 
 
 class _NoVoteOcr:

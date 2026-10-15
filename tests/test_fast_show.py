@@ -127,14 +127,21 @@ def _settings(interval=0.3):
 
 def _run(monkeypatch, cards, *, held=True, interval=0.3, **ocr_kwargs):
     """Run _scan_loop over a card sequence, returning scanner, ocr, sleeps."""
-    clock = _Clock()
-    ocr = _Ocr(clock, cards, **ocr_kwargs)
+    ocr = _Ocr(_Clock(), cards, **ocr_kwargs)
+    sleeps = []
+    scanner = _loop(monkeypatch, ocr, held=held, interval=interval, sleeps=sleeps)
+    return scanner, ocr, sleeps
+
+
+def _loop(monkeypatch, ocr, *, held, interval=0.3, sleeps=None):
+    """Run _scan_loop with an engine stub, returning the scanner."""
+    clock = ocr.clock
+    sleeps = [] if sleeps is None else sleeps
     ref = []
     scanner = Scanner(root=None, overlay=None, status=None, db=_Db(), hotkey=None)
     scanner.hotkey = _Hotkey(ocr, ref, held=held)
     ref.append(scanner)
     scanner._running = True  # noqa: SLF001 - test seam
-    sleeps = []
 
     def sleep(seconds):
         sleeps.append(seconds)
@@ -146,7 +153,7 @@ def _run(monkeypatch, cards, *, held=True, interval=0.3, **ocr_kwargs):
     monkeypatch.setattr(main_module.time, "sleep", sleep)
     monkeypatch.setattr(scanner, "_verdict_for", lambda *_: Verdict("sell", "r"))
     scanner._scan_loop()  # noqa: SLF001
-    return scanner, ocr, sleeps
+    return scanner
 
 
 def _kinds(scanner, *, skip=("status",)):
@@ -159,23 +166,23 @@ def _kinds(scanner, *, skip=("status",)):
 
 
 def test_same_card_twice_reads_once(monkeypatch):
-    scanner, ocr, _ = _run(monkeypatch, [CARD_A, CARD_A_AGAIN, CARD_A])
+    scanner, ocr, _ = _run(monkeypatch, [CARD_A, CARD_A_AGAIN, CARD_A], held=False)
     assert ocr.reads == 1
     # Shown once with its chips, then only touched (at most once a second)
     kinds = _kinds(scanner)
     assert kinds[:2] == ["overlay", "chips"]
-    assert set(kinds[2:]) <= {"touch", "chips_hide"}
+    assert set(kinds[2:]) <= {"touch"}
 
 
 def test_card_gone_twice_queues_one_hide(monkeypatch):
-    scanner, _, _ = _run(monkeypatch, [CARD_A, None, None, None, None])
+    scanner, _, _ = _run(monkeypatch, [CARD_A, None, None, None, None], held=False)
     kinds = _kinds(scanner)
     assert kinds.count("hide") == 1
     assert kinds[:3] == ["overlay", "chips", "hide"]
 
 
 def test_one_missed_cycle_keeps_the_card_without_a_read(monkeypatch):
-    scanner, ocr, _ = _run(monkeypatch, [CARD_A, None, CARD_A])
+    scanner, ocr, _ = _run(monkeypatch, [CARD_A, None, CARD_A], held=False)
     assert ocr.reads == 1
     assert "hide" not in _kinds(scanner)
 
@@ -192,6 +199,39 @@ def test_new_card_is_read_at_once(monkeypatch):
     assert _kinds(scanner).count("overlay") == 3
     # Cycles that found a card never sleep
     assert sleeps == []
+
+
+def test_failed_read_of_a_new_card_hides_the_old_windows(monkeypatch):
+    clock = _Clock()
+
+    class _FailOnB(_Ocr):
+        def read_located_card(self):
+            name = super().read_located_card()
+            return None if self.located is CARD_B else name
+
+    ocr = _FailOnB(clock, [CARD_A, CARD_B, CARD_B, CARD_A])
+    scanner = _loop(monkeypatch, ocr, held=False)
+    # Hidden once at the failed read, read again next cycle, then CARD_A
+    # shows again
+    assert ocr.reads == 4
+    assert _kinds(scanner) == ["overlay", "chips", "hide", "overlay", "chips"]
+
+
+def test_hotkey_release_hides_the_card_windows(monkeypatch):
+    # In hotkey mode the run ends with the hotkey released
+    scanner, _, _ = _run(monkeypatch, [CARD_A, CARD_A])
+    assert _kinds(scanner)[-1] == "hide"
+
+
+@pytest.mark.parametrize("leave", ["pause", "stop"])
+def test_pause_and_stop_hide_the_card_windows(leave):
+    scanner = Scanner(root=None, overlay=None, status=None, db=_Db(), hotkey=None)
+    scanner.hotkey = SimpleNamespace(stop=lambda: None)
+    scanner.state = ScannerState.ACTIVE
+    scanner._card_shown = CARD_A  # noqa: SLF001
+    getattr(scanner, leave)()
+    assert _kinds(scanner) == ["hide"]
+    assert scanner._card_shown is None  # noqa: SLF001
 
 
 def test_no_card_sleep_is_bounded(monkeypatch):
