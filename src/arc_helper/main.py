@@ -5,6 +5,7 @@ Coordinates OCR scanning and overlay display.
 
 import argparse
 import datetime
+import json
 import queue
 import sys
 import threading
@@ -12,6 +13,7 @@ import time
 import tkinter as tk
 import traceback
 from collections import deque
+from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -20,6 +22,7 @@ from enum import Enum
 from enum import auto
 from pathlib import Path
 from threading import Thread
+from typing import NamedTuple
 
 import numpy as np
 from dotenv import load_dotenv
@@ -29,6 +32,10 @@ from arc_helper.advice_card import AdviceCard
 from arc_helper.advice_card import build_advice_card
 from arc_helper.advice_card import needed_parts
 from arc_helper.advice_window import AdviceWindow
+from arc_helper.badge_surface import Badge
+from arc_helper.badge_surface import BadgeSurface
+from arc_helper.badge_surface import Border
+from arc_helper.badge_surface import Tag
 from arc_helper.cell_border import CellBorder
 from arc_helper.clickthrough import make_click_through
 from arc_helper.config import APP_DIR
@@ -44,9 +51,14 @@ from arc_helper.database import Database
 from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
+from arc_helper.grid import STILL_SCALE
+from arc_helper.grid import frames_still
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
 from arc_helper.hovered_cell import find_hovered_cell
+from arc_helper.icon_embed import EmbedGallery
+from arc_helper.icon_embed import build_gallery
+from arc_helper.icon_embed import default_embedder
 from arc_helper.ocr import CardSignature
 from arc_helper.ocr import OCREngine
 from arc_helper.ocr import OCREngineManager
@@ -62,6 +74,11 @@ from arc_helper.overlay import window_rect_phys
 from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 from arc_helper.screen import get_backend
+from arc_helper.stash_scan import SlotItem
+from arc_helper.stash_scan import badges_for
+from arc_helper.stash_scan import distinct_gallery
+from arc_helper.stash_scan import identify_slots
+from arc_helper.stash_scan import verdict_kinds
 from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import to_screen
@@ -269,6 +286,469 @@ def hovered_cell_on_screen(
     return to_screen(cell, origin) if cell is not None else None
 
 
+# Stash badges: a price on every identified slot and a gold border on keep
+# items, drawn while the inventory grid is still. A pass starts at most once
+# per STASH_PASS_GAP_S. The watcher thread wakes at least every STASH_TICK_S.
+STASH_PASS_GAP_S = 1.0
+STASH_TICK_S = 0.1
+# Px around the game's item card that the stillness compare and the badges
+# keep clear of, for the card's shadow
+STASH_CARD_MARGIN = 16
+# The parts of a slot a drawn badge changes on screen, which the stillness
+# compare skips: the price pill's band (a share of the slot height, at its
+# corner's edge) and a band along the edges for the gold border
+STASH_TAG_BAND = 0.4
+STASH_BORDER_BAND = 6
+# Catalog item types that never sit in an inventory slot, left out of the
+# stash gallery (the same list as scripts/eval_stash_scan.py)
+STASH_EXCLUDED_TYPES = frozenset({"Outpost Furniture", "Outpost Room", "Design"})
+STASH_ITEMS_FILE = "arctracker_items.json"
+STASH_GALLERY_FILE = "stash_gallery.npz"
+
+
+class StashFrame(NamedTuple):
+    """One full-screen capture handed to the stash badges.
+
+    image is the capture (a PIL image or an RGB array) and is never mutated
+    after the hand off. card is the game's item card and overlays are ARLO's
+    own windows, both in physical screen px.
+    """
+
+    image: object
+    card: Rect | None
+    overlays: tuple[Rect, ...]
+
+
+def frame_hidden(frame: StashFrame | None) -> list[Rect]:
+    """The parts of a frame no badge may cover: the padded card and ARLO's windows."""
+    if frame is None:
+        return []
+    hidden = list(frame.overlays)
+    if frame.card is not None:
+        c, m = frame.card, STASH_CARD_MARGIN
+        hidden.append(Rect(c.left - m, c.top - m, c.right + m, c.bottom + m))
+    return hidden
+
+
+def badge_marks(badge: Mapping) -> list[Rect]:
+    """The parts of the screen a drawn badge changes."""
+    left, top, right, bottom = (int(v) for v in badge["rect"])
+    if badge["kind"] == "border":
+        band = STASH_BORDER_BAND
+        return [
+            Rect(left, top, right, top + band),
+            Rect(left, bottom - band, right, bottom),
+            Rect(left, top, left + band, bottom),
+            Rect(right - band, top, right, bottom),
+        ]
+    band = round((bottom - top) * STASH_TAG_BAND)
+    if str(badge.get("corner", "bl")).startswith("t"):
+        return [Rect(left, top, right, top + band)]
+    return [Rect(left, bottom - band, right, bottom)]
+
+
+def badges_clear_of(badges: Sequence[dict], hidden: Sequence[Rect]) -> list[dict]:
+    """The badges whose slot meets none of the hidden rects."""
+    return [
+        b
+        for b in badges
+        if not any(rects_intersect(Rect(*b["rect"]), h) for h in hidden)
+    ]
+
+
+def surface_badges(badges: Sequence[dict]) -> list[Badge]:
+    """Badge dicts (stash_scan.badges_for) as the badge surface's Border and Tag."""
+    made: list[Badge] = []
+    for b in badges:
+        fields = {**b, "rect": tuple(int(v) for v in b["rect"])}
+        made.append(Border(**fields) if b["kind"] == "border" else Tag(**fields))
+    return made
+
+
+def free_rects(shape: Sequence[int], ignore: Sequence[Rect]) -> list[Rect]:
+    """Rects covering a frame of this shape outside the ignore rects.
+
+    The rects are runs within rows of STILL_SCALE px, the grain frames_still
+    compares at, so passing them as its slots compares all of the frame but
+    the ignored parts.
+    """
+    height, width = shape[:2]
+    scale = STILL_SCALE
+    rows, cols = -(-height // scale), -(-width // scale)
+    free = np.ones((rows, cols), bool)
+    for r in ignore:
+        free[
+            max(0, r.top // scale) : max(0, -(-r.bottom // scale)),
+            max(0, r.left // scale) : max(0, -(-r.right // scale)),
+        ] = False
+    rects = []
+    for row in range(rows):
+        line = free[row]
+        if not line.any():
+            continue
+        top, bottom = row * scale, min(height, (row + 1) * scale)
+        edges = np.flatnonzero(np.diff(np.concatenate(([0], line.view(np.int8), [0]))))
+        rects.extend(
+            Rect(int(start) * scale, top, min(width, int(end) * scale), bottom)
+            for start, end in zip(edges[::2], edges[1::2], strict=True)
+        )
+    return rects
+
+
+def stash_still(
+    a: np.ndarray,
+    b: np.ndarray,
+    ignore: Sequence[Rect],
+    still: Callable[..., bool] = frames_still,
+) -> bool:
+    """frames_still outside the ignore rects. Wholly ignored frames count as still."""
+    if not ignore:
+        return still(a, b)
+    if a.shape != b.shape:
+        return False
+    rects = free_rects(a.shape, ignore)
+    return still(a, b, rects) if rects else True
+
+
+def _frame_rgb(image) -> np.ndarray:
+    """An RGB array of a capture, without copying one that already is."""
+    if isinstance(image, np.ndarray):
+        return image
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    return np.asarray(image)
+
+
+def load_stash_gallery(
+    cache_dir: Path,
+) -> tuple[EmbedGallery, dict[str, tuple[str, ...]]]:
+    """The stash pass's gallery and twins from the icon cache.
+
+    Every item in the cached arctracker items list outside
+    STASH_EXCLUDED_TYPES whose icon is cached, embedded once and kept in
+    STASH_GALLERY_FILE, cut to one entry per distinct icon. Raises when the
+    list, the icons or the model are missing.
+    """
+    listing = json.loads((cache_dir / STASH_ITEMS_FILE).read_text(encoding="utf-8"))
+    icons = {}
+    for item in listing["items"]:
+        if item.get("type") in STASH_EXCLUDED_TYPES:
+            continue
+        path = cache_dir / f"{item['id']}.png"
+        if path.is_file():
+            icons[item["id"]] = (item["name"]["en"], path)
+    if not icons:
+        msg = f"no item icons in {cache_dir}"
+        raise FileNotFoundError(msg)
+    gallery = build_gallery(icons, default_embedder(), cache_dir / STASH_GALLERY_FILE)
+    return distinct_gallery(gallery)
+
+
+def stash_identifier(
+    db: Database, cache_dir: Path
+) -> Callable[[np.ndarray], list[SlotItem]]:
+    """identify_slots on the catalog gallery, which loads on the first call."""
+    loaded: list = []
+
+    def identify(rgb: np.ndarray) -> list[SlotItem]:
+        if not loaded:
+            loaded.extend(load_stash_gallery(cache_dir))
+        gallery, twins = loaded
+        return identify_slots(rgb, gallery, db.lookup, twins=twins)
+
+    return identify
+
+
+def stash_badge_maker(
+    db: Database, show_ended: Callable[[], bool]
+) -> Callable[[list[SlotItem]], list[dict]]:
+    """badges_for with the verdicts of the moment, as the popup decides them."""
+
+    def make(slot_items: list[SlotItem]) -> list[dict]:
+        return badges_for(slot_items, verdict_kinds(db, show_ended=show_ended()))
+
+    return make
+
+
+class StashBadges:
+    """Badges on every stash slot, drawn while the inventory grid is still.
+
+    The scan thread hands each full-screen capture to feed(), which only
+    keeps a reference, so the hover path never waits here. A watcher daemon
+    thread compares each capture with the one before, outside the game's
+    card, ARLO's windows and the drawn badges. A moved grid clears the
+    badges at once. A still pair starts a pass on the pass daemon thread
+    when none is running, at most once per gap_s. A finished pass is drawn
+    when its frame is still the same as the newest capture, else dropped as
+    stale. Badges never cover the card or ARLO's windows, and come back when
+    those move away.
+
+    A pass made while the card covered part of the grid has no badges
+    there. Once the card is gone a second pass fills that part in and keeps
+    the rest.
+
+    identify turns an RGB frame into SlotItems (stash_scan.identify_slots),
+    make_badges turns those into badge dicts (stash_scan.badges_for).
+    surface is a BadgeSurface, started on the first draw. With threaded
+    False no thread starts and step() does one watcher round, running a
+    started pass inline (for tests and the replay script).
+    """
+
+    def __init__(
+        self,
+        identify: Callable[[np.ndarray], list[SlotItem]],
+        make_badges: Callable[[list[SlotItem]], list[dict]],
+        surface,
+        *,
+        keep_border: bool = True,
+        still: Callable[..., bool] = frames_still,
+        gap_s: float = STASH_PASS_GAP_S,
+        tick_s: float = STASH_TICK_S,
+        threaded: bool = True,
+    ) -> None:
+        self._identify = identify
+        self._make_badges = make_badges
+        self._surface = surface
+        self._keep_border = keep_border
+        self._still = still
+        self._gap_s = gap_s
+        self._tick_s = tick_s
+        self._threaded = threaded
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._job_ready = threading.Event()
+        self._threads: list[Thread] = []
+        self._stopping = False
+        self._disabled = False
+        self._surface_started = False
+        # Bumped by every clear, so a pass or compare from before is stale
+        self._generation = 0
+        # Newest capture not yet compared, the one before it (RGB and frame)
+        # and the newest still one, for the stale check and the badge hiding
+        self._latest: StashFrame | None = None
+        self._prev: tuple[np.ndarray, StashFrame] | None = None
+        self._newest: tuple[np.ndarray, StashFrame] | None = None
+        # The pass handed over and not yet taken, and the pass state
+        self._job: tuple[int, np.ndarray, StashFrame] | None = None
+        self._pass_running = False
+        self._last_pass_start: float | None = None
+        self._need_pass = True
+        # The accepted badges, the parts of their pass's frame that were
+        # hidden, the screen parts they change and the badges drawn now
+        self._badges: list[dict] = []
+        self._have_result = False
+        self._pass_hidden: list[Rect] = []
+        self._marks: list[Rect] = []
+        self._shown: list[dict] = []
+        self._drawn = False
+
+    def feed(self, image, card: Rect | None, overlays: Sequence[Rect]) -> None:
+        """Hand over the newest full-screen capture. Never waits on a pass."""
+        if self._disabled or self._stopping:
+            return
+        with self._lock:
+            self._latest = StashFrame(image, card, tuple(overlays))
+            if self._threaded and not self._threads:
+                self._threads = [
+                    Thread(target=self._watch_loop, name="stash-watch", daemon=True),
+                    Thread(target=self._pass_loop, name="stash-pass", daemon=True),
+                ]
+                for thread in self._threads:
+                    thread.start()
+        self._wake.set()
+
+    def clear(self, reason: str) -> None:
+        """Remove the badges at once and drop every pass and compare so far."""
+        with self._lock:
+            busy = self._drawn or self._have_result or self._pass_running
+            self._generation += 1
+            self._latest = self._prev = self._newest = None
+            self._badges, self._shown, self._marks, self._pass_hidden = [], [], [], []
+            self._have_result = False
+            self._need_pass = True
+            if self._drawn:
+                self._drawn = False
+                self._surface.clear()
+        if busy:
+            logger.debug("stash badges cleared reason=%s", reason)
+
+    def stop(self) -> None:
+        """Clear, end both threads and stop the badge surface."""
+        self.clear("stopped")
+        self._stopping = True
+        self._wake.set()
+        self._job_ready.set()
+        for thread in self._threads:
+            thread.join(timeout=STASH_PASS_GAP_S)
+        self._surface.stop()
+
+    def step(self) -> None:
+        """One watcher round, with a pass it starts run inline (threaded False)."""
+        self._watch_once()
+        with self._lock:
+            job, self._job = self._job, None
+        if job is not None:
+            self._run_pass(job)
+            self._refresh()
+
+    def _watch_loop(self) -> None:
+        while not self._stopping:
+            self._wake.wait(self._tick_s)
+            self._wake.clear()
+            try:
+                self._watch_once()
+            except Exception as e:  # noqa: BLE001 - badges must never stop ARLO
+                logger.error(f"Stash watcher error: {e}")
+
+    def _pass_loop(self) -> None:
+        while not self._stopping:
+            if not self._job_ready.wait(self._tick_s):
+                continue
+            self._job_ready.clear()
+            with self._lock:
+                job, self._job = self._job, None
+            if job is not None:
+                self._run_pass(job)
+                self._wake.set()
+
+    def _watch_once(self) -> None:
+        """Compare the newest capture with the one before and act on it."""
+        with self._lock:
+            frame, self._latest = self._latest, None
+            generation = self._generation
+            prev = self._prev
+            marks = list(self._marks)
+        if frame is None:
+            self._refresh()
+            return
+        rgb = _frame_rgb(frame.image)
+        with self._lock:
+            if generation != self._generation:
+                return
+            self._prev = (rgb, frame)
+        if prev is None:
+            return
+        ignore = [*frame_hidden(prev[1]), *frame_hidden(frame), *marks]
+        if not stash_still(prev[0], rgb, ignore, self._still):
+            self.clear("grid_moved")
+            with self._lock:
+                self._prev = (rgb, frame)
+            return
+        start = False
+        with self._lock:
+            if generation != self._generation:
+                return
+            self._newest = (rgb, frame)
+            if self._uncovered(frame):
+                self._need_pass = True
+            now = time.monotonic()
+            if (
+                self._need_pass
+                and not self._pass_running
+                and (
+                    self._last_pass_start is None
+                    or now - self._last_pass_start >= self._gap_s
+                )
+            ):
+                self._need_pass = False
+                self._pass_running = True
+                self._last_pass_start = now
+                self._job = (generation, rgb, frame)
+                start = True
+        if start and self._threaded:
+            self._job_ready.set()
+        self._refresh()
+
+    def _uncovered(self, frame: StashFrame) -> bool:
+        """True when the parts the last pass could not see are in view now."""
+        if not self._have_result or not self._pass_hidden or frame.card is not None:
+            return False
+        return not any(
+            rects_intersect(o, h) for o in frame.overlays for h in self._pass_hidden
+        )
+
+    def _run_pass(self, job: tuple[int, np.ndarray, StashFrame]) -> None:
+        """Identify the slots of a still frame and keep its badges unless stale."""
+        generation, rgb, frame = job
+        start = time.perf_counter()
+        try:
+            slot_items = self._identify(rgb)
+            badges = self._make_badges(slot_items)
+        except Exception as e:  # noqa: BLE001 - badges must never stop ARLO
+            logger.warning("Stash badges off: the stash pass failed (%s)", e)
+            self._disabled = True
+            with self._lock:
+                self._pass_running = False
+            self.clear("pass_failed")
+            return
+        if not self._keep_border:
+            badges = [b for b in badges if b["kind"] != "border"]
+        hidden = frame_hidden(frame)
+        badges = badges_clear_of(badges, hidden)
+        identified = sum(s.item is not None for s in slot_items)
+        logger.debug(
+            "stash pass identified=%d unidentified=%d badges=%d duration=%.0f ms",
+            identified,
+            len(slot_items) - identified,
+            len(badges),
+            (time.perf_counter() - start) * 1000,
+        )
+        with self._lock:
+            newest = self._newest
+            marks = list(self._marks)
+        fresh = generation == self._generation and (
+            newest is None
+            or newest[1] is frame
+            or stash_still(
+                rgb, newest[0], [*hidden, *frame_hidden(newest[1]), *marks], self._still
+            )
+        )
+        with self._lock:
+            self._pass_running = False
+            if not fresh or generation != self._generation:
+                if generation == self._generation:
+                    self._need_pass = True
+                logger.debug("stash pass dropped reason=stale")
+                return
+            if self._have_result:
+                # A pass after the card went: new badges only where the last
+                # pass could not see, the last pass's badges elsewhere
+                old_hidden = self._pass_hidden
+                unseen = [
+                    b
+                    for b in badges
+                    if any(rects_intersect(Rect(*b["rect"]), h) for h in old_hidden)
+                ]
+                badges = [*badges_clear_of(self._badges, old_hidden), *unseen]
+            self._badges = badges
+            self._have_result = True
+            self._pass_hidden = hidden
+            self._marks = [m for b in badges for m in badge_marks(b)]
+
+    def _refresh(self) -> None:
+        """Draw the accepted badges clear of the newest card and windows."""
+        with self._lock:
+            hidden = frame_hidden(self._newest[1]) if self._newest else []
+            visible = badges_clear_of(self._badges, hidden)
+            if visible == self._shown:
+                return
+            generation = self._generation
+        if visible and not self._surface_started:
+            # Outside the lock: the first start looks for a system Python
+            self._surface_started = True
+            self._surface.start()
+        with self._lock:
+            if generation != self._generation:
+                return
+            self._shown = visible
+            if visible:
+                self._surface.draw(surface_badges(visible))
+                self._drawn = True
+            elif self._drawn:
+                self._surface.clear()
+                self._drawn = False
+
+
 class ScannerState(Enum):
     """State machine for the scanner."""
 
@@ -410,6 +890,10 @@ class Scanner:
     # Application passes the setting, a bare Scanner keeps the popup path
     advice_card: bool = False
 
+    # Badges on every stash slot (STASH_BADGES), fed each full-screen capture
+    # while ACTIVE through the inventory trigger. None turns them off
+    stash: StashBadges | None = None
+
     # Cooldown tracking
     _last_shown_item: str = ""
     _last_shown_time: float = 0
@@ -465,6 +949,7 @@ class Scanner:
             self._running = False
             self.state = ScannerState.STOPPED
             self._hide_card_windows()
+        self._clear_stash("stopped")
         if self._scan_thread:
             self._scan_thread.join(timeout=2.0)
         self.hotkey.stop()
@@ -477,6 +962,7 @@ class Scanner:
             self.state = ScannerState.PAUSED
             if was_active:
                 self._hide_card_windows()
+        self._clear_stash("paused")
 
     def resume(self) -> None:
         """Resume scanning."""
@@ -544,6 +1030,7 @@ class Scanner:
                         self.state = ScannerState.IDLE
                         logger.debug("state ACTIVE -> IDLE reason=trigger_lost")
                         self._hide_card_windows()
+                        self._clear_stash("inventory_closed")
                         self._update_status("scanning")
                         logger.info("INVENTORY closed - returning to idle")
                         continue
@@ -555,6 +1042,7 @@ class Scanner:
                 self._update_status("error")
                 self.state = ScannerState.STOPPED
                 self._hide_chips()
+                self._clear_stash("capture_lost")
                 break  # latch: no point scanning without capture
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Scanner error: {e}")
@@ -605,6 +1093,7 @@ class Scanner:
         sighting = ocr.locate_card_at_cursor()
         locate_s = time.monotonic() - start
         self.stats.tooltip_scans += 1
+        self._feed_stash(ocr)
 
         if sighting is None:
             sleep_s = min(settings.scan.tooltip_scan_interval, NO_CARD_SLEEP_CAP_S)
@@ -647,6 +1136,31 @@ class Scanner:
         if self._handle_detected_item(item_name, new_card=True):
             self._card_shown = sighting
             self._last_touch = time.monotonic()
+
+    def _feed_stash(self, ocr: OCREngine) -> None:
+        """Hand this cycle's capture to the stash badges.
+
+        Only in inventory mode (not the hotkey) and only for a full-screen
+        capture. Only a reference changes hands, so the cycle does not wait.
+        """
+        if self.stash is None or self._hotkey_override:
+            return
+        capture = getattr(ocr, "_last_capture", None)
+        origin = getattr(ocr, "_last_origin", None)
+        full_screen = (
+            getattr(ocr, "search_width", 0) <= 0
+            and getattr(ocr, "search_height", 0) <= 0
+        )
+        if capture is None or origin is None or not full_screen:
+            return
+        if (origin.x, origin.y) != (0, 0):
+            return
+        card = getattr(ocr, "_last_card", None)
+        self.stash.feed(capture, card, self.overlay_rects.snapshot())
+
+    def _clear_stash(self, reason: str) -> None:
+        if self.stash is not None:
+            self.stash.clear(reason)
 
     def _set_hold(self, settings, estimate_s: float) -> None:
         """Set the hold sent with the next messages from this cycle's estimate."""
@@ -997,6 +1511,7 @@ class Application:
         self.ui_queue: queue.Queue[tuple] = queue.Queue()
         # Last status applied, so the debug log names only status changes
         self._last_status: str | None = None
+        self.stash = self._make_stash()
         self.scanner = Scanner(
             root=self.root,
             overlay=self.overlay,
@@ -1004,11 +1519,24 @@ class Application:
             db=self.db,
             ui_queue=self.ui_queue,
             advice_card=self.advice is not None,
+            stash=self.stash,
         )
         self.overlay_rects = self.scanner.overlay_rects
 
         # Bind close handler
         self.root.protocol("WM_DELETE_WINDOW", self.quit)
+
+    def _make_stash(self) -> StashBadges | None:
+        """The stash badges per STASH_BADGES, None when turned off."""
+        overlay = self.settings.overlay
+        if not overlay.stash_badges:
+            return None
+        return StashBadges(
+            stash_identifier(self.db, self.settings.icon_cache_dir),
+            stash_badge_maker(self.db, lambda: get_settings().show_ended_projects),
+            BadgeSurface(),
+            keep_border=overlay.stash_badge_keep_border,
+        )
 
     def _apply_status(self, status: str) -> None:
         """Apply a status update to the StatusWindow (main thread only)."""
@@ -1317,6 +1845,8 @@ class Application:
         """Clean shutdown."""
         logger.info("\nShutting down...")
         self.scanner.stop()
+        if self.stash is not None:
+            self.stash.stop()
         from arc_helper.screen import reset_backend
 
         reset_backend()  # release the portal session / PipeWire stream

@@ -27,7 +27,8 @@ when the tier numeral settles which one it is.
 badges_for turns the identified slots into badge dicts in the badge
 surface's message format (badge_surface.encode_message on branch
 badge-surface): a gold border on every keep and keep_some item and a price
-pill bottom left on every identified item with a sell price.
+pill bottom left on every identified item with a sell price (top left on
+wide slots, where the game draws the ammo count bottom left).
 
 Pure functions, no Tk or screen access. The embedder is only touched when a
 frame has filled slots.
@@ -72,6 +73,10 @@ BORDER_WIDTH = 3
 BORDER_RADIUS = 4
 PRICE_PREFIX = "Φ "
 TAG_CORNER = "bl"
+# On wide slots (weapons) the game shows the ammo count bottom left, so the
+# price goes top left there. A slot is wide from this width to height ratio
+TAG_CORNER_WIDE = "tl"
+WIDE_ASPECT = 1.25
 TAG_FG = "#ffffff"
 TAG_BG = "#141414d9"
 GOLD_KINDS = (KEEP, KEEP_SOME)
@@ -297,6 +302,12 @@ def verdict_kinds(
     return kind
 
 
+def tag_corner(rect: Rect) -> str:
+    """The price pill's corner: top left on wide slots, else bottom left."""
+    width, height = rect.right - rect.left, rect.bottom - rect.top
+    return TAG_CORNER_WIDE if width >= WIDE_ASPECT * height else TAG_CORNER
+
+
 def badges_for(
     slot_items: Iterable[SlotItem],
     kind_of: Callable[[SlotItem], str],
@@ -304,7 +315,8 @@ def badges_for(
     """Badge dicts for the identified slots, in the badge surface's format.
 
     A gold border for every keep and keep_some item and a price pill for
-    every item with a sell price. Unidentified slots get no badge. kind_of
+    every item with a sell price, in tag_corner's corner. Unidentified
+    slots get no badge. kind_of
     gives a slot's verdict kind, for example verdict_kinds(db).
     """
     badges: list[dict] = []
@@ -327,7 +339,7 @@ def badges_for(
                 {
                     "rect": rect,
                     "text": PRICE_PREFIX + format_price(slot.item.sell_price),
-                    "corner": TAG_CORNER,
+                    "corner": tag_corner(slot.rect),
                     "fg": TAG_FG,
                     "bg": TAG_BG,
                     "kind": "tag",
