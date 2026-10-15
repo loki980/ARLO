@@ -243,6 +243,18 @@ class OverlaySettings(BaseSettings):
         validation_alias="ADVICE_CARD",
         description="Show the advice card in the LOADOUT panel box",
     )
+    # Read from STASH_BADGES. False turns off the badges on every stash slot
+    stash_badges: bool = Field(
+        default=True,
+        validation_alias="STASH_BADGES",
+        description="Draw a price on every identified stash slot while the grid is still",
+    )
+    # Read from STASH_BADGE_KEEP_BORDER. False keeps the prices, drops the gold
+    stash_badge_keep_border: bool = Field(
+        default=True,
+        validation_alias="STASH_BADGE_KEEP_BORDER",
+        description="Draw a gold border around stash slots with keep items",
+    )
 
 
 class ScanSettings(BaseSettings):
@@ -418,6 +430,8 @@ class Settings(BaseSettings):
             f"OVERLAY_COOLDOWN={self.overlay.cooldown}",
             f"TOOLTIP_CHIPS={str(self.overlay.tooltip_chips).lower()}",
             f"ADVICE_CARD={str(self.overlay.advice_card).lower()}",
+            f"STASH_BADGES={str(self.overlay.stash_badges).lower()}",
+            f"STASH_BADGE_KEEP_BORDER={str(self.overlay.stash_badge_keep_border).lower()}",
             f"SHOW_ENDED_PROJECTS={str(self.show_ended_projects).lower()}",
             "",
             "# Scan intervals",
