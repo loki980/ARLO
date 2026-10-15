@@ -7,6 +7,7 @@ with a progress track, one row per source) drawn from scratch with the
 bundled Barlow Semi Condensed. Nothing here touches Tk or the database.
 """
 
+from collections.abc import Callable
 from collections.abc import Iterable
 from typing import NamedTuple
 
@@ -14,7 +15,9 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
+from .database import HOME
 from .database import Need
+from .database import RecycleOutput
 from .textrender import _load_font
 from .textrender import _runs
 from .textrender import find_font_file
@@ -119,10 +122,51 @@ def _keep_title(count: int | None, owned: int | None) -> str:
     return f"Keep {count}"
 
 
+def needed_parts(
+    outputs: Iterable[RecycleOutput],
+    needs_for: Callable[[str], list[Need]],
+    is_needed: Callable[[str, list[Need]], bool],
+) -> frozenset[str]:
+    """Names of the recycle outputs that are still needed.
+
+    needs_for(component) gives the needs of a component, is_needed(component,
+    needs) says whether those needs make it worth keeping.
+    """
+    return frozenset(
+        o.component for o in outputs if is_needed(o.component, needs_for(o.component))
+    )
+
+
+def _recycle_subtitle(
+    outputs: Iterable[RecycleOutput], needed: frozenset[str]
+) -> str | None:
+    """'Recycles into A, 2 B, which you still need', None without home outputs."""
+    home = [o for o in outputs if o.location == HOME]
+    if not home:
+        return None
+    # sorted is stable, so needed parts come first and keep their order
+    home.sort(key=lambda o: o.component not in needed)
+    parts = [
+        f"{o.quantity} {o.component}" if o.quantity > 1 else o.component for o in home
+    ]
+    text = "Recycles into " + ", ".join(parts)
+    if any(o.component in needed for o in home):
+        text += ", which you still need"
+    return text
+
+
 def build_advice_card(
-    verdict: Verdict, needs: Iterable[Need], owned: int | None = None
+    verdict: Verdict,
+    needs: Iterable[Need],
+    owned: int | None = None,
+    recycle_outputs: Iterable[RecycleOutput] = (),
+    needed_parts: frozenset[str] = frozenset(),
 ) -> AdviceCard:
-    """The card model for a verdict. Rows exist for keep and keep_some only."""
+    """The card model for a verdict. Rows exist for keep and keep_some only.
+
+    For recycle and use the subtitle names the home recycle outputs and which
+    are still needed, falling back to verdict.reason without outputs.
+    """
     kind = verdict.kind
     subtitle: str | None = None
     rows: tuple[tuple[str, str, int], ...] = ()
@@ -137,9 +181,11 @@ def build_advice_card(
     elif kind == SELL:
         title, subtitle, total = "Sell it", "Nothing you track needs it", None
     elif kind == RECYCLE:
-        title, subtitle, total = "Recycle it", verdict.reason, None
+        title, total = "Recycle it", None
+        subtitle = _recycle_subtitle(recycle_outputs, needed_parts) or verdict.reason
     elif kind == USE:
-        title, subtitle, total = "Use it", verdict.reason, None
+        title, total = "Use it", None
+        subtitle = _recycle_subtitle(recycle_outputs, needed_parts) or verdict.reason
     else:
         title, total = "Not in the database", None
     return AdviceCard(kind, title, subtitle, total, owned, rows)

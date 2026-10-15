@@ -1,8 +1,10 @@
 """Tests for the advice card model and renderer."""
 
 from arc_helper.advice_card import build_advice_card
+from arc_helper.advice_card import needed_parts
 from arc_helper.advice_card import render_advice_card
 from arc_helper.database import Need
+from arc_helper.database import RecycleOutput
 from arc_helper.verdict import Verdict
 
 
@@ -105,3 +107,50 @@ def test_owned_footer_on_cards_without_rows():
         assert (
             render_advice_card(with_owned).height > render_advice_card(without).height
         )
+
+
+def _out(component, quantity=1, location="home"):
+    return RecycleOutput(component, quantity, location)
+
+
+RECYCLE = Verdict("recycle", "Recycle if short on materials; Sell otherwise")
+
+
+def test_recycle_subtitle_one_needed_output_first():
+    outs = [_out("Magnet"), _out("Advanced Mechanical Components")]
+    card = build_advice_card(
+        RECYCLE, [], None, outs, frozenset({"Advanced Mechanical Components"})
+    )
+    assert card.subtitle == (
+        "Recycles into Advanced Mechanical Components, Magnet, which you still need"
+    )
+
+
+def test_recycle_subtitle_none_needed_and_field_ignored():
+    outs = [_out("Magnet"), _out("Wires", 1, "field")]
+    card = build_advice_card(RECYCLE, [], None, outs)
+    assert card.subtitle == "Recycles into Magnet"
+
+
+def test_recycle_subtitle_falls_back_without_outputs():
+    assert build_advice_card(RECYCLE, []).subtitle == RECYCLE.reason
+    only_field = [_out("Wires", 1, "field")]
+    assert build_advice_card(RECYCLE, [], None, only_field).subtitle == RECYCLE.reason
+
+
+def test_recycle_subtitle_quantities_above_one():
+    outs = [_out("Magnet", 2), _out("Wires", 1)]
+    card = build_advice_card(Verdict("use", "x"), [], None, outs)
+    assert card.subtitle == "Recycles into 2 Magnet, Wires"
+
+
+def test_long_recycle_subtitle_renders_ellipsized():
+    outs = [_out(f"Component Number {i}", 3) for i in range(30)]
+    card = build_advice_card(RECYCLE, [], None, outs, frozenset({"Component Number 9"}))
+    assert render_advice_card(card).width == 560
+
+
+def test_needed_parts_uses_the_callables():
+    outs = [_out("Magnet"), _out("Wires")]
+    got = needed_parts(outs, lambda c: [c], lambda _c, needs: needs == ["Magnet"])
+    assert got == frozenset({"Magnet"})
