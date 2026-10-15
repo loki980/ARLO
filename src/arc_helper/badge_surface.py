@@ -20,6 +20,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from arc_helper.config import get_screen_resolution
 from arc_helper.config import logger
 
 HELPER = Path(__file__).resolve().with_name("badge_helper.py")
@@ -98,6 +99,18 @@ def find_system_python() -> str | None:
     return None
 
 
+def physical_size_args() -> list[str]:
+    """The helper's --physical W H arguments, or none when the size is unknown."""
+    try:
+        width, height = get_screen_resolution()
+    except Exception as e:  # noqa: BLE001 - the helper falls back to GTK's factor
+        logger.warning("Badge surface: screen size unknown (%s)", e)
+        return []
+    if width <= 0 or height <= 0:
+        return []
+    return ["--physical", str(int(width)), str(int(height))]
+
+
 class BadgeSurface:
     """Start, feed and stop the badge helper. Safe to call from any thread."""
 
@@ -138,7 +151,7 @@ class BadgeSurface:
                 return False
             try:
                 self._proc = subprocess.Popen(
-                    [python, str(HELPER), "--live"],
+                    [python, str(HELPER), "--live", *physical_size_args()],
                     stdin=subprocess.PIPE,
                     text=True,
                     encoding="utf-8",
