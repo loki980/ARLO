@@ -102,20 +102,26 @@ class OverlayRects:
     (POPUP and STATUS, only while mapped) and the popup's two spots
     (POPUP_HOME and POPUP_CORNER, sized like the popup), so the scanner can
     tell them apart from the chips and the gold frame, which sit on the card
-    by design.
+    by design. popup_away is True while the popup sits in its corner spot.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._rects: tuple[Rect, ...] = ()
         self._labelled: dict[str, Rect] = {}
+        self._popup_away = False
 
     def publish(
-        self, rects: Sequence[Rect], labelled: Mapping[str, Rect] | None = None
+        self,
+        rects: Sequence[Rect],
+        labelled: Mapping[str, Rect] | None = None,
+        *,
+        popup_away: bool = False,
     ) -> None:
         with self._lock:
             self._rects = tuple(rects)
             self._labelled = dict(labelled or {})
+            self._popup_away = popup_away
 
     def snapshot(self) -> tuple[Rect, ...]:
         with self._lock:
@@ -124,6 +130,10 @@ class OverlayRects:
     def labelled(self) -> dict[str, Rect]:
         with self._lock:
             return dict(self._labelled)
+
+    def popup_away(self) -> bool:
+        with self._lock:
+            return self._popup_away
 
 
 # Labels of the OverlayRects windows and spots
@@ -386,10 +396,6 @@ class Scanner:
     _scan_periods: deque = field(default_factory=lambda: deque(maxlen=HOLD_HISTORY))
     _hold_ms: int | None = None
 
-    # True after this scanner queued the popup's move to its corner spot,
-    # until it queues the move back home
-    _popup_away: bool = False
-
     # Hotkey override (Ctrl+Shift to force tooltip scanning)
     _hotkey_override: bool = False
 
@@ -620,16 +626,18 @@ class Scanner:
         verdict = self._verdict_for(recommendation, settings.show_ended_projects)
 
         # A new item whose card leaves the home spot free brings the popup
-        # back home. The same item never moves it.
+        # back home. The same item never moves it. The new item's popup may
+        # be taller, which shifts home up, so the Tk thread checks the card
+        # again against home at the new size before it moves the popup.
         home = labelled.get(POPUP_HOME)
         if (
-            self._popup_away
+            self.overlay_rects.popup_away()
             and not same_item
             and card is not None
             and home is not None
             and not rects_intersect(card, home)
         ):
-            self._queue_popup_spot(POPUP_HOME)
+            self._queue_popup_spot(POPUP_HOME, card)
 
         # Show overlay (must be done on main thread)
         self._show_overlay(shown_name, recommendation, verdict)
@@ -651,12 +659,15 @@ class Scanner:
             return None
         return to_screen(card, origin)
 
-    def _queue_popup_spot(self, spot: str | None) -> None:
-        """Queue the popup's move to a spot. None queues nothing."""
+    def _queue_popup_spot(self, spot: str | None, card: Rect | None = None) -> None:
+        """Queue the popup's move to a spot. None queues nothing.
+
+        With a card, the move home waits for the next popup show and only
+        happens when the card leaves home free at the popup's new size.
+        """
         if spot is None:
             return
-        self._popup_away = spot == POPUP_CORNER
-        self.ui_queue.put(("popup_spot", spot))
+        self.ui_queue.put(("popup_spot", spot, card))
 
     def _verdict_for(self, recommendation: Item | None, show_ended: bool) -> Verdict:  # noqa: FBT001
         """Advice for the item from its needs and the recorded progress.
@@ -788,6 +799,8 @@ class Application:
         # moves to while a card covers its home in the LOADOUT panel
         self._popup_corner = Point(self.overlay.overlay_x, self.overlay.overlay_y)
         self._popup_spot = POPUP_HOME
+        # Card of a queued return home, checked after the next popup show
+        self._home_card: Rect | None = None
         self._place_popup()
         self.status = StatusWindow(self.root, on_quit=self.quit)
         self.chips = (
@@ -853,12 +866,9 @@ class Application:
                     self.overlay.show(
                         item_name, recommendation, verdict, home_outputs, hold_ms
                     )
-                    # A new item can change the popup's width, which moves
-                    # its home when it would cross the floor
-                    self._place_popup()
+                    self._after_popup_show()
                 elif msg[0] == "popup_spot":
-                    self._popup_spot = msg[1]
-                    self._place_popup()
+                    self._apply_popup_spot(msg[1], msg[2])
                 elif msg[0] == "touch":
                     self.overlay.touch(msg[1], msg[2])
                     if self.chips is not None:
@@ -902,6 +912,35 @@ class Application:
         )
         return popup_spot_rects(get_screen_resolution(), size, self._popup_corner)
 
+    def _apply_popup_spot(self, spot: str, card: Rect | None) -> None:
+        """Apply a popup_spot message (main thread only).
+
+        A move home with a card waits for the next popup show, see
+        _after_popup_show. Any other move happens now.
+        """
+        if spot == POPUP_HOME and card is not None:
+            self._home_card = card
+            return
+        self._home_card = None
+        self._popup_spot = spot
+        self._place_popup()
+
+    def _after_popup_show(self) -> None:
+        """Place the popup after a show changed its size (main thread only).
+
+        A taller popup shifts home up to stay above the floor. A pending
+        return home only happens when the card leaves home free at the new
+        size, else the popup stays in its corner.
+        """
+        if self._home_card is not None:
+            home, _ = self._popup_spots()
+            if rects_intersect(self._home_card, home):
+                logger.debug("popup stays in corner: card covers home at new size")
+            else:
+                self._popup_spot = POPUP_HOME
+            self._home_card = None
+        self._place_popup()
+
     def _place_popup(self) -> None:
         """Move the popup to its current spot if it is elsewhere."""
         home, corner = self._popup_spots()
@@ -930,7 +969,9 @@ class Application:
             rects.extend(self.chips.shown_rects(tk_scale))
         if self.border is not None:
             rects.extend(self.border.bar_rects())
-        self.overlay_rects.publish(rects, labelled)
+        self.overlay_rects.publish(
+            rects, labelled, popup_away=self._popup_spot == POPUP_CORNER
+        )
 
     def run(self) -> None:
         """Start the application."""
