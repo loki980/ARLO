@@ -44,6 +44,23 @@ _NOCASE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 # A stroke-count tier vote at least this confident overrides the read tier
 TIER_VOTE_MIN_CONFIDENCE = 0.7
 
+# The tolerant lookup ignores reads shorter than this many key characters
+TOLERANT_MIN_LENGTH = 4
+
+
+def _within_one_edit(a: str, b: str) -> bool:
+    """True when a and b differ by at most one insertion, deletion or substitution."""
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) > len(b):
+        a, b = b, a
+    i = 0
+    while i < len(a) and a[i] == b[i]:
+        i += 1
+    if len(a) == len(b):
+        return a[i + 1 :] == b[i + 1 :]
+    return a[i:] == b[i + 1 :]
+
 
 def _match_key(name: str) -> str:
     """Lowercase, alphanumeric-only key for OCR-tolerant name matching.
@@ -339,6 +356,7 @@ class Database:
         self.blueprint_grid_csv = Path(blueprint_grid_csv or default_grid)
         self._user_db_ready = False
         self._tier_index: dict[str, dict[str, str]] = {}
+        self._name_keys: list[tuple[str, str]] = []
         self._init_db()
         self._build_tier_index()
 
@@ -759,14 +777,21 @@ class Database:
         return row["name"] if row else None
 
     def _build_tier_index(self) -> None:
-        """Map each tiered base, in tier_key form, to {tier: catalog name}."""
+        """Map each tiered base, in tier_key form, to {tier: catalog name}.
+
+        Also keeps every catalog name with its tier_key for the tolerant
+        lookup.
+        """
         index: dict[str, dict[str, str]] = {}
+        name_keys: list[tuple[str, str]] = []
         with self._get_connection() as conn:
             for row in conn.execute("SELECT name FROM items"):
                 base, tier = split_tier(row["name"])
                 if tier is not None:
                     index.setdefault(tier_key(base), {})[tier] = row["name"]
+                name_keys.append((tier_key(row["name"]), row["name"]))
         self._tier_index = index
+        self._name_keys = name_keys
 
     def _resolve_tiered(self, name: str, tier_vote: TierVote | None) -> str | None:
         """Resolve a garbled tiered read to a catalog name, or None.
@@ -799,6 +824,48 @@ class Database:
                 f"({tier_vote.confidence:.2f}), chose {chosen}"
             )
         return tiers[chosen] if chosen else None
+
+    def _resolve_tolerant(self, name: str, tier_vote: TierVote | None) -> str | None:
+        """Resolve a partial or one-edit read to the one item it can be, or None.
+
+        Candidates are the catalog names whose tier_key the read's tier_key
+        is a prefix of, or is within one edit of. One untiered candidate
+        resolves to itself. Candidates that are all tiers of one base
+        resolve to the tier a confident stroke vote names, or, with a single
+        candidate, to that tier when the read ends in it (the edit was in
+        the base, as in "BURLETT IV"). Anything else stays unknown rather
+        than guessing a tier or an item.
+        """
+        key = tier_key(name)
+        if len(key) < TOLERANT_MIN_LENGTH:
+            return None
+        candidates = [
+            catalog
+            for catalog_key, catalog in self._name_keys
+            if catalog_key.startswith(key) or _within_one_edit(key, catalog_key)
+        ]
+        if not candidates:
+            return None
+
+        split = [split_tier(c) for c in candidates]
+        bases = {tier_key(base) for base, _ in split}
+        chosen: str | None = None
+        if len(candidates) == 1 and split[0][1] is None:
+            chosen = candidates[0]
+        elif len(bases) == 1 and all(tier for _, tier in split):
+            tiers = self._tier_index.get(bases.pop(), {})
+            if (
+                tier_vote is not None
+                and tier_vote.tier in tiers
+                and tier_vote.confidence >= TIER_VOTE_MIN_CONFIDENCE
+            ):
+                chosen = tiers[tier_vote.tier]
+            elif len(candidates) == 1 and key.endswith(tier_key(split[0][1] or "")):
+                chosen = candidates[0]
+        logger.debug(
+            f"Tolerant lookup for {name!r}: candidates {candidates}, chose {chosen}"
+        )
+        return chosen
 
     def recycle_outputs(self, name: str) -> list[RecycleOutput]:
         """All recycle outputs for an item, home rows first, in source order."""
@@ -908,6 +975,15 @@ class Database:
                         "SELECT * FROM items WHERE name = ?", (match_name,)
                     )
                     row = cursor.fetchone()
+
+            # Last resort: a partial read ("BURLETT IV") that only one
+            # catalog item can be
+            if not row:
+                resolved = self._resolve_tolerant(clean_name, tier_vote)
+                if resolved:
+                    row = conn.execute(
+                        "SELECT * FROM items WHERE name = ?", (resolved,)
+                    ).fetchone()
 
             if row:
                 return self._row_to_item(row)
