@@ -43,6 +43,7 @@ TESSERACT = "tesseract"
 TESSERACT_TITLE = "tesseract_title"
 PADDLE = "paddle"
 ENGINES = (TESSERACT, TESSERACT_TITLE, PADDLE)
+PADDLE_INSTALL = "uv sync --extra paddle"
 
 NAME_WHITELIST = string.ascii_uppercase
 
@@ -70,6 +71,13 @@ _TRAILING_ONE = str.maketrans({"|": "I", "l": "I", "1": "I"})
 Box = tuple[int, int, int, int]  # left, top, right, bottom
 
 
+class TextLine(NamedTuple):
+    """One detected text line and its box in the reader's input image."""
+
+    text: str
+    box: Box
+
+
 class TitleRead(NamedTuple):
     """What a reader read from one card.
 
@@ -77,13 +85,16 @@ class TitleRead(NamedTuple):
     the reader was given: the card crop for read, the binarized card for
     TesseractReader.read_binary. confidence is 0 to 1, or 0 when the reader
     has no measure. tier_vote is the stroke-count vote on the tier token that
-    ends the name, or None when the name has no tier-like last token.
+    ends the name, or None when the name has no tier-like last token. lines
+    are every text line the reader detected on the whole card, in the same
+    coordinates, or None when the reader reads the title only.
     """
 
     text: str | None
     line_boxes: list[Box]
     confidence: float
     tier_vote: TierVote | None = None
+    lines: list[TextLine] | None = None
 
 
 NO_READ = TitleRead(None, [], 0.0)
@@ -588,12 +599,14 @@ class TesseractTitleReader:
 class PaddleReader:
     """PP-OCRv4 detection and recognition through rapidocr-onnxruntime.
 
-    Runs on the card region from the top down to the end of the title lines
-    when geometry finds them, otherwise on the whole card crop, and takes
-    the detected line with the largest box height. The stroke vote runs on
-    the last word of that line, found by column gaps in its Otsu binary.
-    The package is imported when the reader is built, so the app runs
-    without it when another engine is chosen.
+    One detection and recognition pass runs on the whole card crop. The
+    title is the detected lines that sit on the title lines card geometry
+    finds, or the tallest detected line when geometry finds none. The stroke
+    vote runs on the last word of the last title line, found by column gaps
+    in its Otsu binary. Every detected line comes back in TitleRead.lines so
+    the label rows can be found without another OCR pass. The package is
+    imported when the reader is built, so the app runs without it when
+    another engine is chosen.
     """
 
     name = PADDLE
@@ -605,56 +618,40 @@ class PaddleReader:
         except ImportError as e:
             msg = (
                 "OCR_ENGINE=paddle needs the rapidocr-onnxruntime package. "
-                "Install it with: uv pip install rapidocr-onnxruntime"
+                f"Install it with: {PADDLE_INSTALL}"
             )
             raise TitleReaderUnavailableError(msg) from e
         self._ocr: Callable[..., Any] = RapidOCR()
 
     def read(self, card_rgb: np.ndarray) -> TitleRead:
-        """Read the title lines, or the tallest text line, of a card crop."""
+        """Read every line of a card crop and pick the title among them."""
         rgb = np.ascontiguousarray(np.asarray(card_rgb)[:, :, :3], dtype=np.uint8)
-        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-        lines = find_title_lines(rgb)
-        if lines:
-            texts: list[str] = []
-            scores: list[float] = []
-            for box in lines:
-                left, top, right, bottom = _band_crop(rgb[:, :, 0], box)[1]
-                result, _ = self._ocr(
-                    bgr[top:bottom, left:right], use_det=False, use_cls=False
-                )
-                for raw, score in result or []:
-                    texts.append(str(raw))
-                    scores.append(float(score))
-            raw_text = " ".join(texts)
-            score = sum(scores) / len(scores) if scores else 0.0
-        else:
-            # No title geometry: detect every line on the card and take the
-            # tallest, the title when it is in view
-            result, _ = self._ocr(bgr, use_cls=False)
-            if not result:
-                return NO_READ
-
-            def height(entry: list[Any]) -> float:
-                ys = [p[1] for p in entry[0]]
-                return max(ys) - min(ys)
-
-            best = max(result, key=height)
-            points, raw_text, score = best[0], str(best[1]), float(best[2])
+        result, _ = self._ocr(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), use_cls=False)
+        height, width = rgb.shape[:2]
+        detected: list[tuple[TextLine, float]] = []
+        for points, raw, score in result or []:
             xs = [p[0] for p in points]
             ys = [p[1] for p in points]
-            lines = [
-                (
-                    max(0, int(min(xs))),
-                    max(0, int(min(ys))),
-                    min(rgb.shape[1], int(max(xs)) + 1),
-                    min(rgb.shape[0], int(max(ys)) + 1),
-                )
-            ]
+            box = (
+                max(0, round(min(xs))),
+                max(0, round(min(ys))),
+                min(width, round(max(xs))),
+                min(height, round(max(ys))),
+            )
+            detected.append((TextLine(str(raw), box), float(score)))
+        detected.sort(key=lambda d: (d[0].box[1], d[0].box[0]))
+        lines = [line for line, _ in detected]
+        if not detected:
+            return TitleRead(None, [], 0.0, None, lines)
+
+        title = _title_lines(detected, find_title_lines(rgb))
+        raw_text = " ".join(line.text for line, _ in title)
+        score = sum(s for _, s in title) / len(title)
+        boxes = [line.box for line, _ in title]
 
         text = fix_trailing_token(raw_text) or None
         vote = None
-        left, top, right, bottom = lines[-1]
+        left, top, right, bottom = boxes[-1]
         band = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)[top:bottom, left:right]
         if text and band.size:
             # The line box covers the whole name, so the vote runs on its
@@ -665,7 +662,29 @@ class PaddleReader:
             if token is not None:
                 vote = vote_on_box(ink, token)
                 logger.debug(f"Tier vote after {raw_text!r}: {vote}")
-        return TitleRead(text, lines, score, vote)
+        return TitleRead(text, boxes, score, vote, lines)
+
+
+def _title_lines(
+    detected: list[tuple[TextLine, float]], geometry: list[Box]
+) -> list[tuple[TextLine, float]]:
+    """The detected lines that form the title, in reading order.
+
+    A detected line is part of the title when its vertical centre falls
+    inside one of the geometry title boxes. With no geometry, or no line on
+    it, the tallest detected line is the title, as it is when in view.
+    """
+    title = [
+        (line, score)
+        for line, score in detected
+        if any(
+            top <= (line.box[1] + line.box[3]) / 2 <= bottom
+            for _, top, _, bottom in geometry
+        )
+    ]
+    if title:
+        return title
+    return [max(detected, key=lambda d: d[0].box[3] - d[0].box[1])]
 
 
 def make_reader(engine: str) -> TitleReader:
