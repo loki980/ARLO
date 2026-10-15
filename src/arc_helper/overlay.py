@@ -96,6 +96,8 @@ class OverlayWindow:
         make_click_through(self.window)
 
         self._hide_after_id: str | None = None
+        # Delay the pending hide timer was armed with, for the debug log
+        self._hide_delay_ms: int | None = None
         self._current_item: str | None = None
 
     def _scale(self, value: int) -> int:
@@ -228,7 +230,7 @@ class OverlayWindow:
 
         if self._hide_after_id:
             self.window.after_cancel(self._hide_after_id)
-            logger.debug("popup hide timer cancelled")
+            logger.debug("popup hide timer cancelled delay=%s ms", self._hide_delay_ms)
 
         if verdict is None:
             verdict = verdict_from_action(recommendation)
@@ -282,15 +284,17 @@ class OverlayWindow:
         # Auto-hide
         hide_ms = int(self.settings.overlay.display_time * 1000)
         self._hide_after_id = self.window.after(hide_ms, self.hide)
+        self._hide_delay_ms = hide_ms
         logger.debug("popup hide timer armed delay=%d ms", hide_ms)
 
     def _reschedule_hide(self) -> None:
         """Restart the auto-hide timer from now."""
         if self._hide_after_id:
             self.window.after_cancel(self._hide_after_id)
-            logger.debug("popup hide timer cancelled")
+            logger.debug("popup hide timer cancelled delay=%s ms", self._hide_delay_ms)
         hide_ms = int(self.settings.overlay.display_time * 1000)
         self._hide_after_id = self.window.after(hide_ms, self.hide)
+        self._hide_delay_ms = hide_ms
         logger.debug("popup hide timer armed delay=%d ms", hide_ms)
 
     def touch(self, item_name: str) -> None:
@@ -363,6 +367,8 @@ class TooltipChips:
             RECYCLE_CHIP: self.recycle_window,
         }
         self._hide_after_id: str | None = None
+        # Delay the pending hide timer was armed with, for the debug log
+        self._hide_delay_ms: int | None = None
         # Item the chips belong to, the chips mapped and their positions,
         # so a repeat show for one item only moves windows that moved
         self._current_item: str | None = None
@@ -424,7 +430,7 @@ class TooltipChips:
         self._current_item = item_name
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
-            logger.debug("chips hide timer cancelled")
+            logger.debug("chips hide timer cancelled delay=%s ms", self._hide_delay_ms)
             self._hide_after_id = None
 
         active: list[str] = []
@@ -486,6 +492,7 @@ class TooltipChips:
         if self._shown:
             hide_ms = int(self.settings.overlay.display_time * 1000)
             self._hide_after_id = self.root.after(hide_ms, self.hide)
+            self._hide_delay_ms = hide_ms
             logger.debug("chips hide timer armed delay=%d ms", hide_ms)
 
     def touch(self) -> None:
@@ -501,9 +508,10 @@ class TooltipChips:
         logger.debug("chips touch restart=yes")
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
-            logger.debug("chips hide timer cancelled")
+            logger.debug("chips hide timer cancelled delay=%s ms", self._hide_delay_ms)
         hide_ms = int(self.settings.overlay.display_time * 1000)
         self._hide_after_id = self.root.after(hide_ms, self.hide)
+        self._hide_delay_ms = hide_ms
         logger.debug("chips hide timer armed delay=%d ms", hide_ms)
 
     def hide(self, reason: str = "timer") -> None:
@@ -513,7 +521,9 @@ class TooltipChips:
             self.root.after_cancel(self._hide_after_id)
             # From the timer the id is the one that just fired, not a cancel
             if reason != "timer":
-                logger.debug("chips hide timer cancelled")
+                logger.debug(
+                    "chips hide timer cancelled delay=%s ms", self._hide_delay_ms
+                )
             self._hide_after_id = None
         self._current_item = None
         self._shown.clear()
