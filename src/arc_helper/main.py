@@ -42,9 +42,9 @@ from arc_helper.database import get_database
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
 from arc_helper.hovered_cell import find_hovered_cell
-from arc_helper.ocr import OCREngineManager
 from arc_helper.ocr import CardSignature
 from arc_helper.ocr import OCREngine
+from arc_helper.ocr import OCREngineManager
 from arc_helper.ocr import get_ocr_engine
 from arc_helper.ocr import same_card
 from arc_helper.overlay import RECYCLE_LABEL_HOME_ONLY
