@@ -20,6 +20,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from arc_helper.cell_border import HOVER_GOLD
 from arc_helper.config import get_screen_resolution
 from arc_helper.config import logger
 
@@ -34,7 +35,6 @@ IMPORT_CHECK = (
 )
 CHECK_TIMEOUT_S = 10
 STOP_TIMEOUT_S = 2
-GOLD = "#f2b134"
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ class Border:
     """A rounded outline whose outer edge lies on rect."""
 
     rect: tuple[int, int, int, int]
-    color: str = GOLD
+    color: str = HOVER_GOLD
     width: int = 3
     radius: int = 4
     kind: str = "border"
@@ -50,17 +50,41 @@ class Border:
 
 @dataclass(frozen=True)
 class Tag:
-    """A short text on a dark pill in one corner of rect (tl, tr, bl or br)."""
+    """A short text on a dark pill in one corner of rect (tl, tr, bl or br).
+
+    check puts a small green check mark before the text, and outline, an RGB
+    colour, draws a 2 px rounded outline around the pill.
+    """
 
     rect: tuple[int, int, int, int]
     text: str
     corner: str = "bl"
     fg: str = "#ffffff"
     bg: str = "#141414d9"
+    check: bool = False
+    outline: tuple[int, int, int] | None = None
     kind: str = "tag"
 
 
-Badge = Border | Tag
+@dataclass(frozen=True)
+class Patch:
+    """An opaque bar-coloured fill on a tile's bottom bar, with the worth on it.
+
+    rect is the bar in absolute physical px. The helper sizes the fill to the
+    text, at least to icon_right + 4 and never past patch_right, and rounds
+    its bottom-left corner by radius. The text is drawn white.
+    """
+
+    rect: tuple[int, int, int, int]
+    icon_right: int
+    patch_right: int
+    colour: tuple[int, int, int]
+    text: str
+    radius: int = 6
+    kind: str = "patch"
+
+
+Badge = Border | Tag | Patch
 
 
 def encode_message(op: str, badges: list[Badge] = ()) -> str:
