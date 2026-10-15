@@ -153,14 +153,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="counts" aria-label="Where things stand">
   <div><b>2 / 8</b><span>phases done</span><small>phases 0 and 3 done</small></div>
   <div><b>~75%</b><span>of phase 1 done</span><small>10 of 15 steps, weighted by effort</small></div>
-  <div><b>446</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>493</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span></span><span>Nothing underway. Everything built tonight is merged and waiting on your look in game: the advice card, gold borders and prices on every icon, fast show and hide, the in-raid trigger.</span></li>
+    <li><span></span><span>Nothing underway. The ARC Tracker style tiles and the bolder gold frame are merged and waiting on your look in game. Phase 5, step 2, Stitch the stash across scrolling, waits on your screen recording of a slow scroll through the whole stash.</span></li>
   </ul>
 </section>
 
@@ -284,25 +284,21 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct, the rest after phases 2 and 3</span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
-      <div class="gauge" aria-label="Phase 4 about 15 percent done">
-        <div class="bar"><i style="width:15%"></i></div>
-        <div class="read">~15%<small>1 of 2 steps, badge work not yet split into steps</small></div>
+      <div class="gauge" aria-label="Phase 4 about 90 percent done">
+        <div class="bar"><i style="width:90%"></i></div>
+        <div class="read">~90%<small>6 of 7 steps</small></div>
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">The badge layer<small>One transparent click-through layer over the whole screen, drawn by a small helper</small></span><span class="when recent">done 14 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">The stash pass<small>Every visible slot identified from one frame and turned into badges</small></span><span class="when recent">done 14 Oct</span></li>
-        <li class="done"><span class="tick">✓</span><span class="what">Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves. Waiting on your look in game</small></span><span class="when recent">done 15 Oct</span></li>
-      </ul>
-      <h3>Will contain</h3>
-      <ul class="will">
-        <li>Badge drawing from the verdicts and the grid</li>
-        <li>Hide while the grid moves, redraw when it settles</li>
-        <li>A gold border on every item worth keeping<span class="recent">added 14 Oct</span></li>
-        <li>The sell price on each small item icon<span class="recent">added 14 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Tiles like ARC Tracker<small>The stack's worth on a solid patch over the type icon, a red have/need tag and outline when you are short, a green check when you have enough, gold only on the hovered slot</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">A bolder gold frame<small>Twice as thick and brighter, the red outline on short items thicker too. Waiting on your look in game</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Your run decides the drawing mode<small>X11 works today. The Wayland-native mode needs one optional package</small></span><span class="when"></span></li>
       </ul>
     </article>
   </li>
@@ -330,14 +326,19 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot">5</div>
     <article class="card" data-tab="Phase 5">
-      <div class="tags"><span class="tag ahead">Planned</span><span class="dates">after phase 3</span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
       <h2>ARLO knows what you own</h2>
-      <p>One slow scroll through the stash teaches ARLO your inventory. Local only, nothing leaves your machine.</p>
-      <h3>Will contain</h3>
-      <ul class="will">
-        <li>Guided stash scroll, anchored on the stash header count so rows are not double counted</li>
-        <li>Deltas from later scans as you loot and sell</li>
-        <li>An "unsure" flag on a category when the numbers stop adding up</li>
+      <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
+      <div class="gauge" aria-label="Phase 5 about 15 percent done">
+        <div class="bar"><i style="width:15%"></i></div>
+        <div class="read">~15%<small>1 of 5 steps</small></div>
+      </div>
+      <ul class="steps">
+        <li class="done"><span class="tick">✓</span><span class="what">Step 1, Read the headers<small>The stash's used and total slots and its value, the loadout's weight and value</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Step 2, Stitch the stash across scrolling<small>Give each visible row its place in the whole stash, whatever filter tab is open. Waits on your screen recording</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Step 3, The ledger<small>Stash, backpack, quick use, safe pocket and equipment in one local store, updated from every still frame</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Step 4, Use it<small>Your real totals in the have/need tags and the advice card</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Step 5, An unsure flag<small>Say so when the tally and the headers disagree, instead of showing wrong numbers</small></span><span class="when recent">added 15 Oct</span></li>
       </ul>
     </article>
   </li>
@@ -366,7 +367,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><b>Some project phases ask for coins, not items.</b> Skip them, or show "fund 50,000 ₡" as a line?</li>
   <li><b>One optional package.</b> Installing gtk4-layer-shell lets the overlay experiment try the Wayland-native mode too.</li>
   <li><b>Blueprint find locations.</b> MetaForge's terms ask for attribution and want paid projects to ask first. ARLO is free. Use their vote data with a credit in the README, or stick to the wiki table alone?</li>
-  <li><b>Two lines in .env.example</b>, which agents cannot touch: <code>TOOLTIP_CHIPS=true</code> and <code>CAPTURE_LIBRARY_DIR=debug/captures</code>. The old capture switch in your own .env can go, it is ignored now.</li>
+  <li><b>A few lines in .env.example</b>, which agents cannot touch: <code>TOOLTIP_CHIPS</code>, <code>CAPTURE_LIBRARY_DIR</code>, <code>OCR_ENGINE</code>, <code>ADVICE_CARD</code> and <code>STASH_BADGES</code>. The old capture switch in your own .env can go, it is ignored now.</li>
+  <li><b>The KEEP chip on the game card.</b> The advice card now gives the advice. Retire the chip?</li>
+  <li><b>Two data differences to check in game.</b> Banjo sells for 2,000 in ARLO and 1,000 in ARC Tracker, and 7 recycle rows differ, mostly Sheet Metal from furniture.</li>
 </ul>
 
 <h2 class="section">Raid log</h2>
@@ -391,6 +394,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>14 Oct</time><span>Merged: the popup in your LOADOUT red box, covered cards never read, gold frame fixes, Garnet, the advice card and its window, fast show and hide. 365 tests. ARLO restarted with all of it. Started: the in-raid trigger and phase 3.</span></li>
   <li><time>14 Oct</time><span>The advice card now replaces the corner popup, and ARLO wakes up in raid. Phase 3 step 1 measured. 385 tests. ARLO restarted with all of it.</span></li>
   <li><time>15 Oct</time><span>Phase 3 done: slots found, icons identified by a learned model, tiers and stacks read. Gold borders and prices on every icon now draw live while your grid is still. Paused once at your usage limit, resumed. 446 tests.</span></li>
+  <li><time>15 Oct</time><span>Tiles now look like ARC Tracker's: worth on a solid patch, red have/need tags and outlines, green checks, gold only on the hovered slot. Phase 5 moved up at your ask and its header reader built. The needs data checked against ARC Tracker once, privately: quests and projects match, Sheet Metal fixed. You asked for a more obvious gold frame, now twice as thick and brighter. 493 tests.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
