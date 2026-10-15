@@ -27,6 +27,13 @@ from .tiers import TIER_LIKE
 from .tiers import TierVote
 from .tiers import count_strokes
 from .tiers import tier_key
+from .title_reader import PADDLE_INSTALL
+from .title_reader import TESSERACT
+from .title_reader import TESSERACT_TITLE
+from .title_reader import TextLine
+from .title_reader import TitleReader
+from .title_reader import TitleReaderUnavailableError
+from .title_reader import make_reader
 from .tooltip_layout import Edges
 from .tooltip_layout import Point as LayoutPoint
 from .tooltip_layout import Rect
@@ -42,6 +49,24 @@ CAPTURE_QUEUE_SIZE = 4
 
 # Margin kept around the located card when it is cropped for OCR
 CARD_CROP_MARGIN = 8
+
+
+def build_reader(engine: str) -> TitleReader:
+    """Build the title reader named by OCR_ENGINE, never raising.
+
+    An engine whose package is missing, or an unknown name, logs one
+    warning and falls back to tesseract_title, second best in the bake-off.
+    """
+    try:
+        return make_reader(engine)
+    except TitleReaderUnavailableError as e:
+        logger.warning(f"{e}. Falling back to {TESSERACT_TITLE}.")
+    except ValueError as e:
+        logger.warning(
+            f"{e}. Falling back to {TESSERACT_TITLE}. "
+            f"For paddle install it with: {PADDLE_INSTALL}"
+        )
+    return make_reader(TESSERACT_TITLE)
 
 
 def clamp_bbox(
@@ -156,6 +181,16 @@ class OCREngine:
         self._last_capture: Image.Image | None = None
         self._last_origin: LayoutPoint | None = None
         self._last_card: Rect | None = None
+        # Every text line the last title read detected on the located card,
+        # in that card's coordinates (CARD_CROP_MARGIN already taken off).
+        # None when the reader does not return lines, so the layout runs its
+        # own Tesseract pass.
+        self._last_lines: list[TextLine] | None = None
+        # Offset from the OCR crop to the located card, set by _locate_card
+        self._crop_to_card = LayoutPoint(0, 0)
+
+        # Card title reader chosen by OCR_ENGINE
+        self.reader = build_reader(settings.ocr_engine)
 
         if self.debug_mode:
             self.debug_dir.mkdir(parents=True, exist_ok=True)
@@ -256,6 +291,7 @@ class OCREngine:
         self._last_capture = None
         self._last_origin = None
         self._last_card = None
+        self._last_lines = None
         try:
             image = grab_screen((left, top, right, bottom))
         except ScreenCaptureUnavailable:
@@ -288,20 +324,39 @@ class OCREngine:
         )
         if found is None:
             return None
-        crop, self._last_card = found
+        crop, card = found
+        self._last_card = card
+        # The crop starts CARD_CROP_MARGIN px before the card, less where the
+        # capture edge clamped it
+        self._crop_to_card = LayoutPoint(
+            max(0, card.left - CARD_CROP_MARGIN) - card.left,
+            max(0, card.top - CARD_CROP_MARGIN) - card.top,
+        )
         return crop
 
     def layout_from_last_capture(self) -> TooltipLayout | None:
         """Locate the tooltip and its label rows in the last cursor capture.
 
-        Runs a word-box OCR pass on the cream region upscaled 2x. When the
-        last name read located the item card, that card is the cream region
-        and its clipped edges are the ones touching the search window edge.
-        Otherwise find_cream_rect locates it in the capture. Returns the
-        tooltip and label rectangles in physical screen pixels, or None when
-        there is no capture or no cream region. Costs one extra Tesseract
-        pass, so callers run it once per shown item, not every scan.
+        When the last name read located the item card, that card is the
+        cream region and its clipped edges are the ones touching the search
+        window edge. Otherwise find_cream_rect locates it in the capture.
+        The label rows come from the lines the title reader already detected
+        on the card when it returned them (paddle), otherwise from a
+        word-box Tesseract pass on the cream region upscaled 2x, which costs
+        one extra pass, so callers run it once per shown item, not every
+        scan. Returns the tooltip and label rectangles in physical screen
+        pixels, or None when there is no capture or no cream region.
         """
+        start = time.perf_counter()
+        layout = self._layout_from_last_capture()
+        logger.debug(
+            f"Layout done in {1000 * (time.perf_counter() - start):.0f} ms, "
+            f"labels {sorted(layout.labels) if layout else None}"
+        )
+        return layout
+
+    def _layout_from_last_capture(self) -> TooltipLayout | None:
+        """layout_from_last_capture without the timing log."""
         image, origin = self._last_capture, self._last_origin
         if image is None or origin is None:
             return None
@@ -319,6 +374,22 @@ class OCREngine:
             if region is None:
                 return None
             cream, clipped = region
+
+        crop_origin = LayoutPoint(origin.x + cream.left, origin.y + cream.top)
+        if self._last_card is not None and self._last_lines is not None:
+            # One Word per detected line, already in card coordinates
+            words = [
+                Word(line.text, left, top, right - left, bottom - top, i)
+                for i, line in enumerate(self._last_lines)
+                for left, top, right, bottom in [line.box]
+            ]
+            labels = {
+                name: to_screen(rect, crop_origin)
+                for name, rect in find_label_rows(words, 1).items()
+            }
+            return TooltipLayout(
+                tooltip=to_screen(cream, origin), labels=labels, clipped=clipped
+            )
 
         scale = 2
         crop = image.crop((cream.left, cream.top, cream.right, cream.bottom))
@@ -353,7 +424,6 @@ class OCREngine:
             if data["text"][i].strip()
         ]
 
-        crop_origin = LayoutPoint(origin.x + cream.left, origin.y + cream.top)
         labels = {
             name: to_screen(rect, crop_origin)
             for name, rect in find_label_rows(words, scale).items()
@@ -649,20 +719,19 @@ class OCREngine:
         # Extract from the card crop (or the fallback capture) using
         # preprocessing for dark text on light background
 
-        processed = self.preprocess_tooltip(image)
-
-        if self.debug_mode:
-            processed.save(self.debug_dir / "tooltip_capture_processed.png")
-
-        # Extract the item name from the tooltip area
+        start = time.perf_counter()
         try:
-            item_name = self._read_item_name(processed)
+            item_name = self._read_title(image, card_found=card_crop is not None)
         except pytesseract.TesseractError as e:
             logger.error(f"OCR Error: {e}")
             item_name = None
         else:
             if item_name:
                 logger.debug(f"Extracted item name: '{item_name}'")
+        logger.debug(
+            f"Title read by {self.reader.name} done in "
+            f"{1000 * (time.perf_counter() - start):.0f} ms"
+        )
 
         if self.capture_library and self._last_capture is not None:
             self._save_to_library(library_image, item_name)
@@ -722,6 +791,38 @@ class OCREngine:
             image.save(self.capture_library_dir / f"{stamp}_{label}.png")
         except Exception as e:  # noqa: BLE001 - a full disk must not stop scanning
             logger.warning(f"Could not save capture to library: {e}")
+
+    def _read_title(self, image: Image.Image, *, card_found: bool) -> str | None:
+        """Read the item name from a card crop with the configured reader.
+
+        The tesseract engine keeps today's path, preprocess_tooltip and the
+        two passes of _read_item_name, with its debug images. Other readers
+        get the RGB crop of a located card only. Without a card they read
+        nothing, since a full-screen read costs paddle about a second and
+        reads game text such as LOADOUT as an item. When the reader returned
+        every detected line, those lines are kept in card coordinates for
+        layout_from_last_capture.
+        """
+        self.last_tier_vote = None
+        self._last_lines = None
+        if self.reader.name == TESSERACT:
+            processed = self.preprocess_tooltip(image)
+            if self.debug_mode:
+                processed.save(self.debug_dir / "tooltip_capture_processed.png")
+            return self._read_item_name(processed)
+        if not card_found:
+            return None
+
+        read = self.reader.read(np.array(image.convert("RGB")))
+        self.last_tier_vote = read.tier_vote
+        if read.lines is not None:
+            dx, dy = self._crop_to_card
+            self._last_lines = [
+                TextLine(line.text, (left + dx, top + dy, right + dx, bottom + dy))
+                for line in read.lines
+                for left, top, right, bottom in [line.box]
+            ]
+        return read.text
 
     def _read_item_name(self, processed: Image.Image) -> str | None:
         """Read the item name from a preprocessed tooltip via two OCR passes.

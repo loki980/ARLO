@@ -8,6 +8,7 @@ import pytest
 from PIL import Image
 
 from arc_helper import ocr as ocr_module
+from arc_helper.config import get_settings
 from arc_helper.database import Database
 from arc_helper.ocr import OCREngine
 from arc_helper.screen import Point
@@ -15,6 +16,13 @@ from arc_helper.tooltip_layout import Edges
 from arc_helper.tooltip_layout import Rect
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def tesseract_engine(monkeypatch):
+    """These tests cover the tesseract reader's path, not the default paddle."""
+    monkeypatch.setenv("OCR_ENGINE", "tesseract")
+    monkeypatch.setattr(get_settings(), "ocr_engine", "tesseract")
 
 
 def test_upper_ratio():
