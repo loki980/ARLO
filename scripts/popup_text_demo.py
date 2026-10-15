@@ -16,10 +16,17 @@ from PIL import ImageGrab
 from arc_helper.database import HOME
 from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
+from arc_helper.main import chip_payload
 from arc_helper.overlay import BG_PANEL
 from arc_helper.overlay import OverlayWindow
+from arc_helper.overlay import TooltipChips
 from arc_helper.screen import get_backend
+from arc_helper.screen import phys_to_tk
 from arc_helper.textrender import has_scalable_fonts
+from arc_helper.tooltip_layout import FOUND_IN
+from arc_helper.tooltip_layout import RECYCLES_INTO
+from arc_helper.tooltip_layout import Rect
+from arc_helper.tooltip_layout import TooltipLayout
 from arc_helper.verdict import Verdict
 
 
@@ -56,6 +63,61 @@ def ImageTkToPil(photo) -> Image.Image:  # noqa: N802
     return Image.open(BytesIO(data)).convert("RGB")
 
 
+def _grab(root: tk.Tk, window: tk.Misc, extra: int = 0) -> Image.Image | None:
+    """Screenshot of a Tk window (grown by extra tk px), None when it fails."""
+    for _ in range(20):
+        root.update()
+    root.after(200)
+    root.update()
+    k = get_backend().tk_scale
+    box = (
+        round((window.winfo_rootx() - extra) * k),
+        round((window.winfo_rooty() - extra) * k),
+        round((window.winfo_rootx() + window.winfo_width() + extra) * k),
+        round((window.winfo_rooty() + window.winfo_height() + extra) * k),
+    )
+    print("grab box:", box)
+    try:
+        image = ImageGrab.grab(bbox=box)
+    except Exception as exc:  # noqa: BLE001
+        print("grab failed:", exc)
+        return None
+    if len(image.resize((16, 16)).getcolors() or []) < 3:
+        print("grab came back blank")
+        return None
+    return image
+
+
+def _chips_shot(root, item, verdict, outputs):
+    """Three chips placed on a cream stand-in for the game's tooltip card."""
+    card = Rect(1400, 300, 2300, 900)
+    layout = TooltipLayout(
+        card,
+        {
+            FOUND_IN: Rect(1440, 520, 1700, 560),
+            RECYCLES_INTO: Rect(1440, 700, 1660, 740),
+        },
+    )
+    window = tk.Toplevel(root)
+    window.overrideredirect(boolean=True)
+    window.configure(bg="#f9eedf")
+    window.geometry(
+        f"{phys_to_tk(card.width)}x{phys_to_tk(card.height)}"
+        f"+{phys_to_tk(card.left)}+{phys_to_tk(card.top)}"
+    )
+    window.update()
+    chips = TooltipChips(root)
+    home_only = [RecycleOutput("Crude Explosives", 1, HOME)]
+    payload = chip_payload(
+        item, [*outputs, RecycleOutput("Field Part", 1, "field")], home_only, verdict
+    )
+    chips.show(item.name, layout, **payload)
+    image = _grab(root, window)
+    chips.hide()
+    window.destroy()
+    return image
+
+
 def main() -> None:
     out = sys.argv[1] if len(sys.argv) > 1 else "popup_text_demo.png"
     root = tk.Tk()
@@ -80,29 +142,23 @@ def main() -> None:
         root.update()
     root.after(200)
     root.update()
-    window = popup.window
-    k = get_backend().tk_scale
-    box = (
-        round(window.winfo_rootx() * k),
-        round(window.winfo_rooty() * k),
-        round((window.winfo_rootx() + window.winfo_width()) * k),
-        round((window.winfo_rooty() + window.winfo_height()) * k),
-    )
-    print("popup box:", box)
-    image = None
-    try:
-        image = ImageGrab.grab(bbox=box)
-        if len(image.resize((16, 16)).getcolors() or []) < 3:
-            print("grab came back blank")
-            image = None
-    except Exception as exc:  # noqa: BLE001
-        print("grab failed:", exc)
+    image = _grab(root, popup.window)
     if image is None:
         image = _compose(popup)
         print("composed from label images")
+    popup.hide()
+    chips_image = _chips_shot(root, item, verdict, outputs)
+    if chips_image is not None:
+        canvas = Image.new(
+            "RGB",
+            (max(image.width, chips_image.width), image.height + chips_image.height),
+            "#000000",
+        )
+        canvas.paste(image, (0, 0))
+        canvas.paste(chips_image, (0, image.height))
+        image = canvas
     image.save(out)
     print("saved", out, image.size)
-    popup.hide()
     root.destroy()
 
 
