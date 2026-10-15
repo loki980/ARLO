@@ -27,6 +27,24 @@ CHIP_CARD = Rect(784, -477, 1544, 752)
 CHIP_RECT = Rect(46, 163, 473, 217)
 CHIP_CELL = Rect(136, 58, 760, 475)
 
+# Crop (3330, 480)-(3700, 800) of 20261014-210134-998_SHIELD-RECHARGER.png:
+# the hovered Shield Recharger quick use slot, with its card opened to the
+# left of the cell (only the card's right 62 px are in the crop).
+LEFT_OPEN_FIXTURE = FIXTURES / "hovered_cell_left_open_capture.png"
+LEFT_OPEN_CARD = Rect(-698, -111, 62, 674)
+LEFT_OPEN_CELL = Rect(86, 56, 294, 265)
+
+# Crop (60, 80)-(700, 820) of
+# 20261014-210223-142_U-AMMO-TURE-N-HEAVY-AMMO-MAGAZINE-SIZE-6.png: the
+# hovered Anvil I stash cell with ARLO's corner popup over its top 83 px.
+# The cell is the by-eye label of the whole ring, hidden top included.
+POPUP_FIXTURE = FIXTURES / "hovered_cell_popup_capture.png"
+POPUP_CARD = Rect(468, 234, 1227, 1202)
+POPUP_CELL = Rect(236, 456, 444, 665)
+
+# A detection matches a by-eye label when every edge is within this many px
+MATCH_PX = 12
+
 # A loadout crop with no card open, so no cell carries the glow ring
 NO_RING_FIXTURE = FIXTURES / "loadout_no_card_capture.png"
 
@@ -40,13 +58,28 @@ def test_finds_ring_left_of_card() -> None:
     assert find_hovered_cell(_load(AMMO_FIXTURE), AMMO_CARD) == AMMO_CELL
 
 
-def test_ignore_rect_keeps_chip_out_of_the_box() -> None:
+def _matches(found: Rect | None, label: Rect) -> bool:
+    return found is not None and all(
+        abs(a - b) <= MATCH_PX for a, b in zip(found, label, strict=True)
+    )
+
+
+def test_chip_stays_out_of_the_box_with_or_without_its_ignore_rect() -> None:
     rgb = _load(CHIP_FIXTURE)
 
-    widened = find_hovered_cell(rgb, CHIP_CARD)
-    assert widened == Rect(64, 58, 760, 475)
-
+    # the chip is found by its flat colours even when no ignore rect names it
+    assert find_hovered_cell(rgb, CHIP_CARD) == CHIP_CELL
     assert find_hovered_cell(rgb, CHIP_CARD, ignore=[CHIP_RECT]) == CHIP_CELL
+
+
+def test_finds_ring_right_of_a_card_opened_left() -> None:
+    assert find_hovered_cell(_load(LEFT_OPEN_FIXTURE), LEFT_OPEN_CARD) == LEFT_OPEN_CELL
+
+
+def test_ring_under_the_corner_popup_is_squared_up() -> None:
+    found = find_hovered_cell(_load(POPUP_FIXTURE), POPUP_CARD)
+
+    assert _matches(found, POPUP_CELL)
 
 
 def test_none_without_a_ring() -> None:
