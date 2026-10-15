@@ -10,6 +10,7 @@ from .clickthrough import make_click_through
 from .config import get_dpi_scale
 from .config import get_screen_resolution
 from .config import get_settings
+from .config import logger
 from .database import HOME
 from .database import Item
 from .database import RecycleOutput
@@ -218,13 +219,16 @@ class OverlayWindow:
         """
         # Skip redraw if same item already showing
         if self._current_item == item_name and self.is_visible():
+            logger.debug("popup show item=%s redraw=no", item_name)
             self._reschedule_hide()
             return
 
+        logger.debug("popup show item=%s redraw=yes", item_name)
         self._current_item = item_name
 
         if self._hide_after_id:
             self.window.after_cancel(self._hide_after_id)
+            logger.debug("popup hide timer cancelled")
 
         if verdict is None:
             verdict = verdict_from_action(recommendation)
@@ -278,20 +282,33 @@ class OverlayWindow:
         # Auto-hide
         hide_ms = int(self.settings.overlay.display_time * 1000)
         self._hide_after_id = self.window.after(hide_ms, self.hide)
+        logger.debug("popup hide timer armed delay=%d ms", hide_ms)
 
     def _reschedule_hide(self) -> None:
         """Restart the auto-hide timer from now."""
         if self._hide_after_id:
             self.window.after_cancel(self._hide_after_id)
+            logger.debug("popup hide timer cancelled")
         hide_ms = int(self.settings.overlay.display_time * 1000)
         self._hide_after_id = self.window.after(hide_ms, self.hide)
+        logger.debug("popup hide timer armed delay=%d ms", hide_ms)
 
     def touch(self, item_name: str) -> None:
         """Keep the overlay up while item_name is the item showing."""
         if self._current_item == item_name and self.is_visible():
+            logger.debug("popup touch item=%s restart=yes", item_name)
             self._reschedule_hide()
+        else:
+            logger.debug(
+                "popup touch item=%s restart=no showing=%s",
+                item_name,
+                self._current_item,
+            )
 
     def hide(self) -> None:
+        """Withdraw the popup. Only its own auto-hide timer calls this."""
+        logger.debug("popup hide reason=timer item=%s", self._current_item)
+        # The id here is the timer that just fired, so this cancel is not logged
         if self._hide_after_id:
             self.window.after_cancel(self._hide_after_id)
             self._hide_after_id = None
@@ -401,9 +418,13 @@ class TooltipChips:
         them. A chip this layout could not place stays where it is.
         """
         same_item = item_name == self._current_item
+        logger.debug(
+            "chips show item=%s same_item=%s", item_name, "yes" if same_item else "no"
+        )
         self._current_item = item_name
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
+            logger.debug("chips hide timer cancelled")
             self._hide_after_id = None
 
         active: list[str] = []
@@ -465,23 +486,34 @@ class TooltipChips:
         if self._shown:
             hide_ms = int(self.settings.overlay.display_time * 1000)
             self._hide_after_id = self.root.after(hide_ms, self.hide)
+            logger.debug("chips hide timer armed delay=%d ms", hide_ms)
 
     def touch(self) -> None:
         """Restart the auto-hide timer when any chip is showing."""
         try:
             showing = any(w.winfo_viewable() for w in self.windows.values())
         except tk.TclError:
+            logger.debug("chips touch restart=no reason=tcl_error")
             return
         if not showing:
+            logger.debug("chips touch restart=no reason=none_showing")
             return
+        logger.debug("chips touch restart=yes")
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
+            logger.debug("chips hide timer cancelled")
         hide_ms = int(self.settings.overlay.display_time * 1000)
         self._hide_after_id = self.root.after(hide_ms, self.hide)
+        logger.debug("chips hide timer armed delay=%d ms", hide_ms)
 
-    def hide(self) -> None:
+    def hide(self, reason: str = "timer") -> None:
+        """Withdraw the chips. reason is timer from the auto-hide timer."""
+        logger.debug("chips hide reason=%s item=%s", reason, self._current_item)
         if self._hide_after_id:
             self.root.after_cancel(self._hide_after_id)
+            # From the timer the id is the one that just fired, not a cancel
+            if reason != "timer":
+                logger.debug("chips hide timer cancelled")
             self._hide_after_id = None
         self._current_item = None
         self._shown.clear()
