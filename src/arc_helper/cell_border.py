@@ -11,6 +11,7 @@ import tkinter as tk
 from typing import NamedTuple
 
 from .clickthrough import make_click_through
+from .config import logger
 from .screen import phys_to_tk
 from .tooltip_layout import Rect
 
@@ -92,11 +93,20 @@ class CellBorder:
                 window.deiconify()
                 window.lift()
         self._shown = state
+        logger.debug("border show rect=%d,%d,%d,%d width=%d", *rect_phys, width_px)
 
-    def hide(self) -> None:
+    def hide(self, reason: str = "hide") -> None:
         """Withdraw the frame when it is showing."""
         if self._shown is None:
             return
         for window in self.windows:
             window.withdraw()
         self._shown = None
+        logger.debug("border hide reason=%s", reason)
+
+    def bar_rects(self) -> tuple[Rect, ...]:
+        """Physical screen rectangles of the bars now showing, else empty."""
+        if self._shown is None:
+            return ()
+        rect, width, _ = self._shown
+        return tuple(frame_bars(rect, width))
