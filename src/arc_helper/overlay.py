@@ -5,6 +5,7 @@ Displays item recommendations as a styled popup with action colors.
 
 import tkinter as tk
 from dataclasses import replace
+from tkinter import font as tkfont
 from typing import Callable
 
 from .clickthrough import make_click_through
@@ -17,12 +18,14 @@ from .database import Item
 from .database import RecycleOutput
 from .screen import get_backend
 from .screen import phys_to_tk
+from .textrender import CONDENSED_FAMILY
 from .textrender import TextStyle
 from .textrender import find_font_file
 from .textrender import has_scalable_fonts
 from .textrender import render_photo
 from .tooltip_layout import PRICE_CHIP
 from .tooltip_layout import RECYCLE_CHIP
+from .tooltip_layout import VERDICT_CHIP
 from .tooltip_layout import Size
 from .tooltip_layout import TooltipLayout
 from .tooltip_layout import place_chips
@@ -38,6 +41,10 @@ ACTION_COLORS: dict[str, str] = {
     "TRASH": "#FF4444",
     "UNKNOWN": "#888888",
 }
+
+# Verdict chip: dark slate panel and the word size in points
+VERDICT_BG = "#23272e"
+VERDICT_SIZE = 32
 
 # Background palette
 BG_DARK = "#12121f"
@@ -84,23 +91,38 @@ def _make_label(
     size: int,
     *,
     bold: bool = False,
+    condensed: bool = False,
     fg: str,
     bg: str,
     **options,
 ) -> tk.Label:
-    """Build a text label. Without scalable Tk fonts it shows Pillow images."""
-    font = ("Segoe UI", size, *(("bold",) if bold else ()))
+    """Build a text label. Without scalable Tk fonts it shows Pillow images.
+
+    condensed asks for Barlow Semi Condensed, used by the tooltip chips.
+    """
+    family = "Segoe UI"
+    if condensed and has_scalable_fonts(root) and CONDENSED_FAMILY in _families(root):
+        family = CONDENSED_FAMILY
+    font = (family, size, *(("bold",) if bold else ()))
     label = tk.Label(parent, text="", font=font, fg=fg, bg=bg, **options)
     label._arlo_style = None  # noqa: SLF001
     if not has_scalable_fonts(root):
-        path = find_font_file(bold=bold)
+        path = find_font_file(bold=bold, condensed=condensed)
         if path:
             label._arlo_style = TextStyle(size, bold, fg, bg)  # noqa: SLF001
+            label._arlo_fallback = find_font_file(bold=bold) if condensed else None  # noqa: SLF001
             label._arlo_font = path  # noqa: SLF001
             label._arlo_root = root  # noqa: SLF001
             label._arlo_text = ""  # noqa: SLF001
             label._arlo_wrap = 0  # noqa: SLF001
     return label
+
+
+def _families(root: tk.Misc) -> tuple[str, ...]:
+    try:
+        return tuple(tkfont.families(root))
+    except tk.TclError:
+        return ()
 
 
 def _set_text(
@@ -141,6 +163,7 @@ def _set_text(
         style,
         label._arlo_font,  # noqa: SLF001
         label._arlo_wrap,  # noqa: SLF001
+        label._arlo_fallback,  # noqa: SLF001
     )
     # Keep a reference, Tk does not hold the image alive
     label._arlo_photo = photo  # noqa: SLF001
@@ -202,7 +225,7 @@ class OverlayWindow:
 
         # Font sizes - bigger and bolder
         name_size = max(10, self._scale(18))
-        action_size = max(12, self._scale(44))
+        action_size = max(12, self._scale(26))
         info_size = max(8, self._scale(13))
         detail_size = max(8, self._scale(12))
 
@@ -459,9 +482,25 @@ class TooltipChips:
         self.recycle_text = self._label(recycle_body, "white")
         self.recycle_text.pack(side="left", padx=(self._scale(10), 0))
 
+        self.verdict_window, self.verdict_stripe, verdict_body = (
+            self._make_verdict_chip()
+        )
+        self.verdict_label = _make_label(
+            self.root,
+            verdict_body,
+            VERDICT_SIZE,
+            bold=True,
+            condensed=True,
+            fg="white",
+            bg=VERDICT_BG,
+            anchor="w",
+        )
+        self.verdict_label.pack(anchor="w")
+
         self.windows = {
             PRICE_CHIP: self.price_window,
             RECYCLE_CHIP: self.recycle_window,
+            VERDICT_CHIP: self.verdict_window,
         }
         self._hide_after_id: str | None = None
         # Delay the pending hide timer was armed with, for the debug log
@@ -499,6 +538,30 @@ class TooltipChips:
         make_click_through(window)
         return window, body
 
+    def _make_verdict_chip(self) -> tuple[tk.Toplevel, tk.Frame, tk.Frame]:
+        """Build the hidden verdict chip: dark slate panel, left stripe.
+
+        Returns the window, the stripe frame (recoloured per verdict) and the
+        content frame. Corners stay square, a Tk toplevel is rectangular.
+        """
+        window = tk.Toplevel(self.root)
+        window.title("ARLO verdict")
+        window.attributes("-topmost", True)  # noqa: FBT003
+        window.attributes("-alpha", 0.96)
+        window.overrideredirect(boolean=True)
+        window.withdraw()
+
+        panel = tk.Frame(window, bg=VERDICT_BG)
+        panel.pack()
+        # About a fifth of the text height, in tk units
+        stripe_w = max(3, self._scale(round(VERDICT_SIZE * 1.334 / 5)))
+        stripe = tk.Frame(panel, bg=ACTION_COLORS["UNKNOWN"], width=stripe_w)
+        stripe.pack(side="left", fill="y")
+        body = tk.Frame(panel, bg=VERDICT_BG, padx=self._scale(14), pady=self._scale(6))
+        body.pack(side="left")
+        make_click_through(window)
+        return window, stripe, body
+
     def _label(
         self, parent: tk.Frame, fg: str, *, size: int | None = None, bold: bool = False
     ) -> tk.Label:
@@ -507,6 +570,7 @@ class TooltipChips:
             parent,
             size or self.info_size,
             bold=bold,
+            condensed=True,
             fg=fg,
             bg=BG_PANEL,
             anchor="w",
@@ -521,8 +585,12 @@ class TooltipChips:
         recycle_label: str | None,
         recycle_text: str | None,
         hold_ms: int | None = None,
+        verdict_word: str | None = None,
+        verdict_kind: str | None = None,
     ) -> None:
         """Fill, measure, place and show the chips that have content.
+
+        verdict_word and verdict_kind (a Verdict.kind) fill the verdict chip.
 
         For the item already showing, chips are only moved with geometry,
         never withdrawn and mapped again, so the compositor does not fade
@@ -556,6 +624,10 @@ class TooltipChips:
             _set_text(self.recycle_title, recycle_label, fg=title_fg)
             _set_text(self.recycle_text, recycle_text)
             active.append(RECYCLE_CHIP)
+        if verdict_word and verdict_kind:
+            _set_text(self.verdict_label, verdict_word)
+            self.verdict_stripe.config(bg=action_color(verdict_kind))
+            active.append(VERDICT_CHIP)
 
         # Sizes in physical pixels, measured before the chips are mapped
         tk_scale = get_backend().tk_scale

@@ -12,12 +12,14 @@ from arc_helper.config import get_settings
 from arc_helper.database import Item
 from arc_helper.main import Scanner
 from arc_helper.main import ScannerState
+from arc_helper.main import chip_payload
 from arc_helper.overlay import TooltipChips
 from arc_helper.tooltip_layout import PRICE_CHIP
 from arc_helper.tooltip_layout import RECYCLE_CHIP
 from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import TooltipLayout
+from arc_helper.verdict import Verdict
 
 LAYOUT = TooltipLayout(Rect(0, 0, 600, 900), {})
 ITEM = Item(name="Battery", action="Keep", sell_price=250)
@@ -85,6 +87,39 @@ def test_chips_queued_while_active(monkeypatch):
     monkeypatch.setattr(main_module, "get_ocr_engine", lambda: ocr)
     scanner._queue_chips(ITEM)  # noqa: SLF001
     assert [m[0] for m in _drain(scanner)] == ["chips"]
+
+
+def test_chip_payload_takes_word_and_kind_from_the_verdict_not_the_item():
+    # ITEM.action is "Keep" but the verdict says sell
+    payload = chip_payload(ITEM, [], [], Verdict("sell", "no needs"))
+    assert payload["verdict_word"] == "SELL"
+    assert payload["verdict_kind"] == "sell"
+    assert chip_payload(ITEM, [], [])["verdict_word"] is None
+    assert chip_payload(ITEM, [], [], Verdict("unknown", ""))["verdict_kind"] is None
+
+
+def test_queued_chips_message_carries_the_verdict(monkeypatch):
+    scanner = _active_scanner()
+    ocr = _BlockingOcr()
+    ocr.release.set()
+    monkeypatch.setattr(main_module, "get_ocr_engine", lambda: ocr)
+    scanner._queue_chips(ITEM, verdict=Verdict("recycle", "r"))  # noqa: SLF001
+    (message,) = _drain(scanner)
+    assert message[3]["verdict_word"] == "RECYCLE"
+    assert message[3]["verdict_kind"] == "recycle"
+
+
+def test_detected_item_passes_its_verdict_to_the_chips(monkeypatch):
+    monkeypatch.setattr(main_module, "get_ocr_engine", _NoVoteOcr)
+    scanner = _active_scanner()
+    verdict = Verdict("recycle", "r")
+    monkeypatch.setattr(scanner, "_verdict_for", lambda *_: verdict)
+    seen = []
+    monkeypatch.setattr(
+        scanner, "_queue_chips", lambda rec, **kw: seen.append(kw.get("verdict"))
+    )
+    scanner._handle_detected_item("Battery")  # noqa: SLF001
+    assert seen == [verdict] * int(get_settings().overlay.tooltip_chips)
 
 
 @pytest.mark.parametrize("leave", ["stop", "pause"])
@@ -170,6 +205,8 @@ def test_chips_for_the_same_item_move_without_withdraw(monkeypatch):
     for label in ("price_label", "stack_label", "recycle_title", "recycle_text"):
         setattr(chips, label, _StubWindow())
     chips.windows = {PRICE_CHIP: _StubWindow(), RECYCLE_CHIP: _StubWindow()}
+    chips.verdict_label = _StubWindow()
+    chips.verdict_stripe = _StubWindow()
     chips._hide_after_id = None  # noqa: SLF001
     chips._current_item = None  # noqa: SLF001
     chips._shown = set()  # noqa: SLF001
