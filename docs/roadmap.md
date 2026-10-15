@@ -182,8 +182,10 @@ Ahead, in order:
 18. ARLO wakes up in raid too. Jeffrey, 14 Oct: "Items in found containers
     and arc do not get the overlay." In raid the MAP tab shifts the
     INVENTORY tab out of the calibrated trigger boxes, so ARLO never woke.
-    A wide band across the top centre is searched when the boxes miss.
-    Added 14 Oct, underway 14 Oct.
+    A wide band across the top centre is searched when the boxes miss
+    (about 60 to 75 ms, only when the boxes fail). Done 14 Oct, reviewed:
+    his in-raid screenshot triggers, 142 of 144 stash captures still
+    trigger through the boxes, no false triggers. Waiting on a raid test.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -242,8 +244,9 @@ Ahead:
    "This is super nice. You should just copy it." Part 1, drawing the card
    from the verdict data, done 14 Oct, reviewed. The recycle wording names
    the parts you still need, done 14 Oct. The window that shows it in the
-   LOADOUT panel box, done 14 Oct. Next: hook it into the scanner in place
-   of the corner popup. Changed 14 Oct.
+   LOADOUT panel box, done 14 Oct. Hooked into the scanner in place of the
+   corner popup (ADVICE_CARD=false brings the popup back), done 14 Oct,
+   reviewed. Waiting on Jeffrey's look in game. Changed 14 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
 
@@ -254,13 +257,15 @@ for icon identity, OCR for text. Changed 11 Oct.
 Will contain:
 
 1. A perceptual-hash baseline, measured first, expected to fail on lookalikes.
-   Started 14 Oct on slot crops labeled from the hovered cell and the title
-   read.
+   Done 14 Oct, reviewed: on 110 slot crops labeled from the hovered cell
+   and the title read, 46 percent top-1, weapons 9 of 45, wide weapon slots
+   all missed, tiers sometimes differ only in the numeral. The evidence for
+   step 3.
 2. Slot lattice from edges and contours, frame stillness check, only while
    the INVENTORY trigger is active. Started 14 Oct.
 3. An embedding model (DINOv2-small under onnxruntime, Apache-2.0) over a
    gallery built from the stable arctracker icon PNGs plus crops learned from
-   hovering (ARLO already reads the tooltip).
+   hovering (ARLO already reads the tooltip). Started 14 Oct.
 4. Tier numerals on icons by glyph matching (the loadout shows a IV glyph on
    the weapon card), stack counts by OCR.
 
