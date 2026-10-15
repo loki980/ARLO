@@ -147,22 +147,20 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <h1>ARLO Overlay Roadmap</h1>
     <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 11 October 2026.</p>
   </div>
-  <div class="capacity"><b>1 / 8</b>phases done</div>
+  <div class="capacity"><b>2 / 8</b>phases done</div>
 </header>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>1 / 8</b><span>phases done</span><small>phase 0 done</small></div>
+  <div><b>2 / 8</b><span>phases done</span><small>phases 0 and 3 done</small></div>
   <div><b>~75%</b><span>of phase 1 done</span><small>10 of 15 steps, weighted by effort</small></div>
-  <div><b>385</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>446</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>One more fix: with the right-click ACTIONS menu open, the frame can land on a slot under the menu</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase3">Phase 3, step 2, Slot lattice</a><small>Finding every slot on screen, the base for borders and prices on every icon</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase3">Phase 3, step 3, An embedding model for icon identity</a><small>A small learned image model, against the 46 percent the fingerprints reached</small></span></li>
+    <li><span></span><span>Nothing underway. Everything built tonight is merged and waiting on your look in game: the advice card, gold borders and prices on every icon, fast show and hide, the in-raid trigger.</span></li>
   </ul>
 </section>
 
@@ -187,21 +185,16 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase1">
-    <div class="slot now">1</div>
-    <article class="card" data-tab="Phase 1 · working on now">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
+    <div class="slot">1</div>
+    <article class="card" data-tab="Phase 1">
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
       <h2>Hover an item and read the whole story</h2>
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
       <div class="gauge" aria-label="Phase 1 about 80 percent done">
         <div class="bar"><i style="width:80%"></i></div>
         <div class="read">~80%<small>15 of 18 steps</small></div>
       </div>
-      <div class="working">
-        <h3>Working on now</h3>
-        <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>Working in your captures. One case left: with the right-click ACTIONS menu open, the frame can land on a slot under the menu instead of the hovered one</small></span><span class="when recent">changed 14 Oct</span></li>
-        </ul>
-      </div>
+      
       <div class="split">
         <div>
           <h3>Done</h3>
@@ -268,18 +261,15 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase3">
-    <div class="slot now">3</div>
-    <article class="card" data-tab="Phase 3 · working on now">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 14 Oct</span></div>
+    <div class="slot done">3</div>
+    <article class="card" data-tab="Phase 3">
+      <div class="tags"><span class="tag done">Done</span><span class="dates">14 Oct</span></div>
       <h2>Read the grid</h2>
-      <div class="working">
-        <h3>Working on now</h3>
-        <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 2, Slot lattice<small>Finding every slot and its panel on screen, the base for a gold border on every keep item and prices on the icons</small></span><span class="when recent">started 14 Oct</span></li>
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 3, An embedding model for icon identity<small>A small learned image model run on your machine, measured on the same 110 slots</small></span><span class="when recent">started 14 Oct</span></li>
-        </ul>
-      </div>
-      <ul class="steps"><li class="done"><span class="tick">✓</span><span class="what">Step 1, A perceptual-hash baseline<small>46 percent right on 110 known slots, weapons 9 of 45, tiers confused. As expected, the case for step 3</small></span><span class="when recent">done 14 Oct</span></li></ul>
+      
+      <ul class="steps"><li class="done"><span class="tick">✓</span><span class="what">Step 1, A perceptual-hash baseline<small>46 percent right on 110 known slots, as expected, the case for step 3</small></span><span class="when recent">done 14 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 2, Slot lattice<small>Every slot and its panel in about 28 ms a frame</small></span><span class="when recent">done 14 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 3, An embedding model for icon identity<small>A small learned model on your machine: base item right 95.5 percent of the time</small></span><span class="when recent">done 14 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 4, Tier numerals and stack counts<small>Every weapon tier read right, weapons now identified 39 of 44 instead of 11</small></span><span class="when recent">done 14 Oct</span></li></ul>
       <p>ARLO finds every slot in your open stash and recognizes the icon in each one, without you hovering. The approach: OpenCV for the geometry, a learned model for icon identity, OCR stays for text. <span class="when recent">changed 11 Oct</span></p>
       <h3>Will contain</h3>
       <ul class="will">
@@ -303,7 +293,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
-        <li class="todo"><span class="tick">○</span><span class="what">Your run with the game open<small>Decides the drawing mode. The Wayland-native mode needs one package you would install</small></span><span class="when"></span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">The badge layer<small>One transparent click-through layer over the whole screen, drawn by a small helper</small></span><span class="when recent">done 14 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">The stash pass<small>Every visible slot identified from one frame and turned into badges</small></span><span class="when recent">done 14 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves. Waiting on your look in game</small></span><span class="when recent">done 15 Oct</span></li>
       </ul>
       <h3>Will contain</h3>
       <ul class="will">
@@ -398,6 +390,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>14 Oct</time><span>Your capture session: 44 screenshots. Found the corner popup covering a card and flipping its advice, no gold frame on left-opening cards, Garnet misread, and the KEEP chip covering card text. You asked to copy ARC Tracker's card. Four workers started side by side.</span></li>
   <li><time>14 Oct</time><span>Merged: the popup in your LOADOUT red box, covered cards never read, gold frame fixes, Garnet, the advice card and its window, fast show and hide. 365 tests. ARLO restarted with all of it. Started: the in-raid trigger and phase 3.</span></li>
   <li><time>14 Oct</time><span>The advice card now replaces the corner popup, and ARLO wakes up in raid. Phase 3 step 1 measured. 385 tests. ARLO restarted with all of it.</span></li>
+  <li><time>15 Oct</time><span>Phase 3 done: slots found, icons identified by a learned model, tiers and stacks read. Gold borders and prices on every icon now draw live while your grid is still. Paused once at your usage limit, resumed. 446 tests.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

@@ -296,13 +296,21 @@ since they need every cell read (phase 3). Changed 14 Oct.
 
 3. The badge surface: one full-screen transparent click-through layer drawn
    by a helper under the system Python with GTK3 (the spike's x11 mode),
-   fed badges by ARLO. Built 14 Oct, drawn to an image only (Jeffrey was
-   playing), in review. Added 14 Oct.
+   fed badges by ARLO. Done 14 Oct, reviewed. Added 14 Oct.
 4. The stash pass: identify every visible slot from one frame (slot
    lattice, icon model, tier numeral, stack count) and turn it into badges,
-   gold for keep and a price on every icon. Underway 14 Oct. Added 14 Oct.
+   gold for keep and a price on every icon. Done 14 Oct, reviewed: on 12
+   sample frames, 264 of 360 filled slots right, 7 wrong (empty or covered
+   slots, no price shown), the rest unidentified and left without a badge.
+   Blueprints that share their item's icon get no badge unless the tier
+   settles it. About 0.6 s a pass. Added 14 Oct.
 5. Wire the stash pass and the badge surface into the scanner, only while
-   the grid is still. Added 14 Oct.
+   the grid is still. Done 15 Oct, reviewed (STASH_BADGES, on by default):
+   a background pass runs when two frames are still, badges clear when the
+   grid moves or the inventory closes. The first pass after start takes
+   about 12 s while the icon model loads. Waiting on Jeffrey's live look.
+   Follow-up from review: make the badge hand-off non-blocking so a hung
+   helper can never stall the hover path. Added 14 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
