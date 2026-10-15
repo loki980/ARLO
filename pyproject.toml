@@ -30,6 +30,9 @@ dev = [
 wayland = [
     "pygobject>=3.50; sys_platform == 'linux'",
 ]
+paddle = [
+    "rapidocr-onnxruntime>=1.4.4",
+]
 
 [project.scripts]
 arc-helper = "arc_helper.main:main"
