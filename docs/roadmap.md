@@ -87,7 +87,12 @@ Ahead, in order:
     behind an OCR_ENGINE setting, and the catalog matcher tolerant of
     partial reads. Changed 12 Oct. Bake-off resumed 14 Oct from the stopped
     run's work, measuring only. Wiring the winner in follows from its
-    numbers. Changed 14 Oct.
+    numbers. Changed 14 Oct. Bake-off done 14 Oct: on 56 labeled cards
+    paddle resolved 56 at 54 ms per card, Tesseract with the title line
+    isolated 56 at 116 ms, today's reader 55 at 504 ms. Jeffrey, 14 Oct:
+    "the delay between overlay shown on hovering new items is pretty slow.
+    Improve if possible." So part 2 switches the app to paddle and reads the
+    chips' label rows from the same pass. Underway 14 Oct.
 12. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
@@ -132,7 +137,11 @@ Ahead, in order:
     First an investigation on the 34 full-screen captures: can the hovered
     cell be found beside the tooltip card (the game outlines it in white),
     how reliably and how fast. Then a gold frame drawn around it when the
-    verdict is KEEP. Added 14 Oct, investigation underway 14 Oct.
+    verdict is KEEP. Added 14 Oct. Investigation done 14 Oct: the game draws
+    an animated glow ring (not a white outline) around the hovered cell,
+    found right in 34 of 34 full-screen captures in about 4 ms. The detector
+    and a click-through gold frame are merged. Wiring it into the scanner is
+    underway 14 Oct.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -176,8 +185,17 @@ Ahead:
    popup in the upper left, it should be near the \"HOME ONLY\" badge -- I
    need to see the keep on the item itself!" So the big verdict word is a
    third chip on the game's card, on the RECYCLES INTO row beside HOME ONLY,
-   and the corner popup keeps its old size. Added 14 Oct, changed 14 Oct,
-   underway 14 Oct.
+   and the corner popup keeps its old size. Jeffrey, the same evening,
+   sharing ARC Tracker's card: "It looks like a part of the game itself. You
+   should strive for this." So the chips use a bundled game-style font
+   (Barlow Semi Condensed) on a dark slate panel with a coloured left
+   stripe. Built and reviewed 14 Oct (Codex, two rounds), merged. Added
+   14 Oct, changed 14 Oct. Waiting on Jeffrey's look in game.
+7. A card beside the game's tooltip in the style of ARC Tracker's overlay,
+   from Jeffrey's screenshot, 14 Oct: the verdict as a header bar ("Keep
+   all 4: 6 more needed"), a needed-for list with a progress bar (quest,
+   workshop level, count), and "You have" with the stash count once phase
+   5 knows it. Replaces the corner popup. Added 14 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
 

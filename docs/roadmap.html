@@ -153,16 +153,16 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="counts" aria-label="Where things stand">
   <div><b>1 / 8</b><span>phases done</span><small>phase 0 done</small></div>
   <div><b>~75%</b><span>of phase 1 done</span><small>10 of 15 steps, weighted by effort</small></div>
-  <div><b>229</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>259</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>The bake-off of three readers on your labeled captures, measuring only</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Research first: can ARLO find the hovered cell beside the card</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 6, A big KEEP on the item and readable text</a><small>Real fonts done and in review, the verdict chip on the card next</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>Paddle won the bake-off: every title resolved at 54 ms a card, against 504 ms today. Now switching the app to it, so items show sooner</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Found right in all 34 full-screen captures in 4 ms. Now wiring the gold frame into the scanner</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 6, A big KEEP on the item and readable text</a><small>Built and merged: a KEEP chip on the game card in a game-style font. Waiting on your look in game</small></span></li>
   </ul>
 </section>
 
@@ -199,8 +199,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="working">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>Three readers compete on your labeled captures: today's Tesseract, Tesseract with the title line isolated, and PaddleOCR. The bake-off resumed tonight, measuring only. The winner ships after</small></span><span class="when recent">changed 14 Oct</span></li>
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>The game already outlines the hovered cell in white. ARLO finds it beside the card and frames it in gold when the advice is keep. Being researched on your full-screen captures</small></span><span class="when recent">added 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>Three readers competed on your labeled captures. PaddleOCR resolved all 56 cards at 54 ms each, today's reader 55 at 504 ms. Now the app switches to it, and the chips read their rows from the same pass, so a new item shows sooner</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>The game draws a glowing ring around the hovered cell. ARLO found it in all 34 of your full-screen captures in about 4 ms, and a gold frame window is built. Now hooking it to the scanner, drawn when the advice is keep</small></span><span class="when recent">added 14 Oct</span></li>
         </ul>
       </div>
       <div class="split">
@@ -237,14 +237,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Advice with a reason</h2>
       <p>Instead of a bare "Keep", the popup says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell.</p>
-      <div class="gauge" aria-label="Phase 2 about 75 percent done">
-        <div class="bar"><i style="width:75%"></i></div>
-        <div class="read">~75%<small>4 of 6 steps</small></div>
+      <div class="gauge" aria-label="Phase 2 about 70 percent done">
+        <div class="bar"><i style="width:70%"></i></div>
+        <div class="read">~70%<small>4 of 7 steps</small></div>
       </div>
       <div class="working">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 6, A big KEEP on the item and readable text<small>On Linux ARLO could only use one tiny bitmap font, so every size was ignored. Text now comes from a real system font. Next, a big KEEP, SELL or RECYCLE chip on the game's own card beside HOME ONLY, so the advice sits on the item itself</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 6, A big KEEP on the item and readable text<small>On Linux ARLO could only use one tiny bitmap font, so every size was ignored. Text now comes from a real font. A big KEEP, SELL or RECYCLE chip sits on the game's own card just above HOME ONLY, in a game-style font on a dark panel with a coloured stripe. Built, reviewed and merged. Waiting on your look in game</small></span><span class="when recent">changed 14 Oct</span></li>
         </ul>
       </div>
       <div class="split">
@@ -260,6 +260,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
+            <li class="todo"><span class="tick">○</span><span class="what">A card that looks like part of the game<small>After your ARC Tracker screenshot: the advice as a header bar, what needs the item with a progress bar, and how many you have. Replaces the corner popup</small></span><span class="when recent">added 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
           </ul>
         </div>
@@ -385,6 +386,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>14 Oct</time><span>Your hover log found the fading: the popup's 1 second timer ran out before every next scan. The hide delay now follows the scan speed, reviewed and merged. 229 tests. Waiting on your hover to confirm.</span></li>
   <li><time>14 Oct</time><span>You confirmed the popups no longer fade. Your three ideas placed: a big KEEP now, a gold border on the hovered item now, borders and prices on every icon with the phase 4 badges. Three workers running side by side: readable popup text, the hovered-cell research, and the title reader bake-off.</span></li>
   <li><time>14 Oct</time><span>Real fonts in the popup and chips built. You clarified the KEEP belongs on the item's own card, so a verdict chip beside HOME ONLY is next. Page updated to the new roadmap rules: a working-on-now list, every phase with a step underway highlighted, labelled step marks.</span></li>
+  <li><time>14 Oct</time><span>KEEP chip on the game card merged, in a game-style font after your ARC Tracker screenshot. Hovered cell found in all 34 captures, the gold frame built. Paddle won the reader bake-off by about 9 times on speed, now going in to cut the delay before an item shows. 259 tests.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
