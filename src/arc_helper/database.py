@@ -72,6 +72,25 @@ def _match_key(name: str) -> str:
     return "".join(c for c in name.lower() if c.isalnum())
 
 
+PREFIX_MIN_KEY = 6
+
+
+def _boundary_key(read: str) -> tuple[str, list[bool]]:
+    """The read's match key and, per key character, whether a word ends there.
+
+    A word ends after a key character when the next read character is not
+    alphanumeric or the read ends.
+    """
+    key: list[str] = []
+    ends: list[bool] = []
+    for i, c in enumerate(read.lower()):
+        if not c.isalnum():
+            continue
+        key.append(c)
+        ends.append(i + 1 >= len(read) or not read[i + 1].isalnum())
+    return "".join(key), ends
+
+
 class Item(BaseModel):
     """Item model matching database schema."""
 
@@ -902,6 +921,28 @@ class Database:
                 extras.append(output._replace(quantity=remaining))
         return extras
 
+    @staticmethod
+    def _match_prefix(conn, read: str):
+        """The row of the longest catalog name opening the read, or None.
+
+        The name's match key must be a prefix of the read's key, end at a
+        word boundary in the read and be at least PREFIX_MIN_KEY long.
+        """
+        key, ends = _boundary_key(read)
+        best = None
+        best_len = PREFIX_MIN_KEY - 1
+        for candidate in conn.execute("SELECT * FROM items"):
+            cand_key = _match_key(candidate["name"])
+            n = len(cand_key)
+            if (
+                n > best_len
+                and n <= len(key)
+                and key.startswith(cand_key)
+                and ends[n - 1]
+            ):
+                best, best_len = candidate, n
+        return best
+
     def lookup(self, name: str, tier_vote: TierVote | None = None) -> Item | None:
         """Look up an item by name (case-insensitive, with fuzzy matching).
 
@@ -945,6 +986,11 @@ class Database:
                     row = conn.execute(
                         "SELECT * FROM items WHERE name = ?", (resolved,)
                     ).fetchone()
+
+            # A catalog name followed by junk ("CRACKED BIOSCANNER ;MER:...")
+            # resolves to the longest name that opens the read at a word end
+            if not row:
+                row = self._match_prefix(conn, clean_name)
 
             # If no exact match, try LIKE match
             if not row:
