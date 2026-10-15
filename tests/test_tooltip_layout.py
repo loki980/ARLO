@@ -250,6 +250,17 @@ def test_verdict_chip_right_aligned_on_the_recycles_into_row():
     assert positions[VERDICT_CHIP] == Point(1600 - 10 - 180, 1100)
 
 
+def test_verdict_chip_clears_a_long_recycle_chip():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {RECYCLES_INTO: Rect(1040, 1100, 1260, 1140)}
+    sizes = {VERDICT_CHIP: VERDICT, RECYCLE_CHIP: Size(520, 60)}
+    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
+    recycle = positions[RECYCLE_CHIP]
+    verdict = positions[VERDICT_CHIP]
+    assert verdict == Point(1600 - 10 - 180, recycle.y - 10 - 70)
+    assert verdict.y + VERDICT.height < recycle.y
+
+
 def test_verdict_chip_never_left_of_the_label_and_clipped_anchors_after_it():
     tooltip = Rect(1000, 500, 1600, 1500)
     labels = {RECYCLES_INTO: Rect(1040, 1100, 1260, 1140)}

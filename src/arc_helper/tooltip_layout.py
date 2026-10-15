@@ -284,8 +284,10 @@ def place_chips(
     real one, so the price chip anchors just right of the label instead.
     The recycle chip sits on the icon row under the recycles-into label,
     45 percent across the tooltip. The verdict chip follows the same
-    right-aligned and clipped-right rules on the recycles-into label's row,
-    at the label's top. Without that label it sits directly above the price
+    right-aligned and clipped-right rules. When the recycle chip is placed
+    its bottom edge sits pad above the recycle chip's top, so the two never
+    overlap. With the label but no recycle chip it sits at the label's top.
+    Without that label it sits directly above the price
     chip with pad between, or on the found-in row itself when there is no
     price chip. Without either label it gets no entry. All are clamped to
     the screen last, so the screen edge wins over the label rule. A chip
@@ -319,7 +321,10 @@ def place_chips(
         if anchor is not None:
             x = _right_aligned_x(tooltip, anchor, verdict.width, pad, clipped)
             y = anchor.top
-            if recycles_into is None and PRICE_CHIP in positions:
+            if RECYCLE_CHIP in positions:
+                # Bottom edge pad above the recycle chip, never overlapping it
+                y = positions[RECYCLE_CHIP].y - pad - verdict.height
+            elif recycles_into is None and PRICE_CHIP in positions:
                 y = positions[PRICE_CHIP].y - pad - verdict.height
             positions[VERDICT_CHIP] = Point(
                 _clamp(x, verdict.width, screen.width),
