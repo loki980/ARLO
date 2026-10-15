@@ -76,6 +76,18 @@ def test_tesseract_title_reader_reads_anvil_iv():
     assert read.tier_vote.tier == "IV"
 
 
+@needs_tesseract
+@pytest.mark.parametrize(
+    "fixture", ["garnet_stencil_capture_a.png", "garnet_stencil_capture_b.png"]
+)
+def test_tesseract_title_reader_stops_at_light_grey_description(fixture):
+    # The Garnet description is light grey, lighter than title ink, and the
+    # black REQUIRED RESOURCES heading further down must not join the title
+    card = np.array(_card(fixture))
+    assert len(find_title_lines(card)) == 1
+    assert TesseractTitleReader().read(card).text == "GARNET"
+
+
 @pytest.mark.parametrize(
     ("raw", "fixed"),
     [
@@ -117,3 +129,16 @@ def test_bakeoff_exact_title_ignores_case_only():
     assert not is_exact_title("ANVILIV", "Anvil IV")
     assert not is_exact_title("ANVIL IV.", "Anvil IV")
     assert not is_exact_title(None, "Anvil IV")
+
+
+def test_bakeoff_counts_covered_rows_apart_from_scored():
+    labels = [
+        {"file": "a.png", "expected": "Anvil I", "card": "yes"},
+        {"file": "b.png", "expected": "covered", "card": "yes"},
+        {"file": "c.png", "expected": "unreadable", "card": "yes"},
+        {"file": "d.png", "expected": "", "card": "no"},
+    ]
+    scored, unreadable, covered = _bakeoff_module().split_rows(labels)
+    assert [r["file"] for r in scored] == ["a.png"]
+    assert [r["file"] for r in unreadable] == ["c.png"]
+    assert [r["file"] for r in covered] == ["b.png"]
