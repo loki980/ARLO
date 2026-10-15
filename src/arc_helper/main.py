@@ -181,6 +181,10 @@ class Scanner:
     _last_shown_time: float = 0
     _trigger_check_counter: int = 0
 
+    # Monotonic start of the previous tooltip scan, for the scan period in
+    # the debug log. Reset on every entry to ACTIVE.
+    _last_scan_start: float | None = None
+
     # Hotkey override (Ctrl+Shift to force tooltip scanning)
     _hotkey_override: bool = False
 
@@ -254,6 +258,8 @@ class Scanner:
                         # Hotkey pressed - enter active mode via override
                         self._hotkey_override = True
                         self.state = ScannerState.ACTIVE
+                        self._last_scan_start = None
+                        logger.debug("state IDLE -> ACTIVE reason=hotkey")
                         self._update_status("hotkey")
                         logger.info("Hotkey override - activating tooltip scanner")
                     elif ocr.check_trigger_any(
@@ -262,6 +268,8 @@ class Scanner:
                         # Trigger detected! Switch to active mode
                         self._hotkey_override = False
                         self.state = ScannerState.ACTIVE
+                        self._last_scan_start = None
+                        logger.debug("state IDLE -> ACTIVE reason=inventory_trigger")
                         self._update_status("active")
                         logger.info("INVENTORY detected - activating tooltip scanner")
                     else:
@@ -277,6 +285,7 @@ class Scanner:
                         if not hotkey_now:
                             self._hotkey_override = False
                             self.state = ScannerState.IDLE
+                            logger.debug("state ACTIVE -> IDLE reason=hotkey_released")
                             self._hide_chips()
                             self._update_status("scanning")
                             logger.info("Hotkey released - returning to idle")
@@ -291,13 +300,28 @@ class Scanner:
                         ):
                             # Inventory closed, go back to idle
                             self.state = ScannerState.IDLE
+                            logger.debug("state ACTIVE -> IDLE reason=trigger_lost")
                             self._hide_chips()
                             self._update_status("scanning")
                             logger.info("INVENTORY closed - returning to idle")
                             continue
 
                     # Scan tooltip at cursor position
+                    scan_start = time.monotonic()
+                    if self._last_scan_start is None:
+                        logger.debug("scan start period=none")
+                    else:
+                        logger.debug(
+                            "scan start period=%d ms",
+                            (scan_start - self._last_scan_start) * 1000,
+                        )
+                    self._last_scan_start = scan_start
                     item_name = ocr.extract_item_name_at_cursor()
+                    logger.debug(
+                        "scan end %d ms read=%s",
+                        (time.monotonic() - scan_start) * 1000,
+                        item_name or "none",
+                    )
                     self.stats.tooltip_scans += 1
 
                     if item_name:
@@ -336,8 +360,21 @@ class Scanner:
             and current_time - self._last_shown_time < settings.overlay.cooldown
         ):
             # Still hovered: keep the popup and chips from auto-hiding
+            logger.debug(
+                "detect read=%s item=%s path=touch since_shown=%d ms",
+                item_name,
+                shown_name,
+                (current_time - self._last_shown_time) * 1000,
+            )
             self.ui_queue.put(("touch", shown_name))
             return
+
+        logger.debug(
+            "detect read=%s item=%s path=show same_item=%s",
+            item_name,
+            shown_name,
+            "yes" if same_item else "no",
+        )
 
         self.stats.items_detected += 1
         self.stats.last_item = item_name
@@ -434,6 +471,15 @@ class Scanner:
         self.ui_queue.put(("status", status))
 
 
+def _ui_message_detail(msg: tuple) -> str:
+    """Short text for a ui_queue message in the debug log."""
+    if msg[0] == "status":
+        return f"status={msg[1]}"
+    if msg[0] in {"touch", "overlay", "chips"}:
+        return f"item={msg[1]}"
+    return ""
+
+
 class Application:
     """Main application controller."""
 
@@ -464,6 +510,8 @@ class Application:
         # Create scanner. The scanner thread posts UI updates to this queue;
         # the main thread drains it in _pump_ui_queue (tkinter is single-thread).
         self.ui_queue: queue.Queue[tuple] = queue.Queue()
+        # Last status applied, so the debug log names only status changes
+        self._last_status: str | None = None
         self.scanner = Scanner(
             root=self.root,
             overlay=self.overlay,
@@ -491,7 +539,12 @@ class Application:
         try:
             while True:
                 msg = self.ui_queue.get_nowait()
+                # The IDLE loop queues a status on every trigger scan, so a
+                # status is logged only when it changes
+                if msg[0] != "status" or msg[1] != self._last_status:
+                    logger.debug("ui apply %s %s", msg[0], _ui_message_detail(msg))
                 if msg[0] == "status":
+                    self._last_status = msg[1]
                     self._apply_status(msg[1])
                 elif msg[0] == "overlay":
                     _, item_name, recommendation, verdict = msg
@@ -508,7 +561,7 @@ class Application:
                 elif msg[0] == "chips" and self.chips is not None:
                     self.chips.show(msg[1], msg[2], **msg[3])
                 elif msg[0] == "chips_hide" and self.chips is not None:
-                    self.chips.hide()
+                    self.chips.hide(reason="chips_hide")
         except queue.Empty:
             pass
         self.root.after(50, self._pump_ui_queue)
