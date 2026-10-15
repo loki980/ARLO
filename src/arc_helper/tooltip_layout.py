@@ -330,5 +330,14 @@ def place_chips(
                 _clamp(x, verdict.width, screen.width),
                 _clamp(y, verdict.height, screen.height),
             )
+            if recycle is not None and RECYCLE_CHIP in positions:
+                # Clamping can push the verdict down onto the recycle chip,
+                # so move the recycle chip below it
+                lowest = positions[VERDICT_CHIP].y + verdict.height + pad
+                at = positions[RECYCLE_CHIP]
+                if at.y < lowest:
+                    positions[RECYCLE_CHIP] = Point(
+                        at.x, _clamp(lowest, recycle.height, screen.height)
+                    )
 
     return positions

@@ -451,10 +451,11 @@ class OverlayWindow:
 
 
 class TooltipChips:
-    """Two small click-through chips placed beside the game's own tooltip.
+    """Three small click-through chips placed on the game's own tooltip.
 
     The price chip sits on the "Can be found in" row, the recycle chip on
-    the icon row under "Recycles into". Positions come from place_chips in
+    the icon row under "Recycles into", and the verdict chip above the
+    recycle chip. Positions come from place_chips in
     physical pixels and are converted with phys_to_tk.
     """
 

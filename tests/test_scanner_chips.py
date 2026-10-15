@@ -116,7 +116,7 @@ def test_detected_item_passes_its_verdict_to_the_chips(monkeypatch):
     monkeypatch.setattr(scanner, "_verdict_for", lambda *_: verdict)
     seen = []
     monkeypatch.setattr(
-        scanner, "_queue_chips", lambda rec, **kw: seen.append(kw.get("verdict"))
+        scanner, "_queue_chips", lambda _rec, **kw: seen.append(kw.get("verdict"))
     )
     scanner._handle_detected_item("Battery")  # noqa: SLF001
     assert seen == [verdict] * int(get_settings().overlay.tooltip_chips)

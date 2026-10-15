@@ -261,6 +261,16 @@ def test_verdict_chip_clears_a_long_recycle_chip():
     assert verdict.y + VERDICT.height < recycle.y
 
 
+def test_clamping_at_the_screen_top_keeps_the_chips_apart():
+    tooltip = Rect(1000, 0, 1600, 900)
+    labels = {RECYCLES_INTO: Rect(1040, 0, 1260, 20)}
+    sizes = {VERDICT_CHIP: VERDICT, RECYCLE_CHIP: Size(300, 60)}
+    # Recycle chip at y=30, verdict wants y=-50 and clamps to 0
+    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
+    assert positions[VERDICT_CHIP].y == 0
+    assert positions[VERDICT_CHIP].y + VERDICT.height + 10 <= positions[RECYCLE_CHIP].y
+
+
 def test_verdict_chip_never_left_of_the_label_and_clipped_anchors_after_it():
     tooltip = Rect(1000, 500, 1600, 1500)
     labels = {RECYCLES_INTO: Rect(1040, 1100, 1260, 1140)}
