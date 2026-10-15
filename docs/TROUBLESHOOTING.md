@@ -28,8 +28,12 @@ When a weapon shows the wrong tier (I, II, III, IV, V), collect captures so the 
 1. Start ARLO with `uv run arc-helper --capture`. Captures are saved for that run only, at most 300 images, or N with `--capture N`. The folder is `CAPTURE_LIBRARY_DIR` in `.env`, default `debug/captures`
 2. Hover the tiered items that come out wrong. Each scan saves the raw capture as `<timestamp>_<read name>.png`, at most one per name every 2 seconds
 3. Optionally add a `labels.csv` to the folder with the columns `file,expected` (the catalog name, for example `Anvil II`)
-4. Run `uv run python scripts/eval_captures.py debug/captures` to see the read text, the stroke-count vote and the resolved item for every capture, plus accuracy when labels are present. It reads each file the way the scanner does: it locates the item card with the cursor assumed at the image centre, prints its rectangle in the `card` column (a dash when there is none) and reads the name from the card crop, or from the whole image when no card is found
+4. Run `uv run python scripts/eval_captures.py debug/captures` to see the read text, the stroke-count vote and the resolved item for every capture, plus accuracy when labels are present. It reads each file the way the scanner does: it locates the item card with the cursor assumed at the image centre, prints its rectangle in the `card` column (a dash when there is none) and reads the name from the card crop with the reader `OCR_ENGINE` names (with `tesseract` it reads the whole image when no card is found). Pass a labels file after the folder (`scripts/eval_captures.py debug/captures labels.csv`) when it is kept elsewhere. The last lines name the reader actually used and the median read and layout times per card. Prefix `OCR_ENGINE=tesseract_title` or another value to compare readers
 5. Restart ARLO without `--capture` when done. A normal start never saves captures
+
+### "OCR_ENGINE=paddle needs the rapidocr-onnxruntime package"
+
+The default title reader needs an optional package. Install it from the ARLO folder with `uv sync --extra paddle` (or `uv sync --all-extras`), then restart ARLO. Until then ARLO reads titles with `tesseract_title` and logs this warning once per start. To stop the warning without installing, set `OCR_ENGINE=tesseract_title` in `.env`.
 
 ### "Application won't start"
 

@@ -57,6 +57,12 @@ TRIGGER_SCAN_INTERVAL=0.5        # Seconds between trigger scans
 TOOLTIP_SCAN_INTERVAL=0.3        # Seconds between tooltip scans
 
 # =============================================================================
+# CARD TITLE READER
+# =============================================================================
+
+OCR_ENGINE=paddle                # paddle, tesseract_title or tesseract
+
+# =============================================================================
 # DEBUG SETTINGS
 # =============================================================================
 
@@ -95,6 +101,18 @@ On every scan ARLO captures a window of `TOOLTIP_SEARCH_WIDTH` by `TOOLTIP_SEARC
 Make the window larger if a card is drawn so far from the cursor that it falls outside, and smaller to cut capture cost. On Wayland the window is a crop of a frame that is already captured, so its size costs little. On Windows and X11 the window is grabbed from the screen on every scan, so keep it bounded.
 
 When no card is found in the window, ARLO falls back to the `TOOLTIP_CAPTURE_*` box, captured at the given offset from the cursor exactly as before.
+
+### Card title reader (OCR_ENGINE)
+
+`OCR_ENGINE` picks how the item name is read from the located card:
+
+| Value | What it does |
+|-------|--------------|
+| `paddle` (default) | PP-OCRv4 through the optional `rapidocr-onnxruntime` package. One pass reads every line of the card, so the price and recycle chips find their rows without a second OCR pass |
+| `tesseract_title` | Finds the title line by the card's layout and reads only that line with Tesseract. No extra package |
+| `tesseract` | The earlier reader: two Tesseract passes over the whole card |
+
+Install the paddle reader with `uv sync --extra paddle` (`uv sync --all-extras` includes it). When the package is missing, ARLO logs one warning with that command and uses `tesseract_title`. An unknown value falls back the same way. The `INVENTORY` trigger check always uses Tesseract. With `paddle` or `tesseract_title` a scan that finds no card reads nothing, with `tesseract` it still reads the `TOOLTIP_CAPTURE_*` box. Debug mode logs the reader name and the read time of every scan.
 
 ### Debug Mode
 
