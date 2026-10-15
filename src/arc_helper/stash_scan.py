@@ -72,12 +72,15 @@ MIN_LEAD = 0.04
 TOP_N = 5
 TIER = re.compile(r"\s+(I|II|III|IV|V)$")
 
-# Badge look from Jeffrey's ARC Tracker screenshots, the same values as the
-# badge surface's Border and Tag defaults
-GOLD = "#f2b134"
+# Badge look from Jeffrey's ARC Tracker screenshots. Gold is only the hovered
+# cell's frame (cell_border.HOVER_GOLD), never a stash outline
+SHORT_RED = "#ff5c4d"
+ENOUGH_GREEN = "#4fd36b"
 BORDER_WIDTH = 3
 BORDER_RADIUS = 4
 PRICE_PREFIX = "Φ "
+NEED_CORNER = "tl"
+PATCH_RADIUS = 6
 TAG_CORNER = "bl"
 # On wide slots (weapons) the game shows the ammo count bottom left, so the
 # price goes top left there. A slot is wide from this width to height ratio
@@ -349,41 +352,98 @@ def tag_corner(rect: Rect) -> str:
     return TAG_CORNER_WIDE if is_wide(rect) else TAG_CORNER
 
 
+def _rgb(hex_colour: str) -> list[int]:
+    """'#rrggbb' as an [r, g, b] list, the wire format of outlines."""
+    return [int(hex_colour[i : i + 2], 16) for i in (1, 3, 5)]
+
+
+def patch_badge(slot: SlotItem, worth: int) -> dict | None:
+    """The patch over a square slot's type icon, None when there is no icon box."""
+    bar = slot.bar
+    if bar is None or bar.icon_box is None:
+        return None
+    left, top = slot.rect.left, slot.rect.top
+    return {
+        "rect": [
+            left + bar.bar_rect.left,
+            top + bar.bar_rect.top,
+            left + bar.bar_rect.right,
+            top + bar.bar_rect.bottom,
+        ],
+        "icon_right": left + bar.icon_box.right,
+        "patch_right": left + bar.patch_right,
+        "colour": list(bar.colour),
+        "text": format_price(worth),
+        "radius": PATCH_RADIUS,
+        "kind": "patch",
+    }
+
+
 def badges_for(
     slot_items: Iterable[SlotItem],
     verdict_of: Callable[[SlotItem], Verdict],
 ) -> list[dict]:
     """Badge dicts for the identified slots, in the badge surface's format.
 
-    A gold border for every item with an active need (a verdict with
-    sources, whatever its kind) and a price pill for every item with a sell
-    price, in tag_corner's corner. Unidentified slots get no badge.
-    verdict_of gives a slot's verdict, for example verdicts_for(db).
+    Every identified item with a sell price gets its stack's worth (the unit
+    price times the stack, 1 when unread): a patch on a square slot with a
+    type icon, a dark pill top left on a wide slot (top right when the slot
+    also has a need tag), and nothing on a square slot without a type icon.
+    An item with active needs (a verdict with sources) gets a have/need tag
+    top left, have from owned_totals and need the sum of the sources. Short
+    stock is red with a red tile outline, enough is green with a check mark
+    and no outline. Unidentified slots get no badge. verdict_of gives a
+    slot's verdict, for example verdicts_for(db).
     """
+    slots = list(slot_items)
+    owned = owned_totals(slots)
     badges: list[dict] = []
-    for slot in slot_items:
-        if slot.item is None:
+    for slot in slots:
+        item = slot.item
+        if item is None:
             continue
         rect = [int(v) for v in slot.rect]
-        if verdict_of(slot).sources:
+        need = sum(qty for _, qty in verdict_of(slot).sources)
+        if need:
+            have = owned.get(item.name, 0)
+            short = have < need
+            colour = SHORT_RED if short else ENOUGH_GREEN
             badges.append(
                 {
                     "rect": rect,
-                    "color": GOLD,
-                    "width": BORDER_WIDTH,
-                    "radius": BORDER_RADIUS,
-                    "kind": "border",
+                    "text": f"{have}/{need}",
+                    "corner": NEED_CORNER,
+                    "fg": colour,
+                    "bg": TAG_BG,
+                    "check": not short,
+                    "outline": _rgb(colour),
+                    "kind": "tag",
                 }
             )
-        if slot.item.sell_price:
+            if short:
+                badges.append(
+                    {
+                        "rect": rect,
+                        "color": colour,
+                        "width": BORDER_WIDTH,
+                        "radius": BORDER_RADIUS,
+                        "kind": "border",
+                    }
+                )
+        if not item.sell_price:
+            continue
+        worth = item.sell_price * (slot.stack if slot.stack is not None else 1)
+        if is_wide(slot.rect):
             badges.append(
                 {
                     "rect": rect,
-                    "text": PRICE_PREFIX + format_price(slot.item.sell_price),
-                    "corner": tag_corner(slot.rect),
+                    "text": PRICE_PREFIX + format_price(worth),
+                    "corner": "tr" if need else TAG_CORNER_WIDE,
                     "fg": TAG_FG,
                     "bg": TAG_BG,
                     "kind": "tag",
                 }
             )
+        elif (patch := patch_badge(slot, worth)) is not None:
+            badges.append(patch)
     return badges
