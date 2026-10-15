@@ -85,7 +85,9 @@ Ahead, in order:
     readers (today's Tesseract, Tesseract with the title line isolated by
     geometry, PaddleOCR under onnxruntime) on the labeled set, the winner
     behind an OCR_ENGINE setting, and the catalog matcher tolerant of
-    partial reads. Changed 12 Oct.
+    partial reads. Changed 12 Oct. Bake-off resumed 14 Oct from the stopped
+    run's work, measuring only. Wiring the winner in follows from its
+    numbers. Changed 14 Oct.
 12. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
@@ -111,8 +113,8 @@ Ahead, in order:
     hide timer, so both windows hid and re-mapped on every scan. Fix (14 Oct,
     reviewed): the hide delay follows the measured scan speed, twice the
     slowest recent scan period, capped at 6 s, never below
-    OVERLAY_DISPLAY_TIME. Changed 14 Oct. Next: Jeffrey hovers again in game
-    to confirm.
+    OVERLAY_DISPLAY_TIME. Jeffrey, 14 Oct, after testing: "nice. fixed."
+    Done 14 Oct.
 13. Search the whole screen for the card. The labeled capture library (320
     captures, 113 with a card) showed 56 cards missing their title row
     because the cursor-centred window cut tall weapon cards at the top. The
@@ -126,6 +128,11 @@ Ahead, in order:
     `uv run arc-helper --capture`, ignores .env, stops after a per-run limit,
     and saves on a background thread. Added 14 Oct, done 14 Oct, accepted
     by Codex with no items.
+15. Gold border on the hovered item. Jeffrey, 14 Oct: "would be nice if these items were higlighted (onscreen gold border around the item?)  At least a big \"KEEP\" on the popup card.  Would also be nice if the cost for each item would show up on the small item icons."
+    First an investigation on the 34 full-screen captures: can the hovered
+    cell be found beside the tooltip card (the game outlines it in white),
+    how reliably and how fast. Then a gold frame drawn around it when the
+    verdict is KEEP. Added 14 Oct, investigation underway 14 Oct.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -161,6 +168,12 @@ Ahead:
 
 5. Jeffrey's decisions: ended projects (Expedition 1 to 4) hidden by default
    until he says otherwise, coin-funding phases produce no needs.
+6. Readable popup text and a big verdict word. Jeffrey, 14 Oct: "At least
+   a big \"KEEP\" on the popup card." Found 14 Oct: uv's Python bundles a Tk
+   with only the bitmap font "fixed", so on Linux every popup font size is
+   ignored. Text is drawn with Pillow from a system font when Tk has no
+   scalable fonts, and the verdict word is drawn at 44 points. Added 14 Oct,
+   underway 14 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
 
@@ -190,7 +203,9 @@ Decided 11 Oct. Carries the Wayland risk.
 2. Jeffrey's run with the game open decides the mode.
 
 Will contain: badge drawing from verdicts and the grid, hidden while the
-grid moves.
+grid moves. Jeffrey, 14 Oct, asked for a gold border on items to keep and
+the sell price on the small item icons: both become badge styles here,
+since they need every cell read (phase 3). Changed 14 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
