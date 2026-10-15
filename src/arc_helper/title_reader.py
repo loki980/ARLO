@@ -105,7 +105,7 @@ class TitleReader(Protocol):
         ...
 
 
-class TitleReaderUnavailable(RuntimeError):
+class TitleReaderUnavailableError(RuntimeError):
     """The configured reader cannot run, for example a missing package."""
 
 
@@ -384,9 +384,7 @@ def _otsu_band(gray_band: np.ndarray, scale: int) -> np.ndarray:
 
     Ink comes out black (0) on white (255).
     """
-    big = cv2.resize(
-        gray_band, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
-    )
+    big = cv2.resize(gray_band, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     _, binary = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return binary
 
@@ -541,7 +539,7 @@ class TesseractTitleReader:
     name = TESSERACT_TITLE
     wants_binary = False
 
-    def read(self, card_rgb: np.ndarray) -> TitleRead:
+    def read(self, card_rgb: np.ndarray) -> TitleRead:  # noqa: PLR6301 - protocol
         """Read the title lines of an RGB card crop."""
         rgb = np.ascontiguousarray(np.asarray(card_rgb)[:, :, :3], dtype=np.uint8)
         lines = find_title_lines(rgb)
@@ -603,13 +601,13 @@ class PaddleReader:
 
     def __init__(self) -> None:
         try:
-            from rapidocr_onnxruntime import RapidOCR  # noqa: PLC0415
+            from rapidocr_onnxruntime import RapidOCR
         except ImportError as e:
             msg = (
                 "OCR_ENGINE=paddle needs the rapidocr-onnxruntime package. "
                 "Install it with: uv pip install rapidocr-onnxruntime"
             )
-            raise TitleReaderUnavailable(msg) from e
+            raise TitleReaderUnavailableError(msg) from e
         self._ocr: Callable[..., Any] = RapidOCR()
 
     def read(self, card_rgb: np.ndarray) -> TitleRead:
@@ -673,7 +671,7 @@ class PaddleReader:
 def make_reader(engine: str) -> TitleReader:
     """Build the reader named by an OCR_ENGINE value.
 
-    Raises ValueError for an unknown name and TitleReaderUnavailable when
+    Raises ValueError for an unknown name and TitleReaderUnavailableError when
     the reader's optional package is missing.
     """
     readers: dict[str, type[Any]] = {
