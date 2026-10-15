@@ -22,6 +22,12 @@ identify_slots runs the pieces of phase 3 over one full-screen frame:
 6. slot_marks.bar_geometry finds the bottom bar of each square slot: its
    box, colour, type icon box and count or numeral box. Wide slots get none.
 
+With a SlotCache, identify_slots first looks each slot up by slot_signature,
+a hash of the crop without ARLO's own drawings (see slot_signature). A hit
+reuses the slot's item, tier, stack, confidence and bar without embedding or
+reading anything, so slots already seen, also after a scroll, cost almost
+nothing. Only the misses are embedded, in one call.
+
 owned_totals adds up the stacks of each identified item over the slots.
 
 distinct_gallery drops the gallery entries whose icon equals another
@@ -42,7 +48,9 @@ frame has filled slots.
 """
 
 import datetime
+import hashlib
 import re
+from collections import OrderedDict
 from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Mapping
@@ -51,6 +59,9 @@ from typing import NamedTuple
 
 import numpy as np
 
+from .badge_helper import TAG_TEXT_MAX
+from .badge_helper import TAG_TEXT_MIN
+from .badge_helper import TAG_TEXT_SHARE
 from .database import HOME
 from .database import Database
 from .database import Item
@@ -73,6 +84,24 @@ MIN_SIMILARITY = 0.65
 MIN_LEAD = 0.04
 TOP_N = 5
 TIER = re.compile(r"\s+(I|II|III|IV|V)$")
+
+# The slot cache: entries kept, least recently used dropped first
+SLOT_CACHE_SIZE = 4096
+# What slot_signature leaves out, as shares of the slot unless named. The
+# border band (the red outline and the hovered frame's edge), at least
+# SIG_BORDER_MIN px
+SIG_BORDER = 0.05
+SIG_BORDER_MIN = 6
+# The top band where tags go, in tag text heights (a tag pill with its inset
+# and outline is about 1.9 of them tall)
+SIG_TAG_ROWS = 2.2
+# The left part of a square slot's bottom bar, where the patch goes. Stack
+# counts and numerals start right of it (0.6 of the width or more measured)
+SIG_BAR_TOP = 0.65
+SIG_PATCH_RIGHT = 0.5
+# Every SIG_STEP-th pixel, its low SIG_SHIFT bits dropped
+SIG_STEP = 2
+SIG_SHIFT = 2
 
 # Badge look from Jeffrey's ARC Tracker screenshots. Gold is only the hovered
 # cell's frame (cell_border.HOVER_GOLD), never a stash outline
@@ -175,6 +204,76 @@ def distinct_gallery(
     return distinct, {name: tuple(names) for name, names in absorbed.items()}
 
 
+class _Cached(NamedTuple):
+    """The part of a SlotItem that depends only on the slot's look."""
+
+    item: Item | None
+    tier: str | None
+    stack: int | None
+    confidence: float
+    lead: float
+    guess: str | None
+    bar: BarGeometry | None
+
+
+class SlotCache:
+    """Identified slots by signature, the least recently used dropped at size.
+
+    Keep one per gallery: its entries are only valid for the gallery and
+    lookup that made them.
+    """
+
+    def __init__(self, size: int = SLOT_CACHE_SIZE):
+        self.size = size
+        self._entries: OrderedDict[tuple, _Cached] = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __contains__(self, key: tuple) -> bool:
+        return key in self._entries
+
+    def get(self, key: tuple) -> _Cached | None:
+        found = self._entries.get(key)
+        if found is not None:
+            self._entries.move_to_end(key)
+        return found
+
+    def put(self, key: tuple, value: _Cached) -> None:
+        self._entries[key] = value
+        self._entries.move_to_end(key)
+        while len(self._entries) > self.size:
+            self._entries.popitem(last=False)
+
+
+def slot_signature(crop: np.ndarray) -> tuple:
+    """A key for a slot crop's look that ignores what ARLO draws on it.
+
+    Left out: a border band on every side (the red outline drawn inside the
+    rect, the hovered frame's edge), the top band where the have/need tag
+    and a wide slot's price pill go (sized like badge_helper's tag), and on
+    square slots the left half of the bottom bar where the price patch goes.
+    The stack count and the tier numeral sit right of that, so a changed
+    count is a new key. The rest is sampled every SIG_STEP pixels with its
+    low bits dropped and hashed with the crop's size. ARLO's drawings are
+    left out rather than keyed on a capture before badges, because the
+    captures the pass gets already show the badges.
+    """
+    height, width = crop.shape[:2]
+    kept = np.array(crop, dtype=np.uint8)
+    band = max(SIG_BORDER_MIN, round(SIG_BORDER * min(height, width)))
+    text = max(TAG_TEXT_MIN, min(TAG_TEXT_MAX, round(height * TAG_TEXT_SHARE)))
+    kept[: max(band, round(SIG_TAG_ROWS * text))] = 0
+    kept[height - band :] = 0
+    kept[:, :band] = 0
+    kept[:, width - band :] = 0
+    if not is_wide(Rect(0, 0, width, height)):
+        kept[round(SIG_BAR_TOP * height) :, : round(SIG_PATCH_RIGHT * width)] = 0
+    sampled = np.ascontiguousarray(kept[::SIG_STEP, ::SIG_STEP] >> SIG_SHIFT)
+    digest = hashlib.blake2b(sampled.tobytes(), digest_size=16).digest()
+    return (height, width, digest)
+
+
 def _rank(vectors: np.ndarray, gallery: EmbedGallery) -> list[list[EmbedCandidate]]:
     similarity = vectors @ gallery.vectors.T
     ranked = []
@@ -225,6 +324,7 @@ def identify_slots(
     read_stacks: bool = False,
     slots: Iterable[Slot] | None = None,
     twins: Mapping[str, Sequence[str]] | None = None,
+    cache: SlotCache | None = None,
 ) -> list[SlotItem]:
     """Every filled slot on an RGB frame with its item, tier, stack and confidence.
 
@@ -232,7 +332,10 @@ def identify_slots(
     Database.lookup. embedder defaults to icon_embed.default_embedder().
     slots defaults to grid.find_slots(rgb). twins maps a gallery name to the
     names sharing its icon (from distinct_gallery), None means no groups.
-    Slots come back in find_slots order.
+    With cache, a slot whose slot_signature is cached takes the cached item,
+    tier, stack, confidence and bar, and every other slot is identified and
+    cached. The misses are embedded in one call. Slots come back in
+    find_slots order.
     """
     if slots is None:
         slots = find_slots(rgb)
@@ -242,19 +345,25 @@ def identify_slots(
     crops = [
         rgb[s.rect.top : s.rect.bottom, s.rect.left : s.rect.right] for s in filled
     ]
-    vectors = (embedder or default_embedder()).embed([crop_square(c) for c in crops])
-    result = []
-    for slot, crop, found in zip(filled, crops, _rank(vectors, gallery), strict=True):
-        tier_read = read_tier(crop)
-        item, tier, lead = _resolve(
-            found, tier_read.tier if tier_read else None, lookup, twins or {}
-        )
-        stack = read_stack(crop) if read_stacks and item is not None else None
-        bar = None if is_wide(slot.rect) else bar_geometry(crop)
-        result.append(
-            SlotItem(
-                slot.rect,
-                slot.panel,
+    keys: list[tuple | None] = [None] * len(crops)
+    known: list[_Cached | None] = [None] * len(crops)
+    if cache is not None:
+        for n, crop in enumerate(crops):
+            keys[n] = (read_stacks, *slot_signature(crop))
+            known[n] = cache.get(keys[n])
+    missed = [n for n, entry in enumerate(known) if entry is None]
+    if missed:
+        squares = [crop_square(crops[n]) for n in missed]
+        vectors = (embedder or default_embedder()).embed(squares)
+        for n, found in zip(missed, _rank(vectors, gallery), strict=True):
+            crop = crops[n]
+            tier_read = read_tier(crop)
+            item, tier, lead = _resolve(
+                found, tier_read.tier if tier_read else None, lookup, twins or {}
+            )
+            stack = read_stack(crop) if read_stacks and item is not None else None
+            bar = None if is_wide(filled[n].rect) else bar_geometry(crop)
+            known[n] = _Cached(
                 item,
                 tier,
                 stack,
@@ -263,8 +372,12 @@ def identify_slots(
                 found[0].name,
                 bar,
             )
-        )
-    return result
+            if cache is not None:
+                cache.put(keys[n], known[n])
+    return [
+        SlotItem(slot.rect, slot.panel, *entry)
+        for slot, entry in zip(filled, known, strict=True)
+    ]
 
 
 def owned_totals(slot_items: Iterable[SlotItem]) -> dict[str, int]:
