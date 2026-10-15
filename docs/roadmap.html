@@ -160,9 +160,10 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>Built and merged. The title now reads in about 135 ms instead of 520, so a new item shows in about half the time. Waiting on how it feels in game</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Built and merged: a gold frame around the hovered cell when the advice is keep. Waiting on your look in game</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 6, A big KEEP on the item and readable text</a><small>Built and merged: a KEEP chip on the game card in a game-style font. Waiting on your look in game</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 7, A card that looks like part of the game</a><small>Copying ARC Tracker's advice card, as you asked: drawing it from ARLO's advice data first</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Your session showed no frame when the card opens left, and a misplaced frame under the corner popup. Fixing both</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 16, Never read a card ARLO itself covers</a><small>The corner popup hid an Anvil I title and the advice flipped between KEEP and UNKNOWN. Dropping covered reads, moving the popup away</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>Garnet read as GARNET REQUIRED RESOURCES. Fixing on your new captures</small></span></li>
   </ul>
 </section>
 
@@ -192,15 +193,16 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Hover an item and read the whole story</h2>
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
-      <div class="gauge" aria-label="Phase 1 about 75 percent done">
-        <div class="bar"><i style="width:75%"></i></div>
-        <div class="read">~75%<small>10 of 15 steps</small></div>
+      <div class="gauge" aria-label="Phase 1 about 70 percent done">
+        <div class="bar"><i style="width:70%"></i></div>
+        <div class="read">~70%<small>11 of 16 steps</small></div>
       </div>
       <div class="working">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>Three readers competed on your captures, all equally accurate. With the chips' row search included, today's reader took 777 ms a card, PaddleOCR 400 ms and Tesseract on the isolated title line 389 ms with the popup up at 135 ms. That last one is now the default, needing nothing new installed. PaddleOCR stays as an option. Built and merged, waiting on how it feels in game</small></span><span class="when recent">changed 14 Oct</span></li>
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>The game draws a glowing ring around the hovered cell. ARLO finds it in all 34 of your full-screen captures in about 4 ms and draws a gold frame just outside it while the advice is keep. Built and merged, waiting on your look in game</small></span><span class="when recent">added 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>Built and merged. Your session showed two misses: no frame when the card opens to the left (Stiletto I in quick use), and a frame across the card's ACTIONS tab when ARLO's own popup covered the card. Fixing both on your new captures</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 16, Never read a card ARLO itself covers<small>An Anvil I card opened under the corner popup. The next read got body text and showed UNKNOWN, which uncovered the title, so the advice flipped every scan. Covered reads are dropped and the popup moves to the other corner</small></span><span class="when recent">added 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>The faster reader is merged, about 135 ms a card instead of 520. Your session found Garnet read as GARNET REQUIRED RESOURCES, being fixed on your new captures</small></span><span class="when recent">changed 14 Oct</span></li>
         </ul>
       </div>
       <div class="split">
@@ -244,7 +246,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="working">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 6, A big KEEP on the item and readable text<small>On Linux ARLO could only use one tiny bitmap font, so every size was ignored. Text now comes from a real font. A big KEEP, SELL or RECYCLE chip sits on the game's own card just above HOME ONLY, in a game-style font on a dark panel with a coloured stripe. Built, reviewed and merged. Waiting on your look in game</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 7, A card that looks like part of the game<small>Copying ARC Tracker's card as you asked: the advice as a header bar with a coloured stripe, what needs the item with a progress bar, and how many you have once ARLO knows your stash. Drawing it first, then placing it beside the game's tooltip in place of the corner popup</small></span><span class="when recent">changed 14 Oct</span></li>
         </ul>
       </div>
       <div class="split">
@@ -260,7 +262,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">A card that looks like part of the game<small>After your ARC Tracker screenshot: the advice as a header bar, what needs the item with a progress bar, and how many you have. Replaces the corner popup</small></span><span class="when recent">added 14 Oct</span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Step 6, A big KEEP on the item and readable text<small>Built and merged: a KEEP chip on the game card in a game-style font. Your session showed it can cover the card's own text, so the advice card in step 7 may replace it</small></span><span class="when recent">changed 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
           </ul>
         </div>
@@ -388,6 +390,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>14 Oct</time><span>Real fonts in the popup and chips built. You clarified the KEEP belongs on the item's own card, so a verdict chip beside HOME ONLY is next. Page updated to the new roadmap rules: a working-on-now list, every phase with a step underway highlighted, labelled step marks.</span></li>
   <li><time>14 Oct</time><span>KEEP chip on the game card merged, in a game-style font after your ARC Tracker screenshot. Hovered cell found in all 34 captures, the gold frame built. Paddle won the reader bake-off by about 9 times on speed, now going in to cut the delay before an item shows. 259 tests.</span></li>
   <li><time>14 Oct</time><span>Gold frame around the hovered keep item merged. Title reading switched: about 135 ms a card instead of 520, so a new item shows in about half the time. 298 tests. Three workers ran side by side tonight. Everything is waiting on your look in game.</span></li>
+  <li><time>14 Oct</time><span>Your capture session: 44 screenshots. Found the corner popup covering a card and flipping its advice, no gold frame on left-opening cards, Garnet misread, and the KEEP chip covering card text. You asked to copy ARC Tracker's card. Four workers started side by side.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
