@@ -10,6 +10,7 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from difflib import SequenceMatcher
 
 import numpy as np
 import pytesseract
@@ -186,11 +187,29 @@ def get_cursor_position() -> Point:
     return get_backend().cursor_position()
 
 
+@dataclass
+class _BandRegion(RegionMixin):
+    """A screen rectangle in physical pixels, for the trigger band capture."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+
 class OCREngine:
     """OCR engine for extracting text from screen regions."""
 
     # The trigger word we're looking for
     TRIGGER_WORD = "INVENTORY"
+
+    # Band searched for the trigger word when the configured regions miss it,
+    # as fractions of the screen. It spans the tab bar in the stash view and
+    # in raid. A word counts when it is at least this similar to the trigger.
+    TRIGGER_BAND_LEFT = 0.30
+    TRIGGER_BAND_RIGHT = 0.70
+    TRIGGER_BAND_BOTTOM = 0.07
+    TRIGGER_BAND_RATIO = 0.8
 
     # Item names render as uppercase letters and Roman numerals. Restricting
     # OCR to this set stops "II" being misread as "Il"/"1l" and the trailing
@@ -484,8 +503,51 @@ class OCREngine:
     def check_trigger_any(self, regions: list[RegionMixin]) -> bool:
         """
         Check if the trigger word (INVENTORY) is visible in any of the regions.
+
+        The configured regions are tried first. Only when they all fail is the
+        wide band across the top centre searched, which finds the word when the
+        tab bar puts it elsewhere (the in-raid bar has an extra MAP tab).
         """
-        return any(self.check_trigger(region) for region in regions)
+        if any(self.check_trigger(region) for region in regions):
+            return True
+        return self.check_trigger_band()
+
+    def check_trigger_band(self) -> bool:
+        """Search a band across the top centre of the screen for INVENTORY."""
+        width, height = get_screen_resolution()
+        left = int(width * self.TRIGGER_BAND_LEFT)
+        right = int(width * self.TRIGGER_BAND_RIGHT)
+        bottom = int(height * self.TRIGGER_BAND_BOTTOM)
+        if right <= left or bottom <= 0:
+            return False
+        band = _BandRegion(left, 0, right - left, bottom)
+        return self.band_has_trigger(self.capture_region(band))
+
+    @classmethod
+    def band_has_trigger(cls, image: Image.Image) -> bool:
+        """
+        Read the words of a band image and look for the trigger word in them.
+
+        The band is read as a block of text at half size (the tab text is
+        large, so this keeps Tesseract fast), and each word is matched on its
+        own, so the neighbouring tabs do not hide it.
+        """
+        gray = ImageOps.invert(image.convert("L"))
+        gray = gray.resize(
+            (max(1, gray.width // 2), max(1, gray.height // 2)),
+            Image.Resampling.BILINEAR,
+        )
+        gray = gray.point(lambda x: 255 if x > 128 else 0, "1")
+        try:
+            text = pytesseract.image_to_string(gray, config="--psm 6 --oem 1")
+        except pytesseract.TesseractError:
+            return False
+        return any(
+            len(word) >= len(cls.TRIGGER_WORD) - 2
+            and SequenceMatcher(None, word, cls.TRIGGER_WORD).ratio()
+            >= cls.TRIGGER_BAND_RATIO
+            for word in re.findall(r"[A-Z]+", text.upper())
+        )
 
     @staticmethod
     def preprocess_for_ocr(
