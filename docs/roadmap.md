@@ -172,7 +172,11 @@ Ahead:
    a big \"KEEP\" on the popup card." Found 14 Oct: uv's Python bundles a Tk
    with only the bitmap font "fixed", so on Linux every popup font size is
    ignored. Text is drawn with Pillow from a system font when Tk has no
-   scalable fonts, and the verdict word is drawn at 44 points. Added 14 Oct,
+   scalable fonts. Jeffrey, 14 Oct, clarifying: "the KEEP shouldn't be on the
+   popup in the upper left, it should be near the \"HOME ONLY\" badge -- I
+   need to see the keep on the item itself!" So the big verdict word is a
+   third chip on the game's card, on the RECYCLES INTO row beside HOME ONLY,
+   and the corner popup keeps its old size. Added 14 Oct, changed 14 Oct,
    underway 14 Oct.
 
 ## Phase 3. Read the grid. Next, after phase 1
