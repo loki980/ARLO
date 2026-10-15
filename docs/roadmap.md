@@ -369,8 +369,8 @@ since they need every cell read (phase 3). Changed 14 Oct.
     time to highlight everything". A pass takes 3 to 6 s live and is thrown
     away whole when anything changes mid-pass. Items already seen are
     remembered by their look, badges draw in batches as slots are
-    identified, and unchanged slots keep theirs. Underway 15 Oct. Added
-    15 Oct.
+    identified, and unchanged slots keep theirs. Started 15 Oct, paused
+    halfway for the night at Jeffrey's ask, resumes 16 Oct. Added 15 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
