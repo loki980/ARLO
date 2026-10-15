@@ -120,6 +120,24 @@ ul.plain li{margin:6px 0}
 code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px solid var(--line);padding:1px 5px;border-radius:3px}
 .card code{background:var(--code-bg);border-color:var(--card-line);color:var(--card-ink)}
 .card .tag.ahead{background:var(--grey);color:#fff}
+.tag.started{background:var(--cyan);color:#10201f}
+/* Step mark: a labelled NOW for steps underway */
+.nowmark{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.08em;color:#fff;background:var(--blue);border-radius:2px;padding:1px 4px;line-height:1.4;align-self:start;margin-top:2px}
+.steps li.now{grid-template-columns:auto 1fr auto}
+.steps li.now .what{font-weight:600}
+.working{border:1px solid var(--blue);border-radius:4px;padding:8px 12px;margin:0 0 14px;background:color-mix(in srgb,var(--blue) 7%,transparent)}
+.working h3{border-bottom-color:color-mix(in srgb,var(--blue) 40%,transparent);color:var(--blue);margin-top:2px}
+/* Working on now, across phases */
+.nowlist{border:1px solid var(--line);background:var(--bg2);border-left:4px solid var(--blue);padding:12px 16px 8px;margin:0 0 34px}
+.nowlist h2{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);margin:0 0 6px}
+.nowlist ul{list-style:none;margin:0;padding:0}
+.nowlist li{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:6px 0;border-bottom:1px dotted var(--line);font-size:15px}
+.nowlist li:last-child{border-bottom:0}
+.nowlist a{color:var(--fg);text-decoration:none;font-weight:600}
+.nowlist a:hover{text-decoration:underline}
+.nowlist small{display:block;color:var(--muted);font-size:13px}
+.legend .mk{display:inline-block;margin-right:6px}
+.legend .t-done{background:var(--green)} .legend .t-now{background:var(--blue)} .legend .t-started{background:var(--cyan);color:#10201f} .legend .t-planned{background:var(--grey)}
 </style>
 
 <div class="wrap">
@@ -129,14 +147,23 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <h1>ARLO Overlay Roadmap</h1>
     <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 11 October 2026.</p>
   </div>
-  <div class="capacity"><b>1 / 8</b>phases extracted</div>
+  <div class="capacity"><b>1 / 8</b>phases done</div>
 </header>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>1 / 8</b><span>phases extracted</span><small>phase 0 done</small></div>
-  <div><b>~80%</b><span>of phase 1 done</span><small>8 of 12 steps, weighted by effort</small></div>
+  <div><b>1 / 8</b><span>phases done</span><small>phase 0 done</small></div>
+  <div><b>~75%</b><span>of phase 1 done</span><small>10 of 15 steps, weighted by effort</small></div>
   <div><b>229</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
+</section>
+
+<section class="nowlist" aria-label="Working on now">
+  <h2>Working on now</h2>
+  <ul>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 11, Replace the title reader on evidence</a><small>The bake-off of three readers on your labeled captures, measuring only</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase1">Phase 1, step 15, Gold border on the hovered item</a><small>Research first: can ARLO find the hovered cell beside the card</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 6, A big KEEP on the item and readable text</a><small>Real fonts done and in review, the verdict chip on the card next</small></span></li>
+  </ul>
 </section>
 
 <ol class="course">
@@ -144,7 +171,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot done">0</div>
     <article class="card" data-tab="Phase 0">
-      <div class="tags"><span class="tag done">Extracted</span><span class="dates">11 Oct</span></div>
+      <div class="tags"><span class="tag done">Done</span><span class="dates">11 Oct</span></div>
       <h2>Look before building</h2>
       <p>We surveyed ARLO's code, took apart the ARC Tracker app to learn how it works, and checked every public source for prices, recycling, quests, projects, and workshop levels. Every claim in the design has evidence behind it.</p>
       <details>
@@ -161,13 +188,20 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 
   <li class="phase" id="phase1">
     <div class="slot now">1</div>
-    <article class="card" data-tab="Phase 1 · topside now">
-      <div class="tags"><span class="tag now">Underway</span><span class="dates">from 11 Oct</span></div>
+    <article class="card" data-tab="Phase 1 · working on now">
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Hover an item and read the whole story</h2>
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
-      <div class="gauge" aria-label="Phase 1 about 80 percent done">
-        <div class="bar"><i style="width:80%"></i></div>
-        <div class="read">~80%<small>8 of 12 steps</small></div>
+      <div class="gauge" aria-label="Phase 1 about 75 percent done">
+        <div class="bar"><i style="width:75%"></i></div>
+        <div class="read">~75%<small>10 of 15 steps</small></div>
+      </div>
+      <div class="working">
+        <h3>Working on now</h3>
+        <ul class="steps">
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Replace the title reader on evidence<small>Three readers compete on your labeled captures: today's Tesseract, Tesseract with the title line isolated, and PaddleOCR. The bake-off resumed tonight, measuring only. The winner ships after</small></span><span class="when recent">changed 14 Oct</span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 15, Gold border on the hovered item<small>The game already outlines the hovered cell in white. ARLO finds it beside the card and frames it in gold when the advice is keep. Being researched on your full-screen captures</small></span><span class="when recent">added 14 Oct</span></li>
+        </ul>
       </div>
       <div class="split">
         <div>
@@ -182,16 +216,15 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="done"><span class="tick">✓</span><span class="what">Find the card anywhere on screen<small>99 of your captures held no card because the fixed box missed it. A search around the cursor now finds the card wherever the game draws it</small></span><span class="when recent">done 11 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Captures only when you ask<small>Capture now runs only for a test started with the capture flag, stops after 300 images, and saves in the background so scanning is never slowed</small></span><span class="when recent">done 14 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Weapons identified in game<small>The whole screen is searched, so tall weapon cards keep their title. You confirmed weapon identification works</small></span><span class="when recent">done 12 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Popups stay put while you hover<small>Your hover log showed the popup hid one second after each read while a new read took up to 2.5 seconds. The hide delay now follows the scan speed. You confirmed it fixed</small></span><span class="when recent">done 14 Oct</span></li>
           </ul>
         </div>
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
-            <li class="next"><span class="tick">▸</span><span class="what">Your live check of the chips<small>Hover a Power Bank, tell me where the chips land and what the game's own recycle row shows. Also a screenshot of any weapon hover where ARLO shows nothing</small></span><span class="when"></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Your live check of the chips<small>Hover a Power Bank, tell me where the chips land and what the game's own recycle row shows. Also a screenshot of any weapon hover where ARLO shows nothing</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Capture run for tiers I to III<small>So the stroke counter is tuned on every numeral, not only IV</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Decide the recycle chip label<small>"home only" if the game shows the field result, "field only" if it shows home</small></span><span class="when"></span></li>
-            <li class="next"><span class="tick">▸</span><span class="what">Stop the popups fading in and out<small>Still happening after two fixes. Leading suspect: a scan now takes about a second and the popup's hide timer is one second, so it can lapse between scans. Your hover log showed why: a scan comes every 1 to 2.5 seconds but the popup hid after 1, so it vanished and came back every scan. The hide delay now follows the scan speed. Waiting on your hover in game to confirm</small></span><span class="when recent">fix built 14 Oct</span></li>
-            <li class="todo"><span class="tick">○</span><span class="what">Replace the title reader on evidence<small>Your 320 captures are labeled. Three readers are competing on them now: today's Tesseract, Tesseract with the title line isolated, and PaddleOCR. The winner ships</small></span><span class="when recent">changed 12 Oct</span></li>
           </ul>
         </div>
       </div>
@@ -200,13 +233,19 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 
   <li class="phase" id="phase2">
     <div class="slot now">2</div>
-    <article class="card" data-tab="Phase 2 · topside now">
-      <div class="tags"><span class="tag now">Underway</span><span class="dates">from 11 Oct</span></div>
+    <article class="card" data-tab="Phase 2 · working on now">
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Advice with a reason</h2>
       <p>Instead of a bare "Keep", the popup says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell.</p>
-      <div class="gauge" aria-label="Phase 2 about 89 percent done">
-        <div class="bar"><i style="width:89%"></i></div>
-        <div class="read">~89%<small>4 of 5 steps</small></div>
+      <div class="gauge" aria-label="Phase 2 about 75 percent done">
+        <div class="bar"><i style="width:75%"></i></div>
+        <div class="read">~75%<small>4 of 6 steps</small></div>
+      </div>
+      <div class="working">
+        <h3>Working on now</h3>
+        <ul class="steps">
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 6, A big KEEP on the item and readable text<small>On Linux ARLO could only use one tiny bitmap font, so every size was ignored. Text now comes from a real system font. Next, a big KEEP, SELL or RECYCLE chip on the game's own card beside HOME ONLY, so the advice sits on the item itself</small></span><span class="when recent">changed 14 Oct</span></li>
+        </ul>
       </div>
       <div class="split">
         <div>
@@ -221,7 +260,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
-            <li class="next"><span class="tick">▸</span><span class="what">Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
           </ul>
         </div>
       </div>
@@ -231,7 +270,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot">3</div>
     <article class="card" data-tab="Phase 3">
-      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phase 1</span></div>
+      <div class="tags"><span class="tag ahead">Planned</span><span class="dates">after phase 1</span></div>
       <h2>Read the grid</h2>
       <p>ARLO finds every slot in your open stash and recognizes the icon in each one, without you hovering. The approach: OpenCV for the geometry, a learned model for icon identity, OCR stays for text. <span class="when recent">changed 11 Oct</span></p>
       <h3>Will contain</h3>
@@ -247,9 +286,13 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phases 2 and 3</span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct, the rest after phases 2 and 3</span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
+      <div class="gauge" aria-label="Phase 4 about 15 percent done">
+        <div class="bar"><i style="width:15%"></i></div>
+        <div class="read">~15%<small>1 of 2 steps, badge work not yet split into steps</small></div>
+      </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Your run with the game open<small>Decides the drawing mode. The Wayland-native mode needs one package you would install</small></span><span class="when"></span></li>
@@ -258,6 +301,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <ul class="will">
         <li>Badge drawing from the verdicts and the grid</li>
         <li>Hide while the grid moves, redraw when it settles</li>
+        <li>A gold border on every item worth keeping<span class="recent">added 14 Oct</span></li>
+        <li>The sell price on each small item icon<span class="recent">added 14 Oct</span></li>
       </ul>
     </article>
   </li>
@@ -265,13 +310,17 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot">4b</div>
     <article class="card" data-tab="Phase 4b · added 11 Oct">
-      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phases 3 and 4</span><span class="when recent">added 11 Oct</span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span><span class="when recent">added 11 Oct</span></div>
       <h2>Blueprint tracker</h2>
       <p>Your Collections screen shows 20 of 91 blueprints found and 71 blank boxes. Reading that screen once also tells ARLO which blueprints you own, so the weapon rule stops guessing.</p>
+      <div class="gauge" aria-label="Phase 4b about 35 percent done">
+        <div class="bar"><i style="width:35%"></i></div>
+        <div class="read">~35%<small>2 of 5 steps</small></div>
+      </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">The data<small>All 91 blueprints with icons. The wiki has the grid order, and it matched every one of your 20 found cells. Three slots are unnamed anywhere public and get worked out from your screen. Where-found data covers 84 to 87 of them</small></span><span class="when recent">done 11 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Blueprint data inside ARLO<small>All 91 blueprints, the grid order, where to find them, and a private record of which you own</small></span><span class="when recent">done 12 Oct</span></li>
-        <li class="next"><span class="tick">▸</span><span class="what">Read the Collections screen<small>Found versus empty cells, mapped to blueprints, ownership stored locally</small></span><span class="when"></span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Read the Collections screen<small>Found versus empty cells, mapped to blueprints, ownership stored locally</small></span><span class="when"></span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Hover assist<small>Name and best places to find it, in the popup</small></span><span class="when"></span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Greyed icons in the empty cells<small>Needs the overlay surface from phase 4</small></span><span class="when"></span></li>
       </ul>
@@ -281,7 +330,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot">5</div>
     <article class="card" data-tab="Phase 5">
-      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phase 3</span></div>
+      <div class="tags"><span class="tag ahead">Planned</span><span class="dates">after phase 3</span></div>
       <h2>ARLO knows what you own</h2>
       <p>One slow scroll through the stash teaches ARLO your inventory. Local only, nothing leaves your machine.</p>
       <h3>Will contain</h3>
@@ -296,7 +345,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li class="phase">
     <div class="slot">6</div>
     <article class="card" data-tab="Phase 6">
-      <div class="tags"><span class="tag ahead">Next raid</span><span class="dates">after phases 2 and 5</span></div>
+      <div class="tags"><span class="tag ahead">Planned</span><span class="dates">after phases 2 and 5</span></div>
       <h2>It reads your progress too</h2>
       <p>Open a workshop or project page once and ARLO reads which tiers are done, so "keep 3" turns into "keep 1 more".</p>
       <h3>Will contain</h3>
@@ -334,14 +383,20 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>12 Oct</time><span>You confirmed weapon identification works in game. The popups still fade in and out, so that is first thing tomorrow.</span></li>
   <li><time>14 Oct</time><span>Captures now only on request with arc-helper --capture. The popup timing log is built and reviewed: millisecond times for every scan, show, hide and timer. 219 tests. Waiting on your 10 second hover with debug on.</span></li>
   <li><time>14 Oct</time><span>Your hover log found the fading: the popup's 1 second timer ran out before every next scan. The hide delay now follows the scan speed, reviewed and merged. 229 tests. Waiting on your hover to confirm.</span></li>
+  <li><time>14 Oct</time><span>You confirmed the popups no longer fade. Your three ideas placed: a big KEEP now, a gold border on the hovered item now, borders and prices on every icon with the phase 4 badges. Three workers running side by side: readable popup text, the hovered-cell research, and the title reader bake-off.</span></li>
+  <li><time>14 Oct</time><span>Real fonts in the popup and chips built. You clarified the KEEP belongs on the item's own card, so a verdict chip beside HOME ONLY is next. Page updated to the new roadmap rules: a working-on-now list, every phase with a step underway highlighted, labelled step marks.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
-  <span><i class="l-done"></i>Green corner: phase extracted</span>
-  <span><i class="l-now"></i>Amber glow: topside now</span>
-  <span><i class="l-ahead"></i>Grey slot: next raid</span>
-  <span><i class="l-recent">11 Oct</i>Amber date: added, moved, changed or started in the last 14 days</span>
-  <span>Click "Show the steps" on an extracted phase to see what it took</span>
+  <span><span class="tick" style="color:var(--green)">✓</span> Step finished, with the date it was done</span>
+  <span><span class="nowmark">NOW</span> Step underway right now</span>
+  <span><span class="tick">○</span> Step ahead, in order</span>
+  <span><span class="tag done mk">Done</span>Phase finished, green corner on its slot</span>
+  <span><span class="tag now mk">Working on now</span>A step of this phase is underway, amber glow on its slot</span>
+  <span><span class="tag started mk">Started</span>Some steps done, none underway</span>
+  <span><span class="tag ahead mk">Planned</span>Nothing started yet</span>
+  <span><i class="l-recent">11 Oct</i>Amber date: added, moved, changed or done in the last 14 days</span>
+  <span>Click "Show the steps" on a finished phase to see what it took</span>
   <span>Percent done is weighted by effort, the step count sits beside it</span>
 </div>
 </div>

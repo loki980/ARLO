@@ -16,6 +16,7 @@ from arc_helper.tooltip_layout import FOUND_IN
 from arc_helper.tooltip_layout import PRICE_CHIP
 from arc_helper.tooltip_layout import RECYCLE_CHIP
 from arc_helper.tooltip_layout import RECYCLES_INTO
+from arc_helper.tooltip_layout import VERDICT_CHIP
 from arc_helper.tooltip_layout import CreamRegion
 from arc_helper.tooltip_layout import Edges
 from arc_helper.tooltip_layout import Point
@@ -232,6 +233,84 @@ def test_missing_label_yields_no_chip():
     sizes = {PRICE_CHIP: Size(200, 60), RECYCLE_CHIP: Size(250, 40)}
     positions = place_chips(tooltip, labels, sizes, Size(3840, 2160), pad=10)
     assert set(positions) == {PRICE_CHIP}
+
+
+VERDICT = Size(180, 70)
+SCREEN = Size(3840, 2160)
+
+
+def test_verdict_chip_right_aligned_on_the_recycles_into_row():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {
+        FOUND_IN: Rect(1040, 800, 1300, 840),
+        RECYCLES_INTO: Rect(1040, 1100, 1260, 1140),
+    }
+    sizes = {VERDICT_CHIP: VERDICT, PRICE_CHIP: Size(200, 60)}
+    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
+    assert positions[VERDICT_CHIP] == Point(1600 - 10 - 180, 1100)
+
+
+def test_verdict_chip_clears_a_long_recycle_chip():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {RECYCLES_INTO: Rect(1040, 1100, 1260, 1140)}
+    sizes = {VERDICT_CHIP: VERDICT, RECYCLE_CHIP: Size(520, 60)}
+    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
+    recycle = positions[RECYCLE_CHIP]
+    verdict = positions[VERDICT_CHIP]
+    assert verdict == Point(1600 - 10 - 180, recycle.y - 10 - 70)
+    assert verdict.y + VERDICT.height < recycle.y
+
+
+def test_clamping_at_the_screen_top_keeps_the_chips_apart():
+    tooltip = Rect(1000, 0, 1600, 900)
+    labels = {RECYCLES_INTO: Rect(1040, 0, 1260, 20)}
+    sizes = {VERDICT_CHIP: VERDICT, RECYCLE_CHIP: Size(300, 60)}
+    # Recycle chip at y=30, verdict wants y=-50 and clamps to 0
+    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
+    assert positions[VERDICT_CHIP].y == 0
+    assert positions[VERDICT_CHIP].y + VERDICT.height + 10 <= positions[RECYCLE_CHIP].y
+
+
+def test_verdict_chip_never_left_of_the_label_and_clipped_anchors_after_it():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {RECYCLES_INTO: Rect(1040, 1100, 1260, 1140)}
+    wide = {VERDICT_CHIP: Size(450, 70)}
+    assert place_chips(tooltip, labels, wide, SCREEN, pad=10)[VERDICT_CHIP] == Point(
+        1260 + 10, 1100
+    )
+    clipped = place_chips(
+        tooltip, labels, {VERDICT_CHIP: VERDICT}, SCREEN, 10, Edges(right=True)
+    )
+    assert clipped[VERDICT_CHIP] == Point(1260 + 10, 1100)
+
+
+def test_verdict_chip_sits_above_the_price_chip_without_recycles_into():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
+    sizes = {VERDICT_CHIP: VERDICT, PRICE_CHIP: Size(200, 60)}
+    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
+    assert positions[PRICE_CHIP] == Point(1390, 800)
+    assert positions[VERDICT_CHIP] == Point(1600 - 10 - 180, 800 - 10 - 70)
+
+
+def test_verdict_chip_on_the_found_in_row_without_a_price_chip():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
+    positions = place_chips(tooltip, labels, {VERDICT_CHIP: VERDICT}, SCREEN, 10)
+    assert positions == {VERDICT_CHIP: Point(1600 - 10 - 180, 800)}
+
+
+def test_no_verdict_chip_without_either_label():
+    tooltip = Rect(1000, 500, 1600, 1500)
+    positions = place_chips(tooltip, {}, {VERDICT_CHIP: VERDICT}, SCREEN, 10)
+    assert positions == {}
+
+
+def test_verdict_chip_clamped_at_the_screen_edge():
+    tooltip = Rect(3500, 500, 4100, 1500)
+    labels = {RECYCLES_INTO: Rect(3540, 3000, 3700, 3040)}
+    positions = place_chips(tooltip, labels, {VERDICT_CHIP: VERDICT}, SCREEN, 10)
+    assert positions[VERDICT_CHIP] == Point(3840 - 180, 2160 - 70)
 
 
 @pytest.mark.skipif(shutil.which("tesseract") is None, reason="needs tesseract")

@@ -44,8 +44,10 @@ from arc_helper.overlay import RECYCLE_LABEL_HOME_RECYCLER
 from arc_helper.overlay import OverlayWindow
 from arc_helper.overlay import StatusWindow
 from arc_helper.overlay import TooltipChips
+from arc_helper.overlay import action_word
 from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
+from arc_helper.verdict import UNKNOWN
 from arc_helper.verdict import Verdict
 from arc_helper.verdict import compute_verdict
 
@@ -132,12 +134,16 @@ class DebugOverlay:
 
 
 def chip_payload(
-    item: Item, outputs: list[RecycleOutput], home_only: list[RecycleOutput]
+    item: Item,
+    outputs: list[RecycleOutput],
+    home_only: list[RecycleOutput],
+    verdict: Verdict | None = None,
 ) -> dict[str, str | None]:
     """Chip texts for TooltipChips.show. None hides that line or chip.
 
     Without field rows the recycle chip lists every home output. With field
-    rows it lists only the home extras, and hides when there are none.
+    rows it lists only the home extras, and hides when there are none. The
+    verdict word and kind come from the verdict, never from item.action.
     """
     price_text = stack_text = None
     if item.sell_price is not None:
@@ -156,11 +162,14 @@ def chip_payload(
         recycle_label = RECYCLE_LABEL_HOME_ONLY
         recycle_text = "  ".join(f"+{o.quantity} {o.component}" for o in home_only)
 
+    verdict_shown = verdict is not None and verdict.kind != UNKNOWN
     return {
         "price_text": price_text,
         "stack_text": stack_text,
         "recycle_label": recycle_label,
         "recycle_text": recycle_text,
+        "verdict_word": action_word(verdict.kind) if verdict_shown else None,
+        "verdict_kind": verdict.kind if verdict_shown else None,
     }
 
 
@@ -435,7 +444,7 @@ class Scanner:
         self._show_overlay(shown_name, recommendation, verdict)
 
         if settings.overlay.tooltip_chips:
-            self._queue_chips(recommendation, same_item=same_item)
+            self._queue_chips(recommendation, verdict=verdict, same_item=same_item)
 
         # Update cooldown tracking
         self._last_shown_item = shown_name
@@ -475,7 +484,11 @@ class Scanner:
         )
 
     def _queue_chips(
-        self, recommendation: Item | None, *, same_item: bool = False
+        self,
+        recommendation: Item | None,
+        *,
+        verdict: Verdict | None = None,
+        same_item: bool = False,
     ) -> None:
         """Locate the tooltip and queue the chips for the current item.
 
@@ -499,6 +512,7 @@ class Scanner:
             recommendation,
             self.db.recycle_outputs(recommendation.name),
             self.db.home_only_outputs(recommendation.name),
+            verdict,
         )
         with self._chips_lock:
             # stop() or pause() may have hidden the chips during the OCR pass
@@ -818,6 +832,7 @@ def main(argv: list[str] | None = None) -> None:
         try:
             sys.path.insert(0, str(APP_DIR))
             from update_db import auto_update
+
             auto_update()
         except Exception as e:  # noqa: BLE001
             logger.debug(f"Wiki auto-update unavailable: {e}")
