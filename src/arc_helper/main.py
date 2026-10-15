@@ -5,6 +5,7 @@ Coordinates OCR scanning and overlay display.
 
 import argparse
 import datetime
+import inspect
 import json
 import queue
 import sys
@@ -53,6 +54,7 @@ from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
 from arc_helper.grid import STILL_SCALE
+from arc_helper.grid import find_slots
 from arc_helper.grid import frames_still
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
@@ -386,10 +388,30 @@ def free_rects(shape: Sequence[int], ignore: Sequence[Rect]) -> list[Rect]:
     compares at, so passing them as its slots compares all of the frame but
     the ignored parts.
     """
+    return _cell_runs(shape, None, ignore)
+
+
+def _cell_runs(
+    shape: Sequence[int], keep: Sequence[Rect] | None, ignore: Sequence[Rect]
+) -> list[Rect]:
+    """Row runs of STILL_SCALE cells inside keep (all when None), outside ignore.
+
+    A cell partly in an ignore rect is dropped, as is a cell partly outside
+    every keep rect.
+    """
     height, width = shape[:2]
     scale = STILL_SCALE
     rows, cols = -(-height // scale), -(-width // scale)
-    free = np.ones((rows, cols), bool)
+    if keep is None:
+        free = np.ones((rows, cols), bool)
+    else:
+        # Only cells wholly inside a rect, so no pixel outside it is compared
+        free = np.zeros((rows, cols), bool)
+        for r in keep:
+            free[
+                max(0, -(-r.top // scale)) : max(0, r.bottom // scale),
+                max(0, -(-r.left // scale)) : max(0, r.right // scale),
+            ] = True
     for r in ignore:
         free[
             max(0, r.top // scale) : max(0, -(-r.bottom // scale)),
@@ -414,14 +436,45 @@ def stash_still(
     b: np.ndarray,
     ignore: Sequence[Rect],
     still: Callable[..., bool] = frames_still,
+    slots: Callable[[np.ndarray], Sequence[Rect]] | None = None,
 ) -> bool:
-    """frames_still outside the ignore rects. Wholly ignored frames count as still."""
-    if not ignore:
-        return still(a, b)
+    """frames_still inside the inventory slots of either frame, outside ignore.
+
+    The slots are those grid.find_slots finds on a and on b (slots, when
+    given, returns their rects for a frame instead), so the game world and
+    anything else outside the grid never count as movement. When every slot
+    pixel is ignored the frames count as still. Without a slot on either
+    frame the whole frame outside the ignore rects is compared, and a
+    wholly ignored frame counts as still. An injected still that takes no
+    rects is called as still(a, b) and compares as it likes.
+    """
     if a.shape != b.shape:
         return False
-    rects = free_rects(a.shape, ignore)
-    return still(a, b, rects) if rects else True
+    if slots is None:
+        found = [s.rect for s in (*find_slots(a), *find_slots(b))]
+    else:
+        found = [*slots(a), *slots(b)]
+    if found:
+        rects = _cell_runs(a.shape, found, ignore)
+    elif not ignore:
+        return still(a, b)
+    else:
+        rects = free_rects(a.shape, ignore)
+    if not rects:
+        return True
+    return still(a, b, rects) if _takes_rects(still) else still(a, b)
+
+
+def _takes_rects(still: Callable[..., bool]) -> bool:
+    """True when still can be called as still(a, b, rects)."""
+    try:
+        inspect.signature(still).bind(None, None, None)
+    except TypeError:
+        return False
+    except ValueError:
+        # No signature to inspect (a builtin), so assume the full form
+        return True
+    return True
 
 
 def _frame_rgb(image) -> np.ndarray:
@@ -546,6 +599,9 @@ class StashBadges:
         self._newest: tuple[np.ndarray, StashFrame] | None = None
         # The pass handed over and not yet taken, and the pass state
         self._job: tuple[int, np.ndarray, StashFrame] | None = None
+        # find_slots rects of the RGB frames held above, by id (with the
+        # array, so a reused id never hits)
+        self._slot_cache: dict[int, tuple[np.ndarray, list[Rect]]] = {}
         self._pass_running = False
         self._last_pass_start: float | None = None
         self._need_pass = True
@@ -579,6 +635,7 @@ class StashBadges:
             busy = self._drawn or self._have_result or self._pass_running
             self._generation += 1
             self._latest = self._prev = self._newest = None
+            self._slot_cache.clear()
             self._badges, self._shown, self._marks, self._pass_hidden = [], [], [], []
             self._have_result = False
             self._need_pass = True
@@ -628,6 +685,14 @@ class StashBadges:
                 self._wake.set()
 
     def _watch_once(self) -> None:
+        """One watcher round, then the slot cache keeps only held frames."""
+        try:
+            self._watch_round()
+        finally:
+            with self._lock:
+                self._evict_slots()
+
+    def _watch_round(self) -> None:
         """Compare the newest capture with the one before and act on it."""
         with self._lock:
             frame, self._latest = self._latest, None
@@ -645,10 +710,14 @@ class StashBadges:
         if prev is None:
             return
         ignore = [*frame_hidden(prev[1]), *frame_hidden(frame), *marks]
-        if not stash_still(prev[0], rgb, ignore, self._still):
+        if not stash_still(prev[0], rgb, ignore, self._still, self._slots_of):
+            with self._lock:
+                kept = self._slot_cache.get(id(rgb))
             self.clear("grid_moved")
             with self._lock:
                 self._prev = (rgb, frame)
+                if kept is not None:
+                    self._slot_cache[id(rgb)] = kept
             return
         start = False
         with self._lock:
@@ -674,6 +743,41 @@ class StashBadges:
         if start and self._threaded:
             self._job_ready.set()
         self._refresh()
+
+    def _slots_of(self, rgb: np.ndarray) -> list[Rect]:
+        """find_slots rects of a frame, found once while StashBadges holds it."""
+        with self._lock:
+            hit = self._slot_cache.get(id(rgb))
+        if hit is not None and hit[0] is rgb:
+            return hit[1]
+        rects = [s.rect for s in find_slots(rgb)]
+        with self._lock:
+            if any(r is rgb for r in self._held()):
+                self._slot_cache[id(rgb)] = (rgb, rects)
+        return rects
+
+    def _held(self) -> list[np.ndarray]:
+        """The RGB frames _prev, _newest and _job refer to (under the lock)."""
+        return [
+            r
+            for r in (
+                self._prev[0] if self._prev else None,
+                self._newest[0] if self._newest else None,
+                self._job[1] if self._job else None,
+            )
+            if r is not None
+        ]
+
+    def _evict_slots(self) -> None:
+        """Drop the cached slots of frames no longer held (under the lock).
+
+        Runs at the end of every watcher round and pass. Within a round the
+        frame _prev referred to before stays cached until its compare is done.
+        """
+        held = {id(r): r for r in self._held()}
+        for key, (rgb, _rects) in list(self._slot_cache.items()):
+            if held.get(key) is not rgb:
+                del self._slot_cache[key]
 
     def _uncovered(self, frame: StashFrame) -> bool:
         """True when the parts the last pass could not see are in view now."""
@@ -716,11 +820,16 @@ class StashBadges:
             newest is None
             or newest[1] is frame
             or stash_still(
-                rgb, newest[0], [*hidden, *frame_hidden(newest[1]), *marks], self._still
+                rgb,
+                newest[0],
+                [*hidden, *frame_hidden(newest[1]), *marks],
+                self._still,
+                self._slots_of,
             )
         )
         with self._lock:
             self._pass_running = False
+            self._evict_slots()
             if not fresh or generation != self._generation:
                 if generation == self._generation:
                     self._need_pass = True
