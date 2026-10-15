@@ -261,12 +261,24 @@ def test_keep_with_a_found_cell_queues_the_border_on_screen(monkeypatch):
     # An ARLO chip on screen, which the search must see in capture coordinates
     scanner.overlay_rects.publish([Rect(150, 60, 200, 100)])
 
-    scanner._queue_chips(ITEM, verdict=Verdict("keep", "k"))  # noqa: SLF001
+    scanner._queue_chips(ITEM, verdict=Verdict("keep", "k", 1, (("Power Up", 1),)))  # noqa: SLF001
 
     (message,) = _drain(scanner)
     assert message[0] == "chips"
     assert message[4] == Rect(110, 70, 130, 90)
     assert calls == [((300, 400, 3), Rect(200, 0, 400, 300), [Rect(50, 10, 100, 50)])]
+
+
+def test_keep_without_active_needs_queues_a_border_hide(monkeypatch):
+    calls = _stub_search(monkeypatch, Rect(10, 20, 30, 40))
+    scanner = _active_scanner()
+
+    # the weapon rule: keep with no sources
+    scanner._queue_chips(ITEM, verdict=Verdict("keep", "Weapon"))  # noqa: SLF001
+
+    (message,) = _drain(scanner)
+    assert message[4] is None
+    assert calls == []
 
 
 @pytest.mark.parametrize("kind", ["sell", "recycle"])
@@ -285,7 +297,7 @@ def test_keep_without_a_found_cell_queues_a_border_hide(monkeypatch):
     calls = _stub_search(monkeypatch, None)
     scanner = _active_scanner()
 
-    scanner._queue_chips(ITEM, verdict=Verdict("keep", "k"))  # noqa: SLF001
+    scanner._queue_chips(ITEM, verdict=Verdict("keep", "k", 1, (("Power Up", 1),)))  # noqa: SLF001
 
     (message,) = _drain(scanner)
     assert message[4] is None

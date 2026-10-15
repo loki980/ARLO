@@ -78,7 +78,7 @@ from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
 from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import identify_slots
-from arc_helper.stash_scan import verdict_kinds
+from arc_helper.stash_scan import verdicts_for
 from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import to_screen
@@ -465,7 +465,7 @@ def stash_badge_maker(
     """badges_for with the verdicts of the moment, as the popup decides them."""
 
     def make(slot_items: list[SlotItem]) -> list[dict]:
-        return badges_for(slot_items, verdict_kinds(db, show_ended=show_ended()))
+        return badges_for(slot_items, verdicts_for(db, show_ended=show_ended()))
 
     return make
 
@@ -1411,7 +1411,7 @@ class Scanner:
             verdict,
         )
         border = None
-        if verdict is not None and verdict.kind == KEEP:
+        if verdict is not None and verdict.sources:
             engine = get_ocr_engine()
             border = hovered_cell_on_screen(
                 getattr(engine, "_last_capture", None),

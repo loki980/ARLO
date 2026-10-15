@@ -123,6 +123,20 @@ def _keep_title(count: int | None, owned: int | None) -> str:
     return f"Keep {count}"
 
 
+def _join_goals(names: list[str]) -> str:
+    """'A', 'A and B', 'A, B and C'."""
+    if len(names) <= 1:
+        return "".join(names)
+    return ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _keep_reason(verdict: Verdict, rows: tuple[tuple[str, str, int], ...]) -> str:
+    """Why to keep: the goals behind the rows, else the verdict's own reason."""
+    if rows:
+        return "For " + _join_goals([name for _, name, _ in rows])
+    return verdict.reason or "Kept by ARLO's rules"
+
+
 def needed_parts(
     outputs: Iterable[RecycleOutput],
     needs_for: Callable[[str], list[Need]],
@@ -165,6 +179,9 @@ def build_advice_card(
 ) -> AdviceCard:
     """The card model for a verdict. Rows exist for keep and keep_some only.
 
+    Keep and keep_some always carry a reason in the subtitle: the goals behind
+    the rows, else verdict.reason.
+
     For recycle and use the subtitle names the home recycle outputs and which
     are still needed, falling back to verdict.reason without outputs.
     """
@@ -175,10 +192,11 @@ def build_advice_card(
     if kind == KEEP:
         title = _keep_title(total, owned)
         rows = _rows(verdict, needs)
+        subtitle = _keep_reason(verdict, rows)
     elif kind == KEEP_SOME:
         title = "Keep" if total is None else f"Keep {total}"
-        subtitle = "then sell the rest"
         rows = _rows(verdict, needs)
+        subtitle = f"{_keep_reason(verdict, rows)}, then sell the rest"
     elif kind == SELL:
         title, subtitle, total = "Sell it", "Nothing you track needs it", None
     elif kind == RECYCLE:

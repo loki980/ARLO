@@ -26,7 +26,7 @@ when the tier numeral settles which one it is.
 
 badges_for turns the identified slots into badge dicts in the badge
 surface's message format (badge_surface.encode_message on branch
-badge-surface): a gold border on every keep and keep_some item and a price
+badge-surface): a gold border on every item an unfinished goal still needs and a price
 pill bottom left on every identified item with a sell price (top left on
 wide slots, where the game draws the ammo count bottom left).
 
@@ -56,8 +56,7 @@ from .icon_embed import default_embedder
 from .slot_marks import read_stack
 from .slot_marks import read_tier
 from .tooltip_layout import Rect
-from .verdict import KEEP
-from .verdict import KEEP_SOME
+from .verdict import Verdict
 from .verdict import compute_verdict
 
 DUPLICATE_SIMILARITY = 0.995
@@ -79,7 +78,6 @@ TAG_CORNER_WIDE = "tl"
 WIDE_ASPECT = 1.25
 TAG_FG = "#ffffff"
 TAG_BG = "#141414d9"
-GOLD_KINDS = (KEEP, KEEP_SOME)
 
 
 class SlotItem(NamedTuple):
@@ -269,13 +267,13 @@ def format_price(value: int) -> str:
     return f"{whole}.{part}M" if part else f"{whole}M"
 
 
-def verdict_kinds(
+def verdicts_for(
     db: Database,
     today: datetime.date | None = None,
     *,
     show_ended: bool = False,
-) -> Callable[[SlotItem], str]:
-    """The verdict kind of a slot's item, as main.py's _verdict_for decides it.
+) -> Callable[[SlotItem], Verdict]:
+    """The verdict of a slot's item, as main.py's _verdict_for decides it.
 
     The owned count stays unknown (None), as in main.py, since one slot's
     stack is not the whole stash.
@@ -283,10 +281,10 @@ def verdict_kinds(
     day = today or datetime.datetime.now().astimezone().date()
     progress = db.progress_map()
 
-    def kind(slot: SlotItem) -> str:
+    def verdict(slot: SlotItem) -> Verdict:
         item = slot.item
         if item is None:
-            return compute_verdict(None, [], {}, None, day, show_ended).kind
+            return compute_verdict(None, [], {}, None, day, show_ended)
         home = [o for o in db.recycle_outputs(item.name) if o.location == HOME]
         return compute_verdict(
             item,
@@ -297,9 +295,20 @@ def verdict_kinds(
             show_ended,
             blueprint=db.blueprint_for(item.name),
             home_outputs=home,
-        ).kind
+        )
 
-    return kind
+    return verdict
+
+
+def verdict_kinds(
+    db: Database,
+    today: datetime.date | None = None,
+    *,
+    show_ended: bool = False,
+) -> Callable[[SlotItem], str]:
+    """The verdict kind of a slot's item, see verdicts_for."""
+    verdict_of = verdicts_for(db, today, show_ended=show_ended)
+    return lambda slot: verdict_of(slot).kind
 
 
 def tag_corner(rect: Rect) -> str:
@@ -310,21 +319,21 @@ def tag_corner(rect: Rect) -> str:
 
 def badges_for(
     slot_items: Iterable[SlotItem],
-    kind_of: Callable[[SlotItem], str],
+    verdict_of: Callable[[SlotItem], Verdict],
 ) -> list[dict]:
     """Badge dicts for the identified slots, in the badge surface's format.
 
-    A gold border for every keep and keep_some item and a price pill for
-    every item with a sell price, in tag_corner's corner. Unidentified
-    slots get no badge. kind_of
-    gives a slot's verdict kind, for example verdict_kinds(db).
+    A gold border for every item with an active need (a verdict with
+    sources, whatever its kind) and a price pill for every item with a sell
+    price, in tag_corner's corner. Unidentified slots get no badge.
+    verdict_of gives a slot's verdict, for example verdicts_for(db).
     """
     badges: list[dict] = []
     for slot in slot_items:
         if slot.item is None:
             continue
         rect = [int(v) for v in slot.rect]
-        if kind_of(slot) in GOLD_KINDS:
+        if verdict_of(slot).sources:
             badges.append(
                 {
                     "rect": rect,
