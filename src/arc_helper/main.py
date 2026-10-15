@@ -53,10 +53,12 @@ from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
 from arc_helper.grid import STILL_SCALE
+from arc_helper.grid import find_slots
 from arc_helper.grid import frames_still
 from arc_helper.hotkey import HotkeyMonitor
 from arc_helper.hotkey import get_hotkey_monitor
 from arc_helper.hovered_cell import find_hovered_cell
+from arc_helper.hovered_cell import snap_to_slot
 from arc_helper.icon_embed import EmbedGallery
 from arc_helper.icon_embed import build_gallery
 from arc_helper.icon_embed import default_embedder
@@ -75,6 +77,7 @@ from arc_helper.overlay import window_rect_phys
 from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 from arc_helper.screen import get_backend
+from arc_helper.slot_marks import learned_check
 from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
 from arc_helper.stash_scan import distinct_gallery
@@ -88,6 +91,7 @@ from arc_helper.verdict import KEEP_SOME
 from arc_helper.verdict import UNKNOWN
 from arc_helper.verdict import Verdict
 from arc_helper.verdict import compute_verdict
+from arc_helper.verdict import is_blueprint
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
 
@@ -264,27 +268,69 @@ def screen_to_capture(rects: Sequence[Rect], origin: Point) -> list[Rect]:
     ]
 
 
-def hovered_cell_on_screen(
-    capture, origin: Point | None, card: Rect | None, ignore_phys: Sequence[Rect]
-) -> Rect | None:
-    """Find the hovered cell in a cursor capture, in physical screen px.
+class HoveredSlot(NamedTuple):
+    """The hovered slot's gold frame in physical screen px and its check read.
+
+    frame is None when no hovered cell was found. learned is the learned
+    blueprint check read on the snapped slot (slot_marks.learned_check),
+    None when it was not read or could not be judged.
+    """
+
+    frame: Rect | None
+    learned: bool | None
+
+
+NO_HOVERED_SLOT = HoveredSlot(None, None)
+# _queue_chips locates the frame itself when no frame is passed
+LOCATE_FRAME = object()
+
+
+def hovered_slot_on_screen(
+    capture,
+    origin: Point | None,
+    card: Rect | None,
+    ignore_phys: Sequence[Rect],
+    *,
+    read_check: bool = False,
+) -> HoveredSlot:
+    """Find the hovered slot in a cursor capture, framed in physical screen px.
 
     capture is the PIL image the card was found in, origin its top left on
     screen and card the item card in capture coordinates. ignore_phys are
-    ARLO's own windows in physical screen px. None when anything is missing
-    or no glow ring is found. Runs on the scan thread.
+    ARLO's own windows in physical screen px. The glow ring box is snapped
+    to the slot under it among grid.find_slots in the same capture
+    (hovered_cell.snap_to_slot), so the frame covers the whole slot, and
+    the ring box stays without a matching slot. With read_check the
+    snapped slot's learned blueprint check is read. Runs on the scan
+    thread.
     """
     if capture is None or origin is None or card is None:
-        return None
-    rgb = np.asarray(capture.convert("RGB"))
+        return NO_HOVERED_SLOT
+    rgb = np.asarray(capture if capture.mode == "RGB" else capture.convert("RGB"))
     start = time.perf_counter()
     cell = find_hovered_cell(rgb, card, screen_to_capture(ignore_phys, origin))
+    slot = snap_to_slot(cell, find_slots(rgb)) if cell is not None else None
+    learned = None
+    if read_check and slot is not None:
+        learned = learned_check(rgb, slot.rect)
     logger.debug(
-        "border search found=%s duration=%.1f ms",
+        "border search found=%s slot=%s learned=%s duration=%.1f ms",
         "yes" if cell is not None else "no",
+        "yes" if slot is not None else "no",
+        learned,
         (time.perf_counter() - start) * 1000,
     )
-    return to_screen(cell, origin) if cell is not None else None
+    if cell is None:
+        return NO_HOVERED_SLOT
+    frame = slot.rect if slot is not None else cell
+    return HoveredSlot(to_screen(frame, origin), learned)
+
+
+def hovered_cell_on_screen(
+    capture, origin: Point | None, card: Rect | None, ignore_phys: Sequence[Rect]
+) -> Rect | None:
+    """The hovered slot's gold frame in physical screen px, None without one."""
+    return hovered_slot_on_screen(capture, origin, card, ignore_phys).frame
 
 
 # Stash badges: the stack's worth on every identified slot and a need tag and
@@ -1280,7 +1326,12 @@ class Scanner:
             # Log to missing items file for easier database updates
             self.db.log_missing_item(item_name)
 
-        verdict = self._verdict_for(recommendation, settings.show_ended_projects)
+        # The slot under the cursor is found once per shown card. Its frame
+        # goes to the chips and its learned check to the verdict
+        hovered = self._locate_hovered_slot(recommendation)
+        verdict = self._verdict_for(
+            recommendation, settings.show_ended_projects, hovered.learned
+        )
 
         # A new item may bring the popup back home. The same item never
         # moves it. Home depends on the new item's popup size (a taller
@@ -1294,7 +1345,12 @@ class Scanner:
         self._show_overlay(shown_name, recommendation, verdict)
 
         if settings.overlay.tooltip_chips:
-            self._queue_chips(recommendation, verdict=verdict, same_item=same_item)
+            self._queue_chips(
+                recommendation,
+                verdict=verdict,
+                same_item=same_item,
+                frame=hovered.frame,
+            )
 
         # Update cooldown tracking
         self._last_shown_item = shown_name
@@ -1321,15 +1377,47 @@ class Scanner:
             return
         self.ui_queue.put(("popup_spot", spot, card))
 
-    def _verdict_for(self, recommendation: Item | None, show_ended: bool) -> Verdict:  # noqa: FBT001
+    def _locate_hovered_slot(self, recommendation: Item | None) -> HoveredSlot:
+        """Find the hovered slot of a recognized item in the last capture.
+
+        For a blueprint the slot's learned check is read too, and a True or
+        False read is recorded in the user database. Unknown items are not
+        located.
+        """
+        if recommendation is None:
+            return NO_HOVERED_SLOT
+        engine = get_ocr_engine()
+        hovered = hovered_slot_on_screen(
+            getattr(engine, "_last_capture", None),
+            getattr(engine, "_last_origin", None),
+            getattr(engine, "_last_card", None),
+            self.overlay_rects.snapshot(),
+            read_check=is_blueprint(recommendation),
+        )
+        if hovered.learned is not None:
+            self.db.set_blueprint_owned(recommendation.name, owned=hovered.learned)
+        return hovered
+
+    def _verdict_for(
+        self,
+        recommendation: Item | None,
+        show_ended: bool,  # noqa: FBT001
+        learned: bool | None = None,  # noqa: FBT001
+    ) -> Verdict:
         """Advice for the item from its needs and the recorded progress.
 
         The owned count is unknown until the stash ledger exists. Project end
-        dates compare against the local date.
+        dates compare against the local date. learned is the hovered slot's
+        learned blueprint check, and without a read a blueprint falls back to
+        the blueprints recorded as owned.
         """
         today = datetime.datetime.now().astimezone().date()
         if recommendation is None:
             return compute_verdict(None, [], {}, None, today, show_ended)
+        recorded = False
+        if learned is None and is_blueprint(recommendation):
+            name = recommendation.name.casefold()
+            recorded = any(n.casefold() == name for n in self.db.owned_blueprints())
         home = [
             o
             for o in self.db.recycle_outputs(recommendation.name)
@@ -1344,6 +1432,8 @@ class Scanner:
             show_ended,
             blueprint=self.db.blueprint_for(recommendation.name),
             home_outputs=home,
+            learned=learned,
+            recorded_learned=recorded,
         )
 
     def _show_overlay(
@@ -1398,8 +1488,12 @@ class Scanner:
         *,
         verdict: Verdict | None = None,
         same_item: bool = False,
+        frame: Rect | object | None = LOCATE_FRAME,
     ) -> None:
         """Locate the tooltip and queue the chips for the current item.
+
+        frame is the hovered slot's gold frame from _locate_hovered_slot,
+        None for no frame. Left out, the frame is located here.
 
         Runs the extra layout OCR pass, so it is only called once the
         cooldown check passed. Unknown items and missing tooltips hide the
@@ -1425,13 +1519,15 @@ class Scanner:
         )
         # The gold frame marks the hovered cell of every identified item,
         # whatever the verdict
-        engine = get_ocr_engine()
-        border = hovered_cell_on_screen(
-            getattr(engine, "_last_capture", None),
-            getattr(engine, "_last_origin", None),
-            getattr(engine, "_last_card", None),
-            self.overlay_rects.snapshot(),
-        )
+        border = frame
+        if border is LOCATE_FRAME:
+            engine = get_ocr_engine()
+            border = hovered_cell_on_screen(
+                getattr(engine, "_last_capture", None),
+                getattr(engine, "_last_origin", None),
+                getattr(engine, "_last_card", None),
+                self.overlay_rects.snapshot(),
+            )
         with self._chips_lock:
             # stop() or pause() may have hidden the chips during the OCR pass
             if self._running and self.state == ScannerState.ACTIVE:

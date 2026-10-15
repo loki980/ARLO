@@ -44,6 +44,12 @@ the search runs in a window on each side of the card rectangle:
    shorter across that edge than along the other side, the hidden edge
    is moved into the occluder to make the box square, as the grid cells
    are.
+7. snap: snap_to_slot matches the ring box to the slots grid.find_slots
+   finds in the same frame. The slot whose rect contains the box's centre
+   wins, else the slot that overlaps the box most. Its rect replaces the
+   ring box, so a wide weapon slot is framed whole even when the ring's
+   left part was too dim to follow. Without a matching slot the ring box
+   stays.
 
 Thresholds are in physical pixels of a 3840x2160 screen. Pure functions, no
 Tk or screen access.
@@ -55,6 +61,7 @@ from typing import NamedTuple
 import cv2
 import numpy as np
 
+from .grid import Slot
 from .tooltip_layout import Rect
 
 LIT_MIN = 70
@@ -90,6 +97,7 @@ ARLO_COLOURS = (
     (255, 105, 180),
     (255, 68, 68),
     (136, 136, 136),
+    (166, 120, 255),
 )
 # ARLO's windows are looked for on every second pixel of every second row,
 # so the closing side and the minimum area are in those sampled pixels
@@ -303,3 +311,32 @@ def find_hovered_cell(
     """
     found = locate_hovered_cell(rgb, card, ignore)
     return found.rect if found is not None else None
+
+
+def _centre_inside(cell: Rect, rect: Rect) -> bool:
+    x2, y2 = cell.left + cell.right, cell.top + cell.bottom
+    return 2 * rect.left <= x2 < 2 * rect.right and 2 * rect.top <= y2 < 2 * rect.bottom
+
+
+def _overlap_area(a: Rect, b: Rect) -> int:
+    width = _overlap(a.left, a.right, b.left, b.right)
+    height = _overlap(a.top, a.bottom, b.top, b.bottom)
+    return width * height if width > 0 and height > 0 else 0
+
+
+def snap_to_slot(cell: Rect, slots: Iterable[Slot]) -> Slot | None:
+    """The slot under a hovered cell box, or None.
+
+    The slot whose rect contains the box's centre, else the slot with the
+    largest overlap. None when no slot overlaps the box.
+    """
+    candidates = list(slots)
+    for slot in candidates:
+        if _centre_inside(cell, slot.rect):
+            return slot
+    best, best_area = None, 0
+    for slot in candidates:
+        area = _overlap_area(cell, slot.rect)
+        if area > best_area:
+            best, best_area = slot, area
+    return best
