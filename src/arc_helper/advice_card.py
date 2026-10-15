@@ -23,6 +23,7 @@ from .textrender import _runs
 from .textrender import find_font_file
 from .verdict import KEEP
 from .verdict import KEEP_SOME
+from .verdict import LEARN
 from .verdict import RECYCLE
 from .verdict import SELL
 from .verdict import UNKNOWN
@@ -34,12 +35,16 @@ AMBER = "#f2b134"
 GREEN = "#3fbf6f"
 BLUE = "#2e9bff"
 GREY = "#7d8289"
+# Violet, the hue of the game's blueprint grid. No other kind, chip or stash
+# badge uses it (keep gold, short red, enough green, sell green, recycle blue)
+VIOLET = "#a678ff"
 KIND_COLORS = {
     KEEP: AMBER,
     KEEP_SOME: AMBER,
     SELL: GREEN,
     RECYCLE: BLUE,
     USE: BLUE,
+    LEARN: VIOLET,
     UNKNOWN: GREY,
 }
 
@@ -205,6 +210,8 @@ def build_advice_card(
     elif kind == USE:
         title, total = "Use it", None
         subtitle = _recycle_subtitle(recycle_outputs, needed_parts) or verdict.reason
+    elif kind == LEARN:
+        title, subtitle, total = "Learn it", verdict.reason, None
     else:
         title, total = "Not in the database", None
     return AdviceCard(kind, title, subtitle, total, owned, rows)

@@ -30,6 +30,7 @@ from .tooltip_layout import Rect
 from .tooltip_layout import Size
 from .tooltip_layout import TooltipLayout
 from .tooltip_layout import place_chips
+from .verdict import LEARN
 from .verdict import Verdict
 from .verdict import verdict_from_action
 
@@ -39,6 +40,8 @@ ACTION_COLORS: dict[str, str] = {
     "RECYCLE": "#00CED1",
     "KEEP": "#32CD32",
     "USE": "#FF69B4",
+    # Violet, the hue of the game's blueprint grid, and used by no other kind
+    "LEARN": "#A678FF",
     "TRASH": "#FF4444",
     "UNKNOWN": "#888888",
 }
@@ -65,8 +68,16 @@ def popup_title(item_name: str, recommendation: Item | None) -> str:
     return recommendation.name if recommendation is not None else item_name
 
 
+LEARN_WORD = "Learn it"
+
+
 def action_word(kind: str) -> str:
-    """The popup's action line for a verdict kind: KEEP, KEEP SOME, SELL."""
+    """The popup's action line for a verdict kind: KEEP, KEEP SOME, SELL.
+
+    learn reads "Learn it".
+    """
+    if kind == LEARN:
+        return LEARN_WORD
     return kind.replace("_", " ").upper()
 
 

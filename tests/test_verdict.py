@@ -4,9 +4,17 @@ import datetime
 
 import pytest
 
+from arc_helper.advice_card import KIND_COLORS
+from arc_helper.advice_card import build_advice_card
 from arc_helper.database import Item
 from arc_helper.database import Need
+from arc_helper.overlay import ACTION_COLORS
+from arc_helper.overlay import action_color
+from arc_helper.overlay import action_word
 from arc_helper.overlay import popup_title
+from arc_helper.verdict import KEEP
+from arc_helper.verdict import LEARN
+from arc_helper.verdict import SELL
 from arc_helper.verdict import Verdict
 from arc_helper.verdict import compute_verdict
 
@@ -155,3 +163,75 @@ def test_weapon_is_never_sold_or_recycled(item, blueprint, want):
 def test_popup_title_is_catalog_name_for_known_item():
     assert popup_title("ANVILIV", ANVIL) == "Anvil IV"
     assert popup_title("ANVILIV", None) == "ANVILIV"
+
+
+# A blueprint that sells by its action string, and one a quest needs
+GRIP_BLUEPRINT = Item(
+    name="Vertical Grip III Blueprint",
+    action="Sell",
+    sell_price=5000,
+    category="Blueprint",
+)
+BLUEPRINT_QUEST = _need("Vertical Grip III Blueprint", "quest", "Paper Trail", None, 1)
+
+
+def _blueprint_verdict(*, learned, recorded, needs=()):
+    return compute_verdict(
+        GRIP_BLUEPRINT,
+        list(needs),
+        {},
+        None,
+        TODAY,
+        show_ended=False,
+        learned=learned,
+        recorded_learned=recorded,
+    )
+
+
+def test_checked_blueprint_gives_the_usual_verdict_led_by_known():
+    assert _blueprint_verdict(learned=True, recorded=False) == Verdict(
+        SELL, "You already know this blueprint. Sell"
+    )
+
+
+def test_checked_blueprint_still_kept_for_a_need():
+    verdict = _blueprint_verdict(learned=True, recorded=False, needs=[BLUEPRINT_QUEST])
+    assert verdict.kind == KEEP
+    assert (
+        verdict.reason
+        == "You already know this blueprint. 1 for Paper Trail, then sell"
+    )
+
+
+def test_unchecked_blueprint_is_learned_even_when_recorded():
+    assert _blueprint_verdict(learned=False, recorded=True) == Verdict(
+        LEARN, "You have not learned this blueprint yet"
+    )
+
+
+def test_unread_blueprint_recorded_as_owned_takes_the_known_path():
+    assert _blueprint_verdict(learned=None, recorded=True) == Verdict(
+        SELL, "You already know this blueprint. Sell"
+    )
+
+
+def test_unread_blueprint_not_recorded_is_learned_with_a_hedge():
+    assert _blueprint_verdict(learned=None, recorded=False) == Verdict(
+        LEARN, "Learn it unless you already know it"
+    )
+
+
+def test_learn_word_and_colours():
+    assert action_word(LEARN) == "Learn it"
+    assert action_color(LEARN) == ACTION_COLORS["LEARN"]
+    assert ACTION_COLORS["LEARN"] not in {
+        v for k, v in ACTION_COLORS.items() if k != "LEARN"
+    }
+    card = build_advice_card(
+        Verdict(LEARN, "You have not learned this blueprint yet"), []
+    )
+    assert (card.title, card.subtitle) == (
+        "Learn it",
+        "You have not learned this blueprint yet",
+    )
+    assert KIND_COLORS[LEARN] not in {v for k, v in KIND_COLORS.items() if k != LEARN}
