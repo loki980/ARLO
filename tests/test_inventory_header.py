@@ -22,6 +22,13 @@ BAND_TOP = 250
 # find_slots reports them on the full frames.
 FULL = FIXTURES / "inventory_header_full.png"
 CONTAINER = FIXTURES / "inventory_header_container.png"
+# In-raid frame (Jeffrey's screenshot upscaled the same way), rows 250 to 480.
+# Its layout is 48 px lower than the base one, so the first slots start at
+# y 592 where the base ones start at 544.
+RAID = FIXTURES / "inventory_header_raid.png"
+RAID_EQUIPMENT_LEFT = 1292
+RAID_SLOT_TOP = 592
+BASE_SLOT_TOP = 544
 FULL_STASH_LEFT = 302
 FULL_EQUIPMENT_LEFT = 1384
 CONTAINER_STASH_LEFT = 314
@@ -35,8 +42,8 @@ def _frame(fixture: Path) -> np.ndarray:
     return frame
 
 
-def _slots(panel: str, left: int) -> list[Slot]:
-    return [Slot(Rect(left, 544, left + 196, 740), panel, filled=True)]
+def _slots(panel: str, left: int, top: int = BASE_SLOT_TOP) -> list[Slot]:
+    return [Slot(Rect(left, top, left + 196, top + 196), panel, filled=True)]
 
 
 def _cover(frame: np.ndarray, left: int, right: int) -> np.ndarray:
@@ -100,4 +107,32 @@ def test_loadout_header_none_when_trailing_digits_are_covered():
     # Black over x 1850 to 2000 hides the end of 75,629, which would read as 7
     frame = _frame(FULL)
     frame[335:400, 1850:2000] = 0
+    assert read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT)) is None
+
+
+def test_loadout_header_read_in_raid_layout():
+    # The counts row is placed 209 px above the first slot row, so slots at
+    # 592 put it 48 px lower than on the base screen
+    slots = _slots(EQUIPMENT, RAID_EQUIPMENT_LEFT, RAID_SLOT_TOP)
+    result = read_loadout_header(_frame(RAID), slots)
+    assert result == LoadoutHeader(weight=39.5, weight_cap=90.0, value=116685)
+
+
+def test_loadout_header_ignores_row_at_the_old_fixed_height():
+    # The same frame with slots reported at the base height looks at the
+    # wrong row, which shows the row follows the slots
+    slots = _slots(EQUIPMENT, RAID_EQUIPMENT_LEFT, BASE_SLOT_TOP)
+    assert read_loadout_header(_frame(RAID), slots) is None
+
+
+def test_loadout_header_read_with_card_over_right_edge():
+    # The value ends at about x 1945, the card from 2000 on only covers the
+    # blank end of the crop, which is trimmed off
+    frame = _cover(_frame(FULL), 2000, 2100)
+    result = read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT))
+    assert result == LoadoutHeader(weight=34.6, weight_cap=90.0, value=75629)
+
+
+def test_loadout_header_none_when_whole_row_is_covered():
+    frame = _cover(_frame(FULL), 1500, 2200)
     assert read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT)) is None
