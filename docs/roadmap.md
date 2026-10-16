@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 59 percent of the whole roadmap, weighted by effort: 45 of 67 steps
+About 62 percent of the whole roadmap, weighted by effort: 48 of 67 steps
 done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
@@ -385,19 +385,20 @@ since they need every cell read (phase 3). Changed 14 Oct.
     amazing, not terrible. Any other ideas you can come up with to make
     this even more responsive?" A latency log line, a shorter gap between
     passes, and badges for slots already known drawn before the pass.
-    Underway 15 Oct. Added 15 Oct.
+    Done 15 Oct, reviewed: a one-row scroll replay draws in about 200 ms
+    after the grid stops, was about 950 ms. Added 15 Oct.
 14. Badges that move with the scroll: measure how far the grid moved and
-    shift the badges at once, so only the new row needs reading. After
-    step 13. Added 15 Oct.
+    shift the badges at once, so only the new row needs reading. Underway
+    15 Oct. Added 15 Oct.
 15. Price text in the game's own font. Jeffrey, 15 Oct, on his backpack
     screenshot: "Can you make the font and font size match?" The worth on
-    the patch matches the game's count in font, weight, size and baseline.
-    Underway 15 Oct. Added 15 Oct.
+    the patch matches the game's count in font, weight, size and baseline,
+    and its cream colour. Done 15 Oct, reviewed. Added 15 Oct.
 16. Price patches that hold still: the bar finder loses some bars once
-    ARLO's own patch is drawn, so a patch could flicker. Underway 15 Oct.
-    Added 15 Oct.
+    ARLO's own patch is drawn, so a patch could flicker. Done 15 Oct,
+    reviewed: lost bars 19 to 1 of 1011 passes. Added 15 Oct.
 17. Slot boxes that hold still: the slot finder moves 1 or 2 boxes by
-    about 4 px under ARLO's red outline. After step 16. Added 15 Oct.
+    about 4 px under ARLO's red outline. Underway 15 Oct. Added 15 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
@@ -447,8 +448,8 @@ be useful without this, you know?" Moved up 15 Oct.
    value) and the loadout header (weight and value). Done 15 Oct, reviewed.
 2. Stitch the stash across scrolling. Part 0, capture runs save the whole
    grid, not only hovered cards. Jeffrey, 15 Oct: "You need to be able to
-   take a screenshot of the entire screen, not just hover cards." Underway
-   15 Oct. Then: the scrollbar position and the
+   take a screenshot of the entire screen, not just hover cards." Done
+   15 Oct, reviewed. Then: the scrollbar position and the
    overlap with the last frame give each visible row its absolute place.
    Needs a capture session scrolling the whole stash, waiting on Jeffrey's
    screen recording (the capture library only saves frames when a card is
