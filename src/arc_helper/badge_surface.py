@@ -4,11 +4,13 @@ The helper (badge_helper.py) draws gold slot borders and price tags on one
 full-screen, transparent, click-through, topmost window. It needs gi with
 GTK 3, cairo and python-xlib, which only the system Python has, so this
 module finds that Python, starts the helper under it and sends it one JSON
-line per draw or clear.
+line per draw, clear or translate.
 
-draw and clear never block their caller: they leave the message for a writer
-thread, started with the helper, which sends only the newest one. A helper
-that stops reading for HANDOFF_STALL_S is killed and badges are turned off.
+draw, clear and translate never block their caller: they leave the message
+for a writer thread, started with the helper, which sends only the newest
+draw or clear. A translate is sent after the draw or translates still
+waiting, as it moves what they draw. A helper that stops reading for
+HANDOFF_STALL_S is killed and badges are turned off.
 
 Every failure is soft: without a suitable Python, or after the helper dies,
 BadgeSurface logs one warning and does nothing, so ARLO never crashes over
@@ -93,13 +95,24 @@ class Patch:
 Badge = Border | Tag | Patch
 
 
-def encode_message(op: str, badges: list[Badge] = ()) -> str:
-    """One JSON line for the helper: op is 'draw' or 'clear'."""
+def encode_message(
+    op: str,
+    badges: list[Badge] = (),
+    region: tuple[int, int, int, int] | None = None,
+    dy: int = 0,
+) -> str:
+    """One JSON line for the helper: op is 'draw', 'clear' or 'translate'.
+
+    A translate moves the drawn badges inside region by dy px.
+    """
     message: dict = {"op": op}
     if op == "draw":
         message["badges"] = [
             {**asdict(b), "rect": [int(v) for v in b.rect]} for b in badges
         ]
+    elif op == "translate":
+        message["region"] = [int(v) for v in region]
+        message["dy"] = int(dy)
     return json.dumps(message, ensure_ascii=False) + "\n"
 
 
@@ -282,12 +295,16 @@ class BadgeSurface:
         with contextlib.suppress(subprocess.TimeoutExpired):
             proc.wait(timeout=STOP_TIMEOUT_S)
 
-    def _send(self, line: str) -> None:
+    def _send(self, line: str, *, after: bool = False) -> None:
         with self._wake:
             if self._proc is None or self._disabled or self._stopping:
                 return
-            # Latest wins: a message the writer has not taken yet is replaced
-            self._pending = line
+            if after and self._pending is not None:
+                # A translate moves what the waiting messages draw, so it follows them
+                self._pending += line
+            else:
+                # Latest wins: a message the writer has not taken yet is replaced
+                self._pending = line
             self._wake.notify_all()
 
     def draw(self, badges: list[Badge]) -> None:
@@ -297,6 +314,14 @@ class BadgeSurface:
     def clear(self) -> None:
         """Remove every badge. Returns without waiting."""
         self._send(encode_message("clear"))
+
+    def translate(self, region: tuple[int, int, int, int], dy: int) -> None:
+        """Move the drawn badges inside region by dy px, clipped to it. Returns at once.
+
+        One small message, sent after a draw still waiting. A later draw or
+        clear replaces it.
+        """
+        self._send(encode_message("translate", region=region, dy=dy), after=True)
 
     def stop(self) -> None:
         """End the writer and the helper, which exits when its stdin closes.
