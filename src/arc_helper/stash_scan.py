@@ -252,6 +252,14 @@ class SlotCache:
             self._entries.move_to_end(key)
         return found
 
+    def peek(self, key: tuple) -> _Cached | None:
+        """The entry for a key without marking it used, None when none is kept."""
+        return self._entries.get(key)
+
+    def peek_bar_box(self, look: tuple) -> Rect | None:
+        """bar_box without marking the look used."""
+        return self._bars.get(look)
+
     def put(self, key: tuple, value: _Cached) -> None:
         self._entries[key] = value
         self._entries.move_to_end(key)
@@ -475,6 +483,41 @@ def identify_slots(
         SlotItem(slot.rect, slot.panel, *entry)
         for slot, entry in zip(filled, known, strict=True)
     ]
+
+
+def peek_slots(
+    rgb: np.ndarray,
+    cache: SlotCache,
+    *,
+    read_stacks: bool = False,
+    slots: Iterable[Slot] | None = None,
+) -> list[SlotItem]:
+    """The filled slots of a frame whose look is in the cache, with their entries.
+
+    Each slot is keyed as identify_slots keys it (with the bar box kept for
+    its look when its own misses), but the cache is only read: no slot is
+    embedded, no tier or stack read, nothing added and no entry marked used.
+    Slots not in the cache are left out. read_stacks picks the entries as
+    identify_slots with that read_stacks keeps them.
+    """
+    if slots is None:
+        slots = find_slots(rgb)
+    found = []
+    for slot in slots:
+        if not slot.filled:
+            continue
+        r = slot.rect
+        crop = rgb[r.top : r.bottom, r.left : r.right]
+        bar = None if is_wide(r) else bar_geometry(crop)
+        box = bar.bar_rect if bar is not None else None
+        entry = cache.peek((read_stacks, *slot_signature(crop, box)))
+        if entry is None and not is_wide(r):
+            kept_box = cache.peek_bar_box(look_signature(crop))
+            if kept_box is not None and kept_box != box:
+                entry = cache.peek((read_stacks, *slot_signature(crop, kept_box)))
+        if entry is not None:
+            found.append(SlotItem(r, slot.panel, *entry))
+    return found
 
 
 def owned_totals(slot_items: Iterable[SlotItem]) -> dict[str, int]:
