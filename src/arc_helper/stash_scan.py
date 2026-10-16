@@ -23,10 +23,11 @@ identify_slots runs the pieces of phase 3 over one full-screen frame:
    box, colour, type icon box and count or numeral box. Wide slots get none.
 
 With a SlotCache, identify_slots first looks each slot up by slot_signature,
-a hash of the crop without ARLO's own drawings (see slot_signature). A hit
-reuses the slot's item, tier, stack, confidence and bar without embedding or
-reading anything, so slots already seen, also after a scroll, cost almost
-nothing. Only the misses are embedded, in one call.
+a hash of the crop without ARLO's own drawings (see slot_signature), which
+needs the slot's bar from step 6. A hit reuses the slot's item, tier, stack,
+confidence and bar without embedding or reading the tier or stack, so slots
+already seen, also after a scroll, cost little more than find_slots and the
+bar. Only the misses are embedded, in one call.
 
 owned_totals adds up the stacks of each identified item over the slots.
 
@@ -95,10 +96,8 @@ SIG_BORDER_MIN = 6
 # The top band where tags go, in tag text heights (a tag pill with its inset
 # and outline is about 1.9 of them tall)
 SIG_TAG_ROWS = 2.2
-# The left part of a square slot's bottom bar, where the patch goes. Stack
-# counts and numerals start right of it (0.6 of the width or more measured)
-SIG_BAR_TOP = 0.65
-SIG_PATCH_RIGHT = 0.5
+# Rows above a square slot's bar also left out with the patch part of it
+SIG_BAR_MARGIN = 2
 # Every SIG_STEP-th pixel, its low SIG_SHIFT bits dropped
 SIG_STEP = 2
 SIG_SHIFT = 2
@@ -246,18 +245,20 @@ class SlotCache:
             self._entries.popitem(last=False)
 
 
-def slot_signature(crop: np.ndarray) -> tuple:
+def slot_signature(crop: np.ndarray, bar: BarGeometry | None = None) -> tuple:
     """A key for a slot crop's look that ignores what ARLO draws on it.
 
     Left out: a border band on every side (the red outline drawn inside the
     rect, the hovered frame's edge), the top band where the have/need tag
-    and a wide slot's price pill go (sized like badge_helper's tag), and on
-    square slots the left half of the bottom bar where the price patch goes.
-    The stack count and the tier numeral sit right of that, so a changed
-    count is a new key. The rest is sampled every SIG_STEP pixels with its
-    low bits dropped and hashed with the crop's size. ARLO's drawings are
-    left out rather than keyed on a capture before badges, because the
-    captures the pass gets already show the badges.
+    and a wide slot's price pill go (sized like badge_helper's tag), and,
+    given the square slot's bar (slot_marks.bar_geometry of the crop), the
+    bar left of bar.patch_right, where the price patch goes. The stack
+    count or tier numeral is the bar's right mark, which patch_right stays
+    left of, so a changed count is a new key. The rest is sampled every
+    SIG_STEP pixels with its low bits dropped and hashed with the crop's
+    size. ARLO's drawings are left out rather than keyed on a capture
+    before badges, because the captures the pass gets already show the
+    badges.
     """
     height, width = crop.shape[:2]
     kept = np.array(crop, dtype=np.uint8)
@@ -267,8 +268,9 @@ def slot_signature(crop: np.ndarray) -> tuple:
     kept[height - band :] = 0
     kept[:, :band] = 0
     kept[:, width - band :] = 0
-    if not is_wide(Rect(0, 0, width, height)):
-        kept[round(SIG_BAR_TOP * height) :, : round(SIG_PATCH_RIGHT * width)] = 0
+    if bar is not None:
+        top = max(0, bar.bar_rect.top - SIG_BAR_MARGIN)
+        kept[top:, : bar.patch_right] = 0
     sampled = np.ascontiguousarray(kept[::SIG_STEP, ::SIG_STEP] >> SIG_SHIFT)
     digest = hashlib.blake2b(sampled.tobytes(), digest_size=16).digest()
     return (height, width, digest)
@@ -345,11 +347,15 @@ def identify_slots(
     crops = [
         rgb[s.rect.top : s.rect.bottom, s.rect.left : s.rect.right] for s in filled
     ]
+    bars = [
+        None if is_wide(slot.rect) else bar_geometry(crop)
+        for slot, crop in zip(filled, crops, strict=True)
+    ]
     keys: list[tuple | None] = [None] * len(crops)
     known: list[_Cached | None] = [None] * len(crops)
     if cache is not None:
         for n, crop in enumerate(crops):
-            keys[n] = (read_stacks, *slot_signature(crop))
+            keys[n] = (read_stacks, *slot_signature(crop, bars[n]))
             known[n] = cache.get(keys[n])
     missed = [n for n, entry in enumerate(known) if entry is None]
     if missed:
@@ -362,7 +368,7 @@ def identify_slots(
                 found, tier_read.tier if tier_read else None, lookup, twins or {}
             )
             stack = read_stack(crop) if read_stacks and item is not None else None
-            bar = None if is_wide(filled[n].rect) else bar_geometry(crop)
+            bar = bars[n]
             known[n] = _Cached(
                 item,
                 tier,

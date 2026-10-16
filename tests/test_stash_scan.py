@@ -399,3 +399,132 @@ def test_a_wide_slot_with_a_need_tag_moves_its_worth_tag_to_the_top_right():
     badges = badges_for([wide], lambda _s: Verdict("keep", "x", 1, (("Quest", 1),)))
     corners = {b["text"]: b["corner"] for b in badges if b["kind"] == "tag"}
     assert corners == {"1/1": "tl", "Φ 810": "tr"}
+
+
+def _looks(slots: list[Slot], looks: list[int]) -> np.ndarray:
+    """A frame whose slots show a block of the given value in the middle."""
+    rgb = np.zeros((200, 1000, 3), dtype=np.uint8)
+    for slot, look in zip(slots, looks, strict=True):
+        top, left = slot.rect.top, slot.rect.left
+        rgb[top + 40 : top + 50, left + 40 : left + 50] = look
+    return rgb
+
+
+@pytest.fixture
+def no_bars(monkeypatch):
+    monkeypatch.setattr(stash_scan, "bar_geometry", lambda _crop: None)
+
+
+METAL, RUBBER, ANVIL = [0, 0, 0, 1, 0], [0, 0, 0, 0, 1], [1, 0, 0, 0, 0]
+
+
+@pytest.mark.usefixtures("no_bars")
+def test_a_second_pass_on_the_same_or_moved_slots_never_embeds(stubs):
+    _, stack_reads = stubs
+    slots = _slots(3)
+    cache = stash_scan.SlotCache()
+    first = identify_slots(
+        _looks(slots, [60, 120, 180]),
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder([METAL, RUBBER, ANVIL]),
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    reads = len(stack_reads)
+    again = QueueEmbedder([])
+    same = identify_slots(
+        _looks(slots, [60, 120, 180]),
+        _gallery(),
+        _catalog,
+        embedder=again,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    # The looks moved one slot left, as after a scroll
+    moved = identify_slots(
+        _looks(slots, [120, 180, 60]),
+        _gallery(),
+        _catalog,
+        embedder=again,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    assert again.calls == 0
+    assert len(stack_reads) == reads
+    assert same == first
+    assert [s.guess for s in moved] == ["Rubber Parts", "Anvil I", "Metal Parts"]
+    assert [s.rect for s in moved] == [s.rect for s in slots]
+
+
+@pytest.mark.usefixtures("no_bars")
+def test_a_changed_stack_count_reads_only_that_slot(stubs):
+    _, stack_reads = stubs
+    slots = _slots(3)
+    cache = stash_scan.SlotCache()
+    rgb = _looks(slots, [60, 120, 180])
+    identify_slots(
+        rgb,
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder([METAL, ANVIL, RUBBER]),
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    reads = len(stack_reads)
+    # A digit pixel in the second slot's bar changes
+    rgb[70, slots[1].rect.left + 70] = 220
+    once = QueueEmbedder([ANVIL])
+    found = identify_slots(
+        rgb,
+        _gallery(),
+        _catalog,
+        embedder=once,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    assert once.calls == 1
+    assert len(stack_reads) == reads + 1
+    assert [s.guess for s in found] == ["Metal Parts", "Anvil I", "Rubber Parts"]
+
+
+def test_the_slot_cache_drops_the_least_recently_used_entry():
+    cache = stash_scan.SlotCache(size=2)
+    entry = object()
+    cache.put("a", entry)
+    cache.put("b", entry)
+    assert cache.get("a") is entry
+    cache.put("c", entry)
+    assert len(cache) == 2
+    assert "b" not in cache
+    assert "a" in cache
+    assert "c" in cache
+
+
+def test_the_signature_ignores_the_tag_outline_and_patch_but_not_the_count():
+    crop = np.random.default_rng(0).integers(0, 256, (194, 192, 3), dtype=np.uint8)
+    bar = BarGeometry(
+        Rect(11, 145, 181, 189),
+        (20, 20, 20),
+        Rect(15, 150, 40, 185),
+        Rect(150, 152, 175, 182),
+    )
+    clean = stash_scan.slot_signature(crop, bar)
+    badged = crop.copy()
+    # Red outline, BORDER_WIDTH wide inside the rect
+    edge = stash_scan.BORDER_WIDTH
+    badged[:edge] = badged[-edge:] = (255, 92, 77)
+    badged[:, :edge] = badged[:, -edge:] = (255, 92, 77)
+    # A have/need pill top left: 33 px text, inset 10, pill about 44 tall
+    badged[9:56, 9:120] = (20, 20, 20)
+    # The price patch over the bar up to patch_right (146 here)
+    badged[145:189, 11 : bar.patch_right] = (200, 40, 40)
+    assert stash_scan.slot_signature(badged, bar) == clean
+    counted = crop.copy()
+    counted[160, 160] = 255 - counted[160, 160]
+    assert stash_scan.slot_signature(counted, bar) != clean
