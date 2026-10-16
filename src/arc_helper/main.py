@@ -87,6 +87,7 @@ from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
 from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import identify_slots
+from arc_helper.stash_scan import peek_slots
 from arc_helper.stash_scan import verdicts_for
 from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
@@ -405,8 +406,9 @@ def hovered_cell_on_screen(
 
 # Stash badges: the stack's worth on every identified slot and a need tag and
 # outline on needed items, drawn while the inventory grid is still. A pass starts at most once
-# per STASH_PASS_GAP_S. The watcher thread wakes at least every STASH_TICK_S.
-STASH_PASS_GAP_S = 1.0
+# per STASH_PASS_GAP_S, unless the last one was dropped as stale. The watcher
+# thread wakes at least every STASH_TICK_S.
+STASH_PASS_GAP_S = 0.25
 STASH_TICK_S = 0.1
 # Share of the inventory slots that must change at once (or the slot set
 # itself, a scroll or tab switch) to clear every badge. Fewer changed slots
@@ -751,6 +753,11 @@ def stash_identifier(
     thread started here that also runs one blank embed, so the first pass
     does not wait for the model. A call made while that thread runs waits
     for it. The SlotCache is made with the gallery and kept with it.
+
+    The callable has a peek(rgb) attribute: the SlotItems of the slots whose
+    look is in the cache already (stash_scan.peek_slots), misses left out.
+    peek never embeds, reads tiers or stacks or changes the cache, and finds
+    nothing before the gallery has loaded.
     """
     loaded: list = []
     lock = threading.Lock()
@@ -779,6 +786,12 @@ def stash_identifier(
             rgb, gallery, db.lookup, twins=twins, read_stacks=True, cache=cache
         )
 
+    def peek(rgb: np.ndarray) -> list[SlotItem]:
+        if len(loaded) < 3:
+            return []
+        return peek_slots(rgb, loaded[2], read_stacks=True)
+
+    identify.peek = peek
     if warm:
         Thread(target=warm_up, name="stash-warm", daemon=True).start()
     return identify
@@ -793,6 +806,11 @@ def stash_badge_maker(
         return badges_for(slot_items, verdicts_for(db, show_ended=show_ended()))
 
     return make
+
+
+def _latency_from(moved: float) -> dict[str, float | None]:
+    """A new StashBadges latency record from the last changed frame's feed time."""
+    return {"moved": moved, "still": None, "drawn": None, "pass": None}
 
 
 class StashBadges:
@@ -817,7 +835,20 @@ class StashBadges:
 
     A pass made while the card covered part of the grid has no badges
     there. Once the card is gone a second pass fills that part in and keeps
-    the rest.
+    the rest. A pass dropped as stale does not hold the next one back by
+    gap_s.
+
+    On the first still frame after a clear, before its pass runs, peek
+    (identify.peek when not given) returns the slots already in the slot
+    cache and their badges are drawn at once. The pass then replaces them
+    with its own.
+
+    After the pass that follows a clear or a slot hide, one DEBUG line
+    "stash latency" gives, on clock, the time from the last changed frame
+    fed to the first still one (moved_to_still), the pass's identify and
+    badge making (pass), from the first still frame to the first draw
+    (still_to_drawn, known slots or pass) and from the last changed frame to
+    that draw (total).
 
     identify turns an RGB frame into SlotItems (stash_scan.identify_slots),
     make_badges turns those into badge dicts (stash_scan.badges_for).
@@ -839,8 +870,10 @@ class StashBadges:
         tick_s: float = STASH_TICK_S,
         threaded: bool = True,
         clock: Callable[[], float] = time.monotonic,
+        peek: Callable[[np.ndarray], list[SlotItem]] | None = None,
     ) -> None:
         self._identify = identify
+        self._peek = peek if peek is not None else getattr(identify, "peek", None)
         self._make_badges = make_badges
         self._surface = surface
         self._keep_border = keep_border
@@ -861,6 +894,7 @@ class StashBadges:
         # Newest capture not yet compared, the one before it (RGB and frame)
         # and the newest compared one, for the stale check and the badge hiding
         self._latest: StashFrame | None = None
+        self._latest_at = 0.0
         self._prev: tuple[np.ndarray, StashFrame] | None = None
         self._newest: tuple[np.ndarray, StashFrame] | None = None
         # The last card fed and when, kept as an ignore rect while it fades
@@ -888,6 +922,11 @@ class StashBadges:
         self._omitted: tuple[Rect, ...] = ()
         self._shown: list[dict] = []
         self._drawn = False
+        # Set by a clear: the next still frame draws the known slots first
+        self._peek_due = False
+        # The latency since the last clear or slot hide, as clock times
+        # (moved, still, drawn) and the pass's seconds, until it is logged
+        self._lat: dict[str, float | None] | None = None
 
     def feed(self, image, card: Rect | None, overlays: Sequence[Rect]) -> None:
         """Hand over the newest full-screen capture. Never waits on a pass."""
@@ -895,6 +934,7 @@ class StashBadges:
             return
         with self._lock:
             self._latest = StashFrame(image, card, tuple(overlays))
+            self._latest_at = self._clock()
             if card is not None:
                 self._card_seen = (card, self._clock())
             if self._threaded and not self._threads:
@@ -918,6 +958,7 @@ class StashBadges:
             self._changed = self._omitted = ()
             self._have_result = False
             self._need_pass = True
+            self._peek_due = True
             if self._drawn:
                 self._drawn = False
                 self._surface.clear()
@@ -996,6 +1037,7 @@ class StashBadges:
         """Compare the newest capture with the one before and the badges' frame."""
         with self._lock:
             frame, self._latest = self._latest, None
+            fed_at = self._latest_at
             generation = self._generation
             prev = self._prev
             ref = self._ref
@@ -1030,7 +1072,23 @@ class StashBadges:
                 self._prev = (rgb, frame)
                 if kept is not None:
                     self._slot_cache[id(rgb)] = kept
+                self._lat = _latency_from(fed_at)
             return
+        with self._lock:
+            if generation != self._generation:
+                return
+            if changed and set(changed) != set(self._changed):
+                self._lat = _latency_from(fed_at)
+            elif self._lat is not None and self._lat["drawn"] is None:
+                if pair.changed:
+                    self._lat["moved"], self._lat["still"] = fed_at, None
+                elif self._lat["still"] is None:
+                    self._lat["still"] = fed_at
+            peek = not pair.changed and self._peek_due and not self._have_result
+            if peek:
+                self._peek_due = False
+        if peek:
+            self._draw_known(generation, rgb, frame)
         start = False
         with self._lock:
             if generation != self._generation:
@@ -1050,9 +1108,54 @@ class StashBadges:
                 self._last_pass_start = now
                 self._job = (generation, rgb, frame)
                 start = True
+            if (
+                self._lat is not None
+                and self._lat["still"] is not None
+                and not (self._need_pass or self._changed or self._pass_running)
+            ):
+                # Nothing left to wait for, no pass follows
+                self._lat = None
         if start and self._threaded:
             self._job_ready.set()
         self._refresh()
+
+    def _draw_known(self, generation: int, rgb: np.ndarray, frame: StashFrame) -> None:
+        """Draw the badges of the slots peek already knows, before the pass."""
+        if self._peek is None:
+            return
+        try:
+            slot_items = self._peek(rgb)
+            badges = self._make_badges(slot_items) if slot_items else []
+        except Exception as e:  # noqa: BLE001 - the pass draws them instead
+            logger.warning("stash known slots not drawn (%s)", e)
+            return
+        if not self._keep_border:
+            badges = [b for b in badges if b["kind"] != "border"]
+        badges = badges_clear_of(badges, frame_hidden(frame))
+        if not badges:
+            return
+        with self._lock:
+            if generation != self._generation or self._have_result:
+                return
+            self._badges = badges
+            self._marks = [m for b in badges for m in badge_marks(b)]
+        logger.debug("stash known slots drawn badges=%d", len(badges))
+        self._refresh()
+
+    def _latency_check(self) -> None:
+        """Log the latency line once its pass and first draw are in (under the lock)."""
+        lat = self._lat
+        if lat is None or lat["pass"] is None or lat["drawn"] is None:
+            return
+        self._lat = None
+        logger.debug(
+            "stash latency moved_to_still=%.0f pass=%.0f still_to_drawn=%.0f "
+            "total=%.0f ms",
+            (lat["still"] - lat["moved"]) * 1000,
+            lat["pass"] * 1000,
+            (lat["drawn"] - lat["still"]) * 1000,
+            (lat["drawn"] - lat["moved"]) * 1000,
+        )
 
     def _pass_due(self, frame: StashFrame, now: float) -> bool:
         """True when a still frame should start a pass now (under the lock).
@@ -1127,9 +1230,11 @@ class StashBadges:
         """Identify the slots of a still frame and keep its badges on unchanged slots."""
         generation, rgb, frame = job
         start = time.perf_counter()
+        began = self._clock()
         try:
             slot_items = self._identify(rgb)
             badges = self._make_badges(slot_items)
+            spent = self._clock() - began
         except Exception as e:  # noqa: BLE001 - badges must never stop ARLO
             logger.warning("Stash badges off: the stash pass failed (%s)", e)
             self._disabled = True
@@ -1167,6 +1272,8 @@ class StashBadges:
                 self._evict_slots()
                 if generation == self._generation:
                     self._need_pass = True
+                # A stale pass does not hold the next one back by the gap
+                self._last_pass_start = None
                 logger.debug("stash pass dropped reason=stale")
                 return
             if since.changed:
@@ -1203,6 +1310,14 @@ class StashBadges:
             self._changed = since.changed
             self._omitted = since.changed
             self._marks = [m for b in badges for m in badge_marks(b)]
+            if (
+                self._lat is not None
+                and self._lat["still"] is not None
+                and self._lat["pass"] is None
+                and began >= self._lat["still"]
+            ):
+                self._lat["pass"] = spent
+                self._latency_check()
             self._evict_slots()
 
     def _refresh(self) -> None:
@@ -1224,6 +1339,14 @@ class StashBadges:
             if visible:
                 self._surface.draw(surface_badges(visible))
                 self._drawn = True
+                lat = self._lat
+                if (
+                    lat is not None
+                    and lat["still"] is not None
+                    and lat["drawn"] is None
+                ):
+                    lat["drawn"] = self._clock()
+                    self._latency_check()
             elif self._drawn:
                 self._surface.clear()
                 self._drawn = False
