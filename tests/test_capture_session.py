@@ -152,3 +152,117 @@ def test_capture_count_stops_at_the_limit(tmp_path, caplog):
     ]
     reached = [r for r in caplog.records if "limit of 3 reached" in r.getMessage()]
     assert len(reached) == 1
+
+
+GRID_SIZE = (800, 480)
+
+
+def _grid_frame(base: int = 40, paint=()) -> Image.Image:
+    """A flat frame of one grey with each (rect, value) of paint filled in."""
+    frame = Image.new("RGB", GRID_SIZE, (base, base, base))
+    for rect, value in paint:
+        frame.paste((value, value, value), tuple(rect))
+    return frame
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+@pytest.fixture
+def grid_run(monkeypatch, tmp_path):
+    """A capture-run engine, a scanner without stash badges and a fake clock."""
+    from types import SimpleNamespace
+
+    from arc_helper import ocr as ocr_module
+    from arc_helper.main import Scanner
+
+    clock = _Clock()
+    monkeypatch.setattr(
+        ocr_module,
+        "time",
+        SimpleNamespace(
+            monotonic=clock.monotonic, perf_counter=time.perf_counter, sleep=time.sleep
+        ),
+    )
+    engine = OCREngine()
+    engine.capture_library = True
+    engine.capture_library_dir = tmp_path
+    engine._last_origin = ocr_module.LayoutPoint(0, 0)  # noqa: SLF001
+    engine.search_width = engine.search_height = 0
+    scanner = Scanner(root=None, overlay=None, status=None, db=None, hotkey=None)
+    scanner.stash = None  # stash badges off
+
+    def feed(frames, step_s, card=None, overlays=()):
+        """Offer each frame, step_s apart, as one scan cycle each."""
+        for n, frame in enumerate(frames):
+            clock.now = n * step_s
+            engine._last_capture = frame  # noqa: SLF001
+            engine._last_card = card(n) if callable(card) else card  # noqa: SLF001
+            scanner.overlay_rects.publish(
+                overlays(n) if callable(overlays) else overlays
+            )
+            scanner._feed_stash(engine)  # noqa: SLF001
+            scanner._scan_periods.append(step_s)  # noqa: SLF001
+        engine._capture_queue.join()  # noqa: SLF001
+        return sorted(p.name.split("_", 1)[1] for p in tmp_path.iterdir())
+
+    return SimpleNamespace(engine=engine, scanner=scanner, feed=feed, dir=tmp_path)
+
+
+def test_still_grid_saves_one_frame(grid_run):
+    assert grid_run.feed([_grid_frame()] * 5, 0.5) == ["grid.png"]
+
+
+def test_distinct_grid_frames_half_a_second_apart_all_save(grid_run):
+    frames = [_grid_frame(40 + 30 * n) for n in range(5)]
+    assert len(grid_run.feed(frames, 0.5)) == 5
+    assert grid_run.engine._capture_count == 5  # noqa: SLF001
+
+
+def test_grid_frames_closer_than_the_gap_save_first_and_fifth(grid_run):
+    saved = []
+    grid_run.engine._queue_capture = lambda image, _label: saved.append(image) or True  # noqa: SLF001
+    frames = [_grid_frame(40 + 30 * n) for n in range(5)]
+    grid_run.feed(frames, 0.1)
+    assert saved == [frames[0], frames[4]]
+
+
+def test_moving_card_and_arlo_window_save_nothing_new(grid_run):
+    from arc_helper.tooltip_layout import Rect
+
+    cards = [Rect(100, 100, 200, 200), Rect(500, 250, 600, 350)]
+    windows = [Rect(650, 20, 750, 80), Rect(20, 380, 120, 460)]
+    frames = [_grid_frame(paint=[(cards[n], 250), (windows[n], 180)]) for n in range(2)]
+    saved = grid_run.feed(
+        frames, 0.5, card=lambda n: cards[n], overlays=lambda n: [windows[n]]
+    )
+    assert saved == ["grid.png"]
+
+
+def test_card_only_change_saves_nothing_new(grid_run):
+    from arc_helper.tooltip_layout import Rect
+
+    card = Rect(300, 150, 450, 330)
+    frames = [_grid_frame(paint=[(card, value)]) for value in (250, 120, 200)]
+    assert grid_run.feed(frames, 0.5, card=card) == ["grid.png"]
+
+
+def test_limit_stops_grid_saves(grid_run):
+    grid_run.engine.capture_library_limit = 3
+    frames = [_grid_frame(40 + 30 * n) for n in range(6)]
+    assert len(grid_run.feed(frames, 0.5)) == 3
+    assert grid_run.engine._capture_count == 3  # noqa: SLF001
+
+
+def test_no_grid_frames_without_a_capture_run(grid_run):
+    offered = []
+    grid_run.engine.capture_library = False
+    grid_run.engine._queue_capture = lambda *a: offered.append(a) or True  # noqa: SLF001
+    frames = [_grid_frame(40 + 30 * n) for n in range(3)]
+    assert grid_run.feed(frames, 0.5) == []
+    assert offered == []
