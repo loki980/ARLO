@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 60 percent of the whole roadmap, weighted by effort: 44 of 62 steps
+About 61 percent of the whole roadmap, weighted by effort: 45 of 62 steps
 done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
@@ -373,7 +373,8 @@ since they need every cell read (phase 3). Changed 14 Oct.
     halfway for the night at Jeffrey's ask, underway again 15 Oct evening.
     Part 1 (keep the badges of unchanged slots, a fading card hides
     nothing) done 15 Oct, reviewed. Part 2 (remember items by their look, a
-    repeat view in about 55 ms) in its second review round. Added 15 Oct.
+    repeat view in about 55 ms, the model loaded at start) done 15 Oct,
+    reviewed. Done 15 Oct. Added 15 Oct.
 12. Never stall on the badge helper. From the 14 Oct review: badges are
     handed to the helper in the scan's own thread, so a helper that stops
     reading could freeze the popups. A writer thread now sends them, the
@@ -436,9 +437,12 @@ be useful without this, you know?" Moved up 15 Oct.
    in one local store, updated from every still frame. Part 1, the loadout
    panels counted from one frame, checked against the LOADOUT header's
    value and saved locally, done 15 Oct, reviewed. It found the header
-   reader failing in raid and next to a card, and small stacks unread, so
-   part 1b (read the header there) and part 1c (faster, surer stack counts)
-   are underway 15 Oct. Part 2 wires it in and adds the stash after step 2.
+   reader failing in raid and next to a card, and small stacks unread.
+   Part 1c, faster and surer stack counts (digit templates, 153 of 158
+   right and none wrong, 946 ms to 16 ms a pass), done 15 Oct, reviewed.
+   Part 1b, the header in raid and next to a card, reads both screenshots
+   but its second review rejected one edge case (a value under 1,000 next
+   to a card reads nothing), waiting on Jeffrey's call 15 Oct. Part 2 wires it in and adds the stash after step 2.
    Added 15 Oct.
 4. Use it: total owned feeds the have and need tags, the advice card's "You
    have N" and "keep N more". Added 15 Oct.
