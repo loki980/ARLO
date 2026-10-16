@@ -11,6 +11,7 @@ import string
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import NamedTuple
 
 from pydantic import BaseModel
@@ -23,6 +24,9 @@ from .tiers import resolve_tier
 from .tiers import split_read
 from .tiers import split_tier
 from .tiers import tier_key
+
+if TYPE_CHECKING:
+    from .inventory_ledger import LoadoutTally
 
 HOME = "home"
 FIELD = "field"
@@ -606,6 +610,25 @@ class Database:
                     found_at TEXT NOT NULL
                 )
             """)
+            # The last loadout snapshot: each item's count per panel, and one
+            # row of what the LOADOUT header showed and whether it agreed
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS loadout_items (
+                    name TEXT NOT NULL COLLATE NOCASE,
+                    panel TEXT NOT NULL,
+                    count INTEGER NOT NULL,
+                    seen_at TEXT NOT NULL,
+                    PRIMARY KEY (name, panel)
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS loadout_snapshot (
+                    seen_at TEXT NOT NULL,
+                    header_value INTEGER,
+                    header_weight REAL,
+                    agrees INTEGER
+                )
+            """)
             conn.commit()
             self._user_db_ready = True
         return conn
@@ -753,6 +776,42 @@ class Database:
         with self._get_user_connection() as conn:
             rows = conn.execute("SELECT name FROM blueprint_owned").fetchall()
         return {row[0] for row in rows}
+
+    def save_loadout(self, tally: "LoadoutTally") -> None:
+        """Replace the stored loadout snapshot with this tally, in one transaction."""
+        seen_at = datetime.now(UTC).isoformat(timespec="seconds")
+        agrees = None if tally.agrees is None else int(tally.agrees)
+        rows = [
+            (name, panel, count, seen_at)
+            for panel, counts in tally.panel_counts.items()
+            for name, count in counts.items()
+        ]
+        with self._get_user_connection() as conn:
+            conn.execute("DELETE FROM loadout_items")
+            conn.execute("DELETE FROM loadout_snapshot")
+            conn.executemany(
+                "INSERT INTO loadout_items (name, panel, count, seen_at) "
+                "VALUES (?, ?, ?, ?)",
+                rows,
+            )
+            conn.execute(
+                "INSERT INTO loadout_snapshot "
+                "(seen_at, header_value, header_weight, agrees) VALUES (?, ?, ?, ?)",
+                (seen_at, tally.header_value, tally.header_weight, agrees),
+            )
+
+    def loadout_counts(self) -> dict[str, int]:
+        """Item name to count over every panel of the stored loadout snapshot.
+
+        Empty, without creating the user database, when it does not exist.
+        """
+        if not self.user_db_path.exists():
+            return {}
+        with self._get_user_connection() as conn:
+            rows = conn.execute(
+                "SELECT name, SUM(count) FROM loadout_items GROUP BY name"
+            ).fetchall()
+        return {row[0]: row[1] for row in rows}
 
     def sync_from_csvs(self) -> None:
         """Load the recycle, needs, blueprint and progress CSVs that exist."""
