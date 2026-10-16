@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 61 percent of the whole roadmap, weighted by effort: 45 of 62 steps
+About 59 percent of the whole roadmap, weighted by effort: 45 of 67 steps
 done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
@@ -380,6 +380,24 @@ since they need every cell read (phase 3). Changed 14 Oct.
     reading could freeze the popups. A writer thread now sends them, the
     newest set wins, and a stuck helper is stopped. Done 15 Oct, reviewed.
     Added 15 Oct.
+13. Badges right after a scroll. Jeffrey, 15 Oct: "it's pretty good!
+    taking about 2-3 seconds to render with an inventory scroll. Not
+    amazing, not terrible. Any other ideas you can come up with to make
+    this even more responsive?" A latency log line, a shorter gap between
+    passes, and badges for slots already known drawn before the pass.
+    Underway 15 Oct. Added 15 Oct.
+14. Badges that move with the scroll: measure how far the grid moved and
+    shift the badges at once, so only the new row needs reading. After
+    step 13. Added 15 Oct.
+15. Price text in the game's own font. Jeffrey, 15 Oct, on his backpack
+    screenshot: "Can you make the font and font size match?" The worth on
+    the patch matches the game's count in font, weight, size and baseline.
+    Underway 15 Oct. Added 15 Oct.
+16. Price patches that hold still: the bar finder loses some bars once
+    ARLO's own patch is drawn, so a patch could flicker. Underway 15 Oct.
+    Added 15 Oct.
+17. Slot boxes that hold still: the slot finder moves 1 or 2 boxes by
+    about 4 px under ARLO's red outline. After step 16. Added 15 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
@@ -427,7 +445,10 @@ be useful without this, you know?" Moved up 15 Oct.
 
 1. Read the anchors: the stash header (used and capacity slots, total
    value) and the loadout header (weight and value). Done 15 Oct, reviewed.
-2. Stitch the stash across scrolling: the scrollbar position and the
+2. Stitch the stash across scrolling. Part 0, capture runs save the whole
+   grid, not only hovered cards. Jeffrey, 15 Oct: "You need to be able to
+   take a screenshot of the entire screen, not just hover cards." Underway
+   15 Oct. Then: the scrollbar position and the
    overlap with the last frame give each visible row its absolute place.
    Needs a capture session scrolling the whole stash, waiting on Jeffrey's
    screen recording (the capture library only saves frames when a card is
@@ -440,9 +461,9 @@ be useful without this, you know?" Moved up 15 Oct.
    reader failing in raid and next to a card, and small stacks unread.
    Part 1c, faster and surer stack counts (digit templates, 153 of 158
    right and none wrong, 946 ms to 16 ms a pass), done 15 Oct, reviewed.
-   Part 1b, the header in raid and next to a card, reads both screenshots
-   but its second review rejected one edge case (a value under 1,000 next
-   to a card reads nothing), waiting on Jeffrey's call 15 Oct. Part 2 wires it in and adds the stash after step 2.
+   Part 1b, the header in raid and next to a card, reads both screenshots,
+   done 15 Oct. Its second review rejected one edge case (a value under
+   1,000 next to a card reads nothing), Jeffrey: "accept with notes". Part 2 wires it in and adds the stash after step 2.
    Added 15 Oct.
 4. Use it: total owned feeds the have and need tags, the advice card's "You
    have N" and "keep N more". Added 15 Oct.
