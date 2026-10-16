@@ -495,6 +495,19 @@ def test_translate_moves_the_badges_inside_its_region_and_drops_those_left():
     assert [b["rect"] for b in gone] == [[0, 220, 50, 270], [300, 120, 350, 170]]
 
 
+def test_a_clipped_badge_keeps_following_until_it_leaves_the_region():
+    # After the first move its centre (y 105) is out of the region, but it
+    # was moved there, so it moves on and is dropped once it no longer meets it
+    region = (0, 100, 200, 400)
+    move = encode_message("translate", region=region, dy=-40)
+    drawn = apply_message([], encode_message("draw", [Border((0, 145, 50, 195))]))
+    once = apply_message(drawn, move)
+    assert [b["rect"] for b in once] == [[0, 105, 50, 155]]
+    twice = apply_message(once, move)
+    assert [b["rect"] for b in twice] == [[0, 65, 50, 115]]
+    assert apply_message(twice, move) == []
+
+
 def test_png_mode_draws_a_translated_border_clipped_to_its_region(tmp_path):
     python = find_system_python()
     if python is None:

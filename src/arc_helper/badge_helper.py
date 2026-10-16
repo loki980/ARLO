@@ -137,7 +137,8 @@ def _inside(x: float, y: float, region) -> bool:
 def translate_badges(badges: list[dict], region, dy: int) -> list[dict]:
     """The drawn badges after their region scrolled by dy px.
 
-    A badge whose rect's centre lies inside region moves down by dy (up
+    A badge whose rect's centre lies inside region, or that an earlier
+    translate of this region moved (clipped to it), moves down by dy (up
     when negative) and is clipped to region from then on. A moved badge
     whose rect no longer meets the region is dropped. Other badges stay.
     """
@@ -146,7 +147,8 @@ def translate_badges(badges: list[dict], region, dy: int) -> list[dict]:
     clip = [left, top, right, bottom]
     for badge in badges:
         x0, y0, x1, y1 = badge["rect"]
-        if not _inside((x0 + x1) / 2, (y0 + y1) / 2, clip):
+        followed = badge.get("clip") == clip
+        if not followed and not _inside((x0 + x1) / 2, (y0 + y1) / 2, clip):
             kept.append(badge)
             continue
         y0, y1 = y0 + dy, y1 + dy
