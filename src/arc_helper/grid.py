@@ -8,14 +8,19 @@ rows, where the outline is 1 to 2 px wide:
 
 1. ridge mask: ARLO's own gold frame bars are painted over with the
    background beside them first, as they lie just outside a slot's
-   outline. Then the brightest channel minus its opening with a 5 px square
-   (a white top hat) keeps thin bright lines such as the outlines, and
-   drops flat areas, rarity wedges, the large bright parts of icons and the
-   game's item card. Pixels at least 18 above the opening are kept.
+   outline. ARLO's red short-stock outlines are put back as the slot under
+   them, as each is drawn inside a slot rect found on an earlier frame, over
+   the slot's own outline, and its thicker band would move the sides found
+   under it: its pixels take the background beside them, and its outer rows
+   a light outline. Then the brightest channel minus its opening with a 5
+   px square (a white top hat) keeps thin bright lines such as the
+   outlines, and drops flat areas, rarity wedges, the large bright parts
+   of icons and the game's item card. Pixels at least 18 above the opening are kept.
 2. candidates: each 8-connected component of the ridge mask whose bounding
    box is slot sized and lies between the panel headings and the bottom of
    the stash. Each side is moved inward onto the outline (the hovered
-   slot's glow ring can join it and widen the box).
+   slot's glow ring can join it and widen the box). A box within 3 px of
+   a red outline on every side takes the outline's rect.
 3. outlined sides: a side counts when, on at least 85% of its length
    (rounded corners left out), the side is 18 lighter than the darkest
    pixel just outside it. Boxes with four such sides set the grid slot
@@ -25,7 +30,7 @@ rows, where the outline is 1 to 2 px wide:
 4. neighbours: the outline of a slot beside one of ARLO's windows can join
    the window into a component too large to be a slot, so each found
    slot's neighbours of the same size are tested directly, and each new
-   slot in turn.
+   slot in turn. A new slot snaps onto a red outline as in step 2.
 5. panels from layout: slots are grouped into columns by their left and
    right edges, and touching columns (gap under 0.3 of the slot side) form
    a column group. Each group is named by where its middle lies across the
@@ -93,6 +98,18 @@ GOLD_TOLERANCE = 14
 GOLD_FILL = 7
 RIM_RED_OVER_BLUE = 40
 RIM_GREEN_OVER_BLUE = 15
+# ARLO's short-stock outline (stash_scan.SHORT_RED, #ff5c4d) as RGB. It is
+# drawn inside a slot rect find_slots returned, its outer edge on the rect.
+# Its pixels are put back as the slot's fill with a light outline at least
+# OUTLINE_LIGHT on its OUTLINE_ROWS outer rows, and a box within RED_SNAP
+# work pixels of such an outline on every side snaps onto its rect
+SHORT_RED = (255, 92, 77)
+RED_TOLERANCE = 14
+RIM_RED_OVER_GREEN = 40
+RED_SIDE_COVER = 0.5
+RED_SNAP = 3
+OUTLINE_LIGHT = 120
+OUTLINE_ROWS = 2
 STILL_SCALE = 8
 STILL_MEAN = 3.0
 
@@ -177,6 +194,80 @@ def _in_colour(work: np.ndarray, colour: tuple[int, ...], tolerance: int) -> np.
     low = tuple(max(0, c - tolerance) for c in colour)
     high_bound = tuple(min(255, c + tolerance) for c in colour)
     return cv2.inRange(work, low, high_bound)
+
+
+def _red_outlines(work: np.ndarray) -> tuple[list[Rect], np.ndarray]:
+    """ARLO's short-stock outlines: their rects in work pixels and their pixels.
+
+    An outline's pixels are those of SHORT_RED and the 1 px rim around them
+    where the scaling blended the red with its neighbour, when that pixel is
+    still red. Each 8-connected component that is slot sized and red on at
+    least RED_SIDE_COVER of each of its four outer rows (corners left out)
+    is an outline, and its bounding box is the rect it was drawn on. The
+    mask has the pixels of those components only.
+    """
+    red = _in_colour(work, SHORT_RED, RED_TOLERANCE)
+    if not red.any():
+        return [], np.zeros(red.shape, bool)
+    r, g, b = cv2.split(work)
+    reddish = (cv2.subtract(r, g) >= RIM_RED_OVER_GREEN) & (
+        cv2.subtract(r, b) >= RIM_RED_OVER_BLUE
+    )
+    rim = cv2.dilate(red, np.ones((3, 3), np.uint8)) > 0
+    mask = ((red > 0) | (rim & reddish)).astype(np.uint8)
+    _count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    outlines = []
+    keep = [False] * len(stats)
+    for label, (left, top, width, height, _area) in enumerate(stats.tolist()):
+        if label == 0 or not _slot_sized(width, height):
+            continue
+        box = Rect(left, top, left + width, top + height)
+        covers = [
+            _trimmed_mean(view[line, span]) for view, line, span in _sides(mask, box)
+        ]
+        if min(covers) >= RED_SIDE_COVER:
+            outlines.append(box)
+            keep[label] = True
+    return outlines, np.array(keep)[labels]
+
+
+def _trimmed_mean(row: np.ndarray) -> float:
+    trim = int(row.size * SIDE_TRIM)
+    middle = row[trim : row.size - trim]
+    return float(middle.mean()) if middle.size else 0.0
+
+
+def _hide_red(high: np.ndarray, outlines: list[Rect], pixels: np.ndarray) -> None:
+    """Put back the slot under ARLO's red outlines in the brightest channel.
+
+    The red band is drawn over the slot's own outline and is thicker, so it
+    would move the sides found under it. Its pixels take the darkest value
+    within GOLD_FILL pixels (the slot's fill or the gap, as for the gold
+    frame), and those in the OUTLINE_ROWS outer rows of the outline's rect
+    are at least OUTLINE_LIGHT, as the slot's outline lies there. Where the
+    game's item card covers the slot, the card is lighter and stays.
+    """
+    if not outlines:
+        return
+    edge = np.zeros(high.shape, bool)
+    for box in outlines:
+        edge[box.top : box.bottom, box.left : box.right] = True
+        edge[
+            box.top + OUTLINE_ROWS : box.bottom - OUTLINE_ROWS,
+            box.left + OUTLINE_ROWS : box.right - OUTLINE_ROWS,
+        ] = False
+    background = cv2.erode(high, np.ones((GOLD_FILL, GOLD_FILL), np.uint8))
+    high[pixels] = background[pixels]
+    line = pixels & edge
+    high[line] = np.maximum(high[line], OUTLINE_LIGHT)
+
+
+def _snap_red(box: Rect, outlines: list[Rect]) -> Rect:
+    """The red outline's rect when box lies within RED_SNAP of it, else box."""
+    for outline in outlines:
+        if all(abs(a - b) <= RED_SNAP for a, b in zip(box, outline, strict=True)):
+            return outline
+    return box
 
 
 def _ridge_mask(high: np.ndarray) -> np.ndarray:
@@ -293,7 +384,7 @@ def _is_filled(work: np.ndarray, high: np.ndarray, box: Rect) -> bool:
     return float(lit.mean()) >= FILL_FRACTION
 
 
-def _boxes(high: np.ndarray) -> list[Rect]:
+def _boxes(high: np.ndarray, outlines: list[Rect]) -> list[Rect]:
     mask = _ridge_mask(high)
     _count, _labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
     boxes = []
@@ -304,6 +395,7 @@ def _boxes(high: np.ndarray) -> list[Rect]:
         if top < GRID_TOP * mask.shape[0] or top + height > GRID_BOTTOM * mask.shape[0]:
             continue
         box = _snap(high, Rect(left, top, left + width, top + height))
+        box = _snap_red(box, outlines)
         covers = sorted(_side_covers(high, box))
         if covers[0] >= SIDE_COVER:
             boxes.append(box)
@@ -318,7 +410,7 @@ def _boxes(high: np.ndarray) -> list[Rect]:
         return []
     side = float(np.median(squares))
     boxes = [box for box in boxes + three_sided if _known_shape(box, side)]
-    return _complete(high, _innermost(list(dict.fromkeys(boxes))))
+    return _complete(high, _innermost(list(dict.fromkeys(boxes))), outlines)
 
 
 def _overlaps(a: Rect, b: Rect) -> bool:
@@ -369,13 +461,14 @@ def _neighbour(high: np.ndarray, box: Rect, step_x: int, step_y: int) -> Rect | 
     return best
 
 
-def _complete(high: np.ndarray, boxes: list[Rect]) -> list[Rect]:
+def _complete(high: np.ndarray, boxes: list[Rect], outlines: list[Rect]) -> list[Rect]:
     """Add the slots beside found ones that the component search missed.
 
     A slot's outline can join one of ARLO's windows or another bright shape
     beside it into a component too large to be a slot. Each found slot's
     four neighbours of the same size are tested directly, and each new slot
-    is tested in turn.
+    is tested in turn. A new slot snaps onto a red outline (see _snap_red)
+    before its own neighbours are tested.
     """
     found = list(boxes)
     queue = list(boxes)
@@ -391,6 +484,8 @@ def _complete(high: np.ndarray, boxes: list[Rect]) -> list[Rect]:
             if any(_overlaps(reach, other) for other in found):
                 continue
             new = _neighbour(high, box, step_x, step_y)
+            if new is not None:
+                new = _snap_red(new, outlines)
             if new is not None and not any(_overlaps(new, other) for other in found):
                 found.append(new)
                 queue.append(new)
@@ -467,7 +562,9 @@ def find_slots(rgb: np.ndarray) -> list[Slot]:
     work_height, work_width = work.shape[:2]
     high = _brightest(work)
     _hide_gold(work, high)
-    boxes = _boxes(high)
+    outlines, red = _red_outlines(work)
+    _hide_red(high, outlines, red)
+    boxes = _boxes(high, outlines)
     if not boxes:
         return []
     side = float(np.median([min(box.width, box.height) for box in boxes]))

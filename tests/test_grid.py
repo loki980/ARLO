@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from PIL import ImageDraw
 
 from arc_helper.cell_border import HOVER_GOLD
 from arc_helper.cell_border import frame_bars
@@ -16,6 +17,9 @@ from arc_helper.grid import SAFE_POCKET
 from arc_helper.grid import STASH
 from arc_helper.grid import find_slots
 from arc_helper.grid import frames_still
+from arc_helper.stash_scan import BORDER_RADIUS
+from arc_helper.stash_scan import BORDER_WIDTH
+from arc_helper.stash_scan import SHORT_RED
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -101,7 +105,8 @@ def test_frames_still_false_on_size_change() -> None:
 # A synthetic 4K grid: 4 by 4 slots of 192 px with a 4 px light outline and
 # a 16 px gap, in the stash column below the panel headings. A light line
 # along the top row's top edge joins its outlines into one component too wide
-# to be a slot, so that row is found as neighbours of the row below.
+# to be a slot, so that row is found as neighbours of the row below, where
+# the thicker red outline moved the rects by 2 px.
 SYNTH_SIZE = (3840, 2160)
 SYNTH_ORIGIN = (400, 640)
 SYNTH_SIDE = 192
@@ -130,6 +135,18 @@ def _rgb(colour: str) -> tuple[int, int, int]:
     return tuple(int(colour[i : i + 2], 16) for i in (1, 3, 5))
 
 
+def _red_outline(frame: np.ndarray, rect) -> np.ndarray:
+    """frame with ARLO's short-stock outline drawn inside rect."""
+    image = Image.fromarray(frame)
+    ImageDraw.Draw(image).rounded_rectangle(
+        (rect.left, rect.top, rect.right - 1, rect.bottom - 1),
+        radius=BORDER_RADIUS,
+        outline=_rgb(SHORT_RED),
+        width=BORDER_WIDTH,
+    )
+    return np.asarray(image)
+
+
 def _gold_frame(frame: np.ndarray, rect) -> np.ndarray:
     """frame with the hovered gold frame drawn outside rect, as CellBorder does."""
     out = frame.copy()
@@ -142,6 +159,22 @@ def test_synthetic_grid_slots() -> None:
     rects = [slot.rect for slot in find_slots(_synthetic_grid())]
     assert len(rects) == 16
     assert all(abs(rect.width - SYNTH_SIDE) <= 2 for rect in rects)
+
+
+def test_red_outline_keeps_slot_rects() -> None:
+    frame = _synthetic_grid()
+    clean = [slot.rect for slot in find_slots(frame)]
+    for rect in (clean[0], clean[3], clean[5], clean[15]):
+        assert [slot.rect for slot in find_slots(_red_outline(frame, rect))] == clean
+
+
+def test_red_outline_on_every_slot_keeps_slot_rects() -> None:
+    frame = _synthetic_grid()
+    clean = [slot.rect for slot in find_slots(frame)]
+    badged = frame
+    for rect in clean:
+        badged = _red_outline(badged, rect)
+    assert [slot.rect for slot in find_slots(badged)] == clean
 
 
 def test_gold_frame_keeps_slot_rects() -> None:
