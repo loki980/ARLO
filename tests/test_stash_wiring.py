@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from arc_helper import grid
 from arc_helper import main
 from arc_helper import stash_scan
 from arc_helper.grid import STILL_MEAN
@@ -797,6 +798,24 @@ def test_scroll_offset_is_none_when_the_slot_looks_disagree():
         base, moved, SCROLL_VIEW, [_moved(slot, 64)], [_moved(slot, -24)]
     )
     assert vote is None
+
+
+def test_the_slot_vote_checks_the_refined_offset(monkeypatch):
+    # The vote sits a cell above the grey estimate and the refinement moves
+    # the offset a cell below it, so the final offset is two cells off
+    base = _textured(1)
+    seen = {}
+
+    def refined(_a, _b, _band, offset, by=-8):
+        seen["coarse"] = offset
+        return offset + by
+
+    monkeypatch.setattr(grid, "_refined", refined)
+    monkeypatch.setattr(grid, "_look_vote", lambda *_args: seen["coarse"] + 8)
+    assert main.scroll_offset(base, _scrolled(base), SCROLL_VIEW) is None
+    # Without the refinement's move the same vote is within a cell
+    monkeypatch.setattr(grid, "_refined", lambda *args: refined(*args, by=0))
+    assert main.scroll_offset(base, _scrolled(base), SCROLL_VIEW) == seen["coarse"]
 
 
 def test_a_panel_scroll_moves_its_badges_and_drops_those_scrolled_out(

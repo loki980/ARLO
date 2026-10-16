@@ -626,7 +626,7 @@ def scroll_offset(
     made here), so negative when the content moved up. On RGB frames it is
     then refined at full size, to the shift within SCROLL_REFINE_PX that
     differs least. slots_a and slots_b, the filled slots of the panel on
-    each frame, vote on the offset by their looks (_look_vote). None when
+    each frame, vote on that final offset by their looks (_look_vote). None when
     the motion is no clean vertical shift: a correlation peak under
     SCROLL_PEAK_MIN, a sideways drift over SCROLL_DX_MAX cells, or a slot
     vote more than one cell away.
@@ -648,11 +648,11 @@ def scroll_offset(
     if peak < SCROLL_PEAK_MIN or abs(dx) > SCROLL_DX_MAX:
         return None
     offset = round(dy * STILL_SCALE)
+    if a.ndim == 3 and a.shape == b.shape:
+        offset = _refined(a, b, band, offset)
     vote = _look_vote(gray_a, gray_b, slots_a, slots_b)
     if vote is not None and abs(vote - offset) > STILL_SCALE:
         return None
-    if a.ndim == 3 and a.shape == b.shape:
-        offset = _refined(a, b, band, offset)
     return offset
 
 
