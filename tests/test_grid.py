@@ -184,3 +184,18 @@ def test_gold_frame_keeps_slot_rects() -> None:
     clean = [slot.rect for slot in find_slots(frame)]
     for rect in (clean[4], clean[5], clean[11], clean[15]):
         assert [slot.rect for slot in find_slots(_gold_frame(frame, rect))] == clean
+
+
+def test_hidden_outline_colours_match_the_drawn_ones():
+    """The slot finder hides exactly the colours ARLO draws, so a change to one
+    cannot go stale in the other (the gold already did once)."""
+    from arc_helper import grid
+    from arc_helper.cell_border import HOVER_GOLD
+    from arc_helper.stash_scan import SHORT_RED
+
+    def rgb(hex_colour: str) -> tuple[int, int, int]:
+        value = hex_colour.lstrip("#")
+        return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
+
+    assert grid.SHORT_RED == rgb(SHORT_RED)
+    assert rgb(HOVER_GOLD) in grid.ARLO_GOLDS
