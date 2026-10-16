@@ -31,6 +31,12 @@ from pathlib import Path
 FONT_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
 FONT_FILE = FONT_DIR / "BarlowSemiCondensed-Bold.ttf"
 FONT_FAMILY = "Barlow Semi Condensed"
+# Tags draw in Bold. Patches draw in SemiBold of the same family, whose stroke
+# matches the game's own stack count (scripts/font_match.py measures it)
+TAG_FONT_WEIGHT = "Bold"
+PATCH_FONT_FILE = FONT_DIR / "BarlowSemiCondensed-SemiBold.ttf"
+PATCH_FONT_FAMILY = FONT_FAMILY
+PATCH_FONT_WEIGHT = "Semi-Bold"
 FALLBACK_FAMILY = "Sans"
 CORNERS = ("tl", "tr", "bl", "br")
 # The tag's text height as a share of the slot height, and its limits in px
@@ -41,12 +47,16 @@ TAG_TEXT_MAX = 40
 CHECK_GREEN = "#5fd35f"
 CHECK_SHARE = 0.8
 OUTLINE_WIDTH = 2
-# A patch's text height as a share of the bar height, the smallest it may
-# shrink to, the step it shrinks by, and its padding and icon gap in px
-PATCH_TEXT_SHARE = 0.55
-PATCH_TEXT_MIN_SHARE = 0.4
+# A patch's font size as a share of the bar height (digits 24 px tall on the
+# 44 px bar of a 4K tile, like the game's count), the smallest it may shrink
+# to, the step it shrinks by, and its padding and icon gap in px
+PATCH_TEXT_SHARE = 0.8
+PATCH_TEXT_MIN_SHARE = 0.57
 PATCH_TEXT_STEP = 0.9
 PATCH_PAD = 8
+# The digits' baseline sits this share of the bar height above the bar bottom,
+# where the game's count sits (9.5 px on the 44 px bar)
+PATCH_BASELINE_SHARE = 0.216
 PATCH_ICON_GAP = 4
 # Draw order: patches first, then tags, then borders on top
 DRAW_ORDER = {"patch": 0, "tag": 1, "border": 2}
@@ -125,6 +135,13 @@ def register_font(path: Path = FONT_FILE) -> bool:
         return False
 
 
+def register_fonts() -> bool:
+    """register_font for the tag file and the patch file, True when the tag's took."""
+    registered = register_font()
+    register_font(PATCH_FONT_FILE)
+    return registered
+
+
 def _rounded_rect(cr, x: float, y: float, w: float, h: float, r: float) -> None:
     r = max(0.0, min(r, w / 2, h / 2))
     cr.new_sub_path()
@@ -157,7 +174,9 @@ def _draw_border(cr, badge: dict) -> None:
 class _Text:
     """Measures and draws one line of text with Pango, or cairo's toy API."""
 
-    def __init__(self, cr, text: str, pixels: int, family: str) -> None:
+    def __init__(
+        self, cr, text: str, pixels: float, family: str, weight: str = TAG_FONT_WEIGHT
+    ) -> None:
         self.cr = cr
         self.text = text
         self.layout = None
@@ -176,9 +195,12 @@ class _Text:
             ext = cr.text_extents(text)
             ascent = cr.font_extents()[0]
             self.width, self.height, self.ascent = ext.x_advance, pixels, ascent
+            self.baseline = ascent
             return
         self.layout = PangoCairo.create_layout(cr)
-        desc = Pango.FontDescription.from_string(f"{family}, {FALLBACK_FAMILY} Bold")
+        desc = Pango.FontDescription.from_string(
+            f"{family}, {FALLBACK_FAMILY} {weight}"
+        )
         desc.set_absolute_size(pixels * Pango.SCALE)
         self.layout.set_font_description(desc)
         self.layout.set_text(text, -1)
@@ -187,7 +209,17 @@ class _Text:
         self.width = logical.width
         self.height = ink.height
         self.ascent = -ink.y
+        self.baseline = self.layout.get_baseline() / Pango.SCALE
         self.pango = PangoCairo
+
+    def draw_on_baseline(self, x: float, baseline: float) -> None:
+        """Draw with the text's baseline at the y given."""
+        if self.layout is None:
+            self.cr.move_to(x, baseline)
+            self.cr.show_text(self.text)
+            return
+        self.cr.move_to(x, baseline - self.baseline)
+        self.pango.show_layout(self.cr, self.layout)
 
     def draw(self, x: float, y: float) -> None:
         """Draw with the text's ink top at y."""
@@ -270,7 +302,7 @@ def _bottom_left_rounded_rect(
 def patch_text(cr, badge: dict, family: str):
     """The patch's text and fill right edge, or None when the text cannot fit.
 
-    The text starts at PATCH_TEXT_SHARE of the bar height and shrinks by
+    The font size starts at PATCH_TEXT_SHARE of the bar height and shrinks by
     PATCH_TEXT_STEP down to PATCH_TEXT_MIN_SHARE until it fits, padded by
     PATCH_PAD on both sides, before patch_right.
     """
@@ -280,7 +312,13 @@ def patch_text(cr, badge: dict, family: str):
     smallest = bar_h * PATCH_TEXT_MIN_SHARE
     pixels = bar_h * PATCH_TEXT_SHARE
     while True:
-        text = _Text(cr, str(badge.get("text", "")), pixels, family)
+        text = _Text(
+            cr,
+            str(badge.get("text", "")),
+            pixels,
+            PATCH_FONT_FAMILY if family == FONT_FAMILY else family,
+            PATCH_FONT_WEIGHT,
+        )
         text_edge = left + PATCH_PAD + text.width + PATCH_PAD
         if text_edge <= patch_right:
             edge = max(badge["icon_right"] + PATCH_ICON_GAP, text_edge)
@@ -303,7 +341,8 @@ def _draw_patch(cr, badge: dict, family: str) -> None:
     cr.set_source_rgba(*parse_rgb(badge["colour"]))
     cr.fill()
     cr.set_source_rgba(1, 1, 1, 1)
-    text.draw(left + PATCH_PAD, top + (bottom - top - text.height) / 2)
+    baseline = bottom - PATCH_BASELINE_SHARE * (bottom - top)
+    text.draw_on_baseline(left + PATCH_PAD, baseline)
 
 
 def draw_badges(cr, badges: list[dict], family: str = FONT_FAMILY) -> None:
@@ -332,7 +371,7 @@ def render_png(badges: list[dict], width: int, height: int, out: Path) -> None:
     """Draw badges on a transparent width x height PNG."""
     import cairo
 
-    family = FONT_FAMILY if register_font() else FALLBACK_FAMILY
+    family = FONT_FAMILY if register_fonts() else FALLBACK_FAMILY
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
     cr = cairo.Context(surface)
     draw_badges(cr, badges, family)
@@ -420,7 +459,7 @@ def run_live(physical: tuple[int, int] | None = None) -> int:
         )
         return 2
     physical = checked_physical(physical)
-    family = FONT_FAMILY if register_font() else FALLBACK_FAMILY
+    family = FONT_FAMILY if register_fonts() else FALLBACK_FAMILY
     root = screen.get_root_window()
     win = Gtk.Window(type=Gtk.WindowType.POPUP)  # POPUP means override-redirect
     win.set_visual(visual)
