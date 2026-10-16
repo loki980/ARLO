@@ -11,9 +11,10 @@ and look only at that bar. bar_geometry gives the bar's box, its colour and
 the boxes of the type icon and the right mark, for painting over the icon:
 
 - The bar is the longest run of near-black rows in the lower half of the
-  slot, measured on the middle columns, and its horizontal extent is the
-  longest run of columns that are near-black in the bar's top and bottom
-  rows (this drops the coloured slot frame).
+  slot, measured on the middle columns (rows between them crossed by wide
+  bright text, such as ARLO's price patch, also count), and its horizontal
+  extent is the longest run of columns that are near-black in the bar's
+  top and bottom rows (this drops the coloured slot frame).
 - Ink is anything clearly brighter than the bar. Ink columns are grouped
   into words, with gaps narrower than a fifth of the bar height bridged.
   The rightmost word is the mark.
@@ -165,13 +166,40 @@ def _runs(mask: np.ndarray, bridge: int) -> list[tuple[int, int]]:
     return [(a, b) for a, b in runs]
 
 
+def _bar_rows(columns: np.ndarray) -> np.ndarray:
+    """Which rows of the slot's middle columns are bar rows.
+
+    A bar row has a median at most _BAR_MAX. Wide bright text across the
+    bar, such as the worth on ARLO's price patch, can lift a row's median
+    above that. A run of such rows between two bar rows still counts when
+    the median of each row's pixels other than ink (those lighter than
+    _BAR_MAX + _INK_ABOVE) is bar dark, so the text does not split the bar.
+    """
+    rows = np.median(columns, axis=1) <= _BAR_MAX
+    for begin, end in zip(*_gaps(rows), strict=True):
+        between = columns[begin:end]
+        plain = np.where(between <= _BAR_MAX + _INK_ABOVE, between, np.nan)
+        if np.isnan(plain).all(axis=1).any():
+            continue
+        if (np.nanmedian(plain, axis=1) <= _BAR_MAX).all():
+            rows[begin:end] = True
+    return rows
+
+
+def _gaps(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Begins and ends of the False runs of a 1D mask with True on both sides."""
+    padded = np.concatenate(([False], mask, [False])).astype(np.int8)
+    edges = np.flatnonzero(np.diff(padded))
+    return edges[1:-1:2], edges[2::2]
+
+
 def _find_bar(slot_rgb: np.ndarray) -> _Bar | None:
     lum = _luminance(slot_rgb)
     if lum.ndim != 2 or min(lum.shape) < 20:
         return None
     height, width = lum.shape
-    middle = np.median(lum[:, int(width * 0.3) : int(width * 0.7)], axis=1)
-    top, bottom = _longest_run(middle <= _BAR_MAX, height // 2)
+    columns = lum[:, int(width * 0.3) : int(width * 0.7)]
+    top, bottom = _longest_run(_bar_rows(columns), height // 2)
     if bottom - top < max(_BAR_MIN_HEIGHT * height, 2 * _BAR_EDGE_ROWS + 4):
         return None
     edge_rows = np.concatenate(
