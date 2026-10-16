@@ -1,6 +1,5 @@
 """Tests for reading tier numerals and stack counts on slot crops."""
 
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +10,7 @@ from arc_helper.slot_marks import PATCH_FALLBACK
 from arc_helper.slot_marks import bar_geometry
 from arc_helper.slot_marks import learned_check
 from arc_helper.slot_marks import read_stack
+from arc_helper.slot_marks import read_stacks
 from arc_helper.slot_marks import read_tier
 from arc_helper.tooltip_layout import Rect
 
@@ -24,11 +24,12 @@ NUMERALS = {
     "wide_anvil_iv": "IV",
 }
 STACKS = {"medium_ammo_x80": 80, "zipline_x1": 1}
+# Slots cut from the 12 and 14 Oct captures: x5 at (720, 1376, 912, 1570) of
+# 20261012-001659-705_LIGHTAMMO.png, x53 at (512, 544, 704, 736) of the same
+# frame, and x3 at (3008, 752, 3200, 944) of 20261014-210206-580_STILETTO-I.png,
+# where the bar ends three columns into the 3 (Tesseract read it as 2)
+REAL_STACKS = {"stack_x5": 5, "stack_x3_clipped": 3, "stack_x53": 53}
 NO_MARK = "grappling_hook_no_mark"
-
-needs_tesseract = pytest.mark.skipif(
-    shutil.which("tesseract") is None, reason="needs tesseract"
-)
 
 
 def _slot(name: str) -> np.ndarray:
@@ -50,10 +51,18 @@ def test_read_tier_is_none_without_a_numeral(name: str) -> None:
     assert read_tier(_slot(name)) is None
 
 
-@needs_tesseract
-@pytest.mark.parametrize(("name", "count"), STACKS.items())
+@pytest.mark.parametrize(("name", "count"), (STACKS | REAL_STACKS).items())
 def test_read_stack_reads_the_count(name: str, count: int) -> None:
     assert read_stack(_slot(name)) == count
+
+
+def test_read_stacks_gives_one_result_per_slot_in_order() -> None:
+    crops = [_slot("stack_x3_clipped"), _slot(NO_MARK), _slot("stack_x53")]
+    assert read_stacks(crops) == [3, None, 53]
+
+
+def test_read_stacks_of_no_slots_is_empty() -> None:
+    assert read_stacks([]) == []
 
 
 @pytest.mark.parametrize("name", [*NUMERALS, NO_MARK])

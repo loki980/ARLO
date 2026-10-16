@@ -21,8 +21,9 @@ the boxes of the type icon and the right mark, for painting over the icon:
   across nearly its full width. Its middle band (serifs cut away) splits
   into one column run per stroke: one, two or three narrow runs are I, II
   or III, a narrow run then a wide one is IV.
-- A stack count is white ink that starts with a short x glyph. The digits
-  after it are read by Tesseract.
+- A stack count is white ink that starts with a short x glyph. Each digit
+  after it is matched against templates of the game's digit glyphs, built
+  by scripts/eval_stack_reads.py from counts labelled on 4K captures.
 
 learned_check takes a whole frame and a slot rect, and reads the slot's top
 right corner for the white check mark the game draws on a learned
@@ -31,17 +32,16 @@ blueprint (see the constants above it for the measured mark).
 
 from __future__ import annotations
 
-import logging
+from typing import TYPE_CHECKING
 from typing import NamedTuple
 
 import cv2
 import numpy as np
-import pytesseract
-from PIL import Image
 
 from .tooltip_layout import Rect
 
-log = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 TIER_TOKENS = ("I", "II", "III", "IV")
 
@@ -70,12 +70,17 @@ _NARROW_MAX = 0.3  # an I stroke (about 0.16 to 0.2)
 _WIDE_MIN, _WIDE_MAX = 0.4, 0.75  # the V of IV (about 0.56)
 
 # Stack counts
-_WHITE_MIN = 180.0
+_WHITE_MIN = 150.0  # median count ink, 218 on 4K captures, 170 upscaled
 _TIMES_MAX_HEIGHT = 0.8  # the x glyph over the digit height
 _RIGHT_HALF = 0.5  # a stack count ends in the right half of the bar
-_OCR_HEIGHT = 48  # digits are scaled to this height for Tesseract
-_OCR_PAD = 12
-_OCR_CONFIG = "--psm 7 -c tessedit_char_whitelist=0123456789"
+_EXTEND_MAX = 0.5  # of the digit height, ink followed past the bar's right edge
+_CELL_WIDTH = 0.72  # a glyph is centred in a cell this wide, of the digit height
+_GLYPH_W, _GLYPH_H = 10, 16  # the cell is scaled to this for matching
+_INK_LEVEL = 90  # percentile of the ink luminance that counts as full ink
+_GLYPH_MAX_WIDTH = 0.85  # of the digit height, a wider run is joined glyphs
+_MATCH_BLUR = 0.8  # Gaussian sigma on the cells and templates before matching
+_MATCH_MAX = 0.2  # 1 - correlation to the best template, 4K glyphs are under 0.14
+_MATCH_GAP = 0.05  # the second best is this much further, 4K glyphs 0.098 or more
 
 # Bar geometry
 _ICON_START_MAX = 0.3  # the type icon starts in this share of the bar width
@@ -259,8 +264,13 @@ def read_tier(slot_rgb: np.ndarray) -> TierRead | None:
     )
 
 
-def _stack_digits(slot_rgb: np.ndarray) -> np.ndarray | None:
-    """The digit part of a white xN stack count as a luminance crop, or None."""
+def _stack_digits(slot_rgb: np.ndarray) -> tuple[np.ndarray, float] | None:
+    """The digits of a white xN stack count as a luminance crop, or None.
+
+    Returns the crop and the bar's background luminance. A count can run a
+    few columns past the bar's right edge (where the slot's rounded corner
+    ends the bar early), so ink touching that edge is followed into the slot.
+    """
     bar = _find_bar(slot_rgb)
     if bar is None:
         return None
@@ -282,35 +292,156 @@ def _stack_digits(slot_rgb: np.ndarray) -> np.ndarray | None:
     # The x sits lower and is shorter than the digits beside it
     if times_height > _TIMES_MAX_HEIGHT * digit_height or times_rows[0] <= rows[0]:
         return None
-    left = word[0] + glyphs[1][0]
-    return bar.lum[digit_rows[0] : digit_rows[-1] + 1, left : word[1]]
+    top = bar.rect.top + int(digit_rows[0])
+    bottom = bar.rect.top + int(digit_rows[-1]) + 1
+    left = bar.rect.left + word[0] + glyphs[1][0]
+    right = bar.rect.left + word[1]
+    lum = _luminance(slot_rgb)
+    if word[1] == bar.ink.shape[1]:
+        limit = min(lum.shape[1], right + round(_EXTEND_MAX * digit_height))
+        while right < limit and (
+            lum[top:bottom, right].max() > bar.background + _INK_ABOVE
+        ):
+            right += 1
+    return lum[top:bottom, left:right], bar.background
+
+
+# Digit templates 0 to 9, _GLYPH_H rows of _GLYPH_W columns, one hex digit
+# (0 bar to f full ink) per pixel, from scripts/eval_stack_reads.py --templates
+_DIGIT_HEX = (
+    # 0, 21 glyphs
+    (
+        "0048bb830004ceeeec301ce8349eb04eb1002ce25f80000ae46f800009e46f800009e46f800009e4"
+        "6f800009e46f800009e46f800009e45f90000ae43ec2002de21bfa55afa003beeeea200037996200"
+    ),
+    # 1, 59 glyphs
+    (
+        "00026a8100002aefd200003daed20000141ed20000000ed20000000ed20000000ed20000000ed200"
+        "00000ed20000000ed20000000ed20000000ed20000000ed20000000ed20000000ed2000000099100"
+    ),
+    # 2, 28 glyphs
+    (
+        "0159a9510007deeed7103ed746de406f81007f806e50005f902520008f70000002de30000009f800"
+        "00005ec3000003de4000002bf71000019fa1000006ec2000003df84444406ffeeeeed14aaaaaaa91"
+    ),
+    # 3, 23 glyphs
+    (
+        "1abbbbbba11ceeeeffd1033335ef9000001afb2000018fd3000006ef6100001affb500000366ce50"
+        "0000005eb00000001dd11640001ce22db1001ce11de4004ec008fb55cf7002aeeee9200026996200"
+    ),
+    # 4, 8 glyphs
+    (
+        "0001aa10000005fa0000001af40000003ec00000008f70000002dd20121006f9007d401ce3008f50"
+        "4eb1008f509fdbbbdfc5aeeeeeefe62333339f710000008f500000008f500000008f500000004930"
+    ),
+    # 5, 19 glyphs
+    (
+        "5bbbbbbb306feeeeed406f833333106f600000006f600000006f758851006fdeffd7006fe957de40"
+        "5c91018f801210004ea00100004eb04b60004ea04eb2019f701be958ed3004ceeed6000037984100"
+    ),
+    # 6, 4 glyphs
+    (
+        "0159ba610007deeee8103ed636de406f90008e607f600025207f758851007fcdfed7007fe957ee30"
+        "7fc2019f707f80004ea07f70003eb06f80004ea04eb1008f701ce957ed3004ceeed6000037985100"
+    ),
+    # 7, 8 glyphs
+    (
+        "4bbbbbbba06feeeeefd06e53336ec03610007f80000000ce40000003ec10000007f80000000ce300"
+        "00002fc10000007f70000001bf30000003ec10000007f80000001bf30000003ec000000039600000"
+    ),
+    # 8, 5 glyphs
+    (
+        "003798510004ceeed7101be957dd404eb2008f704ea1006e802cd523be5007edbcea2005dedef810"
+        "1be735cd404ea1006e805f70004ea16f70004ea14ea1007e802ce845ce5005ceeed8100048aa6100"
+    ),
+    # 9, 11 glyphs
+    (
+        "0038bb820002beeeeb2009fa44af801dd3003dd12ec0000ce22ec0001ce21dd2003de309fa44afe3"
+        "03cedddee30038a94ce30111110ce309a2000ce20ae5003dd106fc66bfa0019eeeeb300025897200"
+    ),
+)
+_DIGIT_TEMPLATES = (
+    np.array([[int(c, 16) for c in h] for h in _DIGIT_HEX], dtype=np.float32) / 15.0
+).reshape(10, _GLYPH_H, _GLYPH_W)
+
+
+def _match_vector(cell: np.ndarray) -> np.ndarray | None:
+    """A cell blurred, flattened, zero mean and unit length, or None if flat."""
+    vector = cv2.GaussianBlur(cell, (3, 3), _MATCH_BLUR).ravel()
+    vector -= vector.mean()
+    norm = float(np.linalg.norm(vector))
+    return vector / norm if norm > 1e-6 else None
+
+
+_TEMPLATE_VECTORS = np.array([_match_vector(t) for t in _DIGIT_TEMPLATES])
+
+
+def _glyph_cells(digits: np.ndarray, background: float) -> list[np.ndarray] | None:
+    """Each digit glyph of a stack count, centred and scaled for matching.
+
+    A cell is the glyph's columns over the full digit height, its ink scaled
+    to 0 (bar) to 1 (full ink), centred in a box _CELL_WIDTH of the height
+    wide and resized to _GLYPH_W by _GLYPH_H. None when a glyph is too wide
+    to be one digit.
+    """
+    ink = digits > background + _INK_ABOVE
+    if not ink.any():
+        return None
+    height = digits.shape[0]
+    full = float(np.percentile(digits[ink], _INK_LEVEL))
+    scaled = np.clip((digits - background) / max(1.0, full - background), 0, 1)
+    cells = []
+    for begin, end in _runs(ink.any(axis=0), 1):
+        width = end - begin
+        if width > _GLYPH_MAX_WIDTH * height:
+            return None
+        cell_width = max(width, round(_CELL_WIDTH * height))
+        cell = np.zeros((height, cell_width), dtype=np.float32)
+        offset = (cell_width - width) // 2
+        cell[:, offset : offset + width] = scaled[:, begin:end]
+        cells.append(
+            cv2.resize(cell, (_GLYPH_W, _GLYPH_H), interpolation=cv2.INTER_AREA)
+        )
+    return cells
+
+
+def _match_digit(cell: np.ndarray) -> str | None:
+    """The digit whose template best correlates with the cell, or None if unsure.
+
+    Both are blurred a little first, which keeps upscaled (blurrier) glyphs
+    close to the 4K templates.
+    """
+    vector = _match_vector(cell)
+    if vector is None:
+        return None
+    distances = 1.0 - _TEMPLATE_VECTORS @ vector
+    best, second = np.argsort(distances)[:2]
+    if distances[best] > _MATCH_MAX or distances[second] - distances[best] < _MATCH_GAP:
+        return None
+    return str(int(best))
 
 
 def read_stack(slot_rgb: np.ndarray) -> int | None:
     """Read the xN stack count at the right of a slot's bottom bar.
 
-    Returns the count, or None when the slot shows no stack count or
-    Tesseract cannot read it.
+    Returns the count, or None when the slot shows no stack count or a
+    digit does not clearly match one of the game's digit glyphs.
     """
-    digits = _stack_digits(slot_rgb)
-    if digits is None:
+    found = _stack_digits(slot_rgb)
+    if found is None:
         return None
-    scale = _OCR_HEIGHT / digits.shape[0]
-    image = Image.fromarray(np.clip(255 - digits, 0, 255).astype(np.uint8))
-    image = image.resize(
-        (max(1, round(digits.shape[1] * scale)), _OCR_HEIGHT), Image.Resampling.LANCZOS
-    )
-    padded = Image.new(
-        "L", (image.width + 2 * _OCR_PAD, image.height + 2 * _OCR_PAD), 255
-    )
-    padded.paste(image, (_OCR_PAD, _OCR_PAD))
-    try:
-        text = pytesseract.image_to_string(padded, config=_OCR_CONFIG)
-    except (pytesseract.TesseractError, OSError) as e:
-        log.warning("stack count OCR failed: %s", e)
+    cells = _glyph_cells(*found)
+    if not cells:
         return None
-    text = text.strip()
-    return int(text) if text.isdigit() else None
+    digits = [_match_digit(cell) for cell in cells]
+    if None in digits:
+        return None
+    return int("".join(digits))
+
+
+def read_stacks(slot_crops: Sequence[np.ndarray]) -> list[int | None]:
+    """read_stack for each slot crop, one result per crop in order."""
+    return [read_stack(crop) for crop in slot_crops]
 
 
 def _words(bar: _Bar) -> list[tuple[int, int]]:
