@@ -440,7 +440,8 @@ Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
 2. Read the Collections screen (Jeffrey's screenshot of 15 Oct, FOUND
    25/91). Part 1, the reader and the ownership record, done 15 Oct,
    reviewed (25 found cells of 91, checked by eye).
-   Part 2 wires it into the scanner. The BLUEPRINTS tab and FOUND count, the
+   Part 2, read while idle whenever the screen is open, once per visit,
+   done 15 Oct, reviewed. The BLUEPRINTS tab and FOUND count, the
    lattice, found versus empty cells, cells mapped to blueprints by the grid
    order (or learned from the found icons when no public order exists), and
    ownership stored in the user database. Feeds the weapon rule on its own.
