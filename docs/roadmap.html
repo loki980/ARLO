@@ -42,6 +42,13 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6.5vw,50px);l
 .capacity b{display:block;font-size:30px;color:var(--fg);line-height:1;font-variant-numeric:tabular-nums}
 
 /* Stack counts */
+.overall{border:1px solid var(--line);background:var(--bg2);padding:14px 16px 12px;margin:0 0 14px}
+.overall .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.overall h2{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+.overall .pct{font-family:var(--display);font-weight:700;font-size:28px;color:var(--amber);font-variant-numeric:tabular-nums;line-height:1}
+.overall .track{height:14px;background:var(--bg);border:1px solid var(--line);margin:10px 0 8px}
+.overall .track i{display:block;height:100%;background:var(--green)}
+.overall small{display:block;color:var(--muted);font-size:13px}
 .counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:0 0 30px}
 .counts > div{background:var(--bg2);padding:14px 16px}
 .counts b{display:block;font-family:var(--display);font-weight:700;font-size:28px;color:var(--amber);line-height:1.05;font-variant-numeric:tabular-nums}
@@ -150,21 +157,23 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <div class="capacity"><b>2 / 8</b>phases done</div>
 </header>
 
+<section class="overall" aria-label="Whole roadmap about 59 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~59%</span></div>
+  <div class="track"><i style="width:59%"></i></div>
+  <small>43 of 61 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+</section>
+
 <section class="counts" aria-label="Where things stand">
   <div><b>2 / 8</b><span>phases done</span><small>phases 0 and 3 done</small></div>
-  <div><b>~75%</b><span>of phase 1 done</span><small>10 of 15 steps, weighted by effort</small></div>
-  <div><b>493</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>43 / 61</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>552</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 8, A steady inventory trigger</a><small>Stop the popups fading and the badges vanishing when one check misses</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 9, Badges over a live background</a><small>Badges in raid, where the game world moves behind the inventory</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 10, The gold frame fits wide slots</a><small>The whole weapon slot, not a square on part of it</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 8, The advice card stays under your second gun</a><small>Found from your weapon slots, steps aside and comes back</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase2">Phase 2, step 9, Learn or sell a blueprint</a><small>Read from the check mark the game draws on learned blueprints</small></span></li>
+    <li><span></span><span>Nothing underway, paused for the night. <a href="#phase4">Phase 4, step 11, Badges in about a second</a> is halfway and resumes tomorrow. <a href="#phase5">Phase 5, step 2, Stitch the stash across scrolling</a> waits on your screen recording.</span></li>
   </ul>
 </section>
 
@@ -194,9 +203,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
       <h2>Hover an item and read the whole story</h2>
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
-      <div class="gauge" aria-label="Phase 1 about 80 percent done">
-        <div class="bar"><i style="width:80%"></i></div>
-        <div class="read">~80%<small>15 of 18 steps</small></div>
+      <div class="gauge" aria-label="Phase 1 about 85 percent done">
+        <div class="bar"><i style="width:85%"></i></div>
+        <div class="read">~85%<small>16 of 19 steps</small></div>
       </div>
       
       <div class="split">
@@ -217,6 +226,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="done"><span class="tick">✓</span><span class="what">Never read a card ARLO covers<small>The popup now lives in your red box in the LOADOUT panel and steps aside when a card opens over it</small></span><span class="when recent">done 14 Oct</span></li>
                         <li class="done"><span class="tick">✓</span><span class="what">A faster title reader<small>About 135 ms a card instead of 520. Garnet and other mod cards read right</small></span><span class="when recent">done 14 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Popups stay put while you hover<small>Your hover log showed the popup hid one second after each read while a new read took up to 2.5 seconds. The hide delay now follows the scan speed. You confirmed it fixed</small></span><span class="when recent">done 14 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 19, No advice for a garbled read<small>"CRACKED BIOSCANNER" plus junk now resolves to the item. A read that matches nothing shows nothing</small></span><span class="when recent">done 15 Oct</span></li>
           </ul>
         </div>
         <div>
@@ -232,14 +242,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase2">
-    <div class="slot now">2</div>
+    <div class="slot">2</div>
     <article class="card" data-tab="Phase 2">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
       <h2>Advice with a reason</h2>
       <p>Instead of a bare "Keep", the popup says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell.</p>
-      <div class="gauge" aria-label="Phase 2 about 60 percent done">
-        <div class="bar"><i style="width:60%"></i></div>
-        <div class="read">~60%<small>4 of 9 steps</small></div>
+      <div class="gauge" aria-label="Phase 2 about 80 percent done">
+        <div class="bar"><i style="width:80%"></i></div>
+        <div class="read">~80%<small>7 of 10 steps</small></div>
       </div>
       
       <div class="split">
@@ -250,13 +260,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="done"><span class="tick">✓</span><span class="what">The verdict engine, with the weapon rule<small>Active needs minus your progress, a reason naming the sources, keep at least one of every weapon. Radial Press reads "keep, 3 for Gunsmith IV, then sell"</small></span><span class="when recent">done 11 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Popup overhaul<small>Verdict word colored by the verdict, the catalog name instead of the raw read, home recycle outputs on the notes line</small></span><span class="when recent">done 11 Oct</span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Manual progress file<small>Your bench levels, finished quests, and project phases, kept in a separate untracked database so updates never conflict</small></span><span class="when recent">done 11 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 10, Known blueprints in the advice<small>No more "until you own the blueprint" once ARLO has seen it learned, and the card says why a known blueprint is sell</small></span><span class="when recent">done 15 Oct</span></li>
           </ul>
         </div>
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
-            <li class="now"><span class="nowmark">NOW</span><span class="what">Step 8, The advice card stays under your second gun<small>It went to the top-left corner when a card covered its spot and never came back. Home now comes from your weapon slots on screen</small></span><span class="when recent">added 15 Oct</span></li>
-            <li class="now"><span class="nowmark">NOW</span><span class="what">Step 9, Learn or sell a blueprint<small>No check mark on the tile: learn it. A check mark: the usual advice, sell. Remembered for the weapon rule</small></span><span class="when recent">added 15 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 8, The advice card stays under your second gun<small>It went to the top-left corner when a card covered its spot and never came back. Home now comes from your weapon slots on screen</small></span><span class="when recent">done 15 Oct</span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 9, Learn or sell a blueprint<small>No check mark on the tile: learn it. A check mark: the usual advice, sell. Remembered for the weapon rule</small></span><span class="when recent">done 15 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Step 7, A card that looks like part of the game<small>Built: ARC Tracker's card in your LOADOUT box in place of the corner popup, with the recycle line naming parts you still need. Waiting on your look in game</small></span><span class="when recent">changed 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Step 6, A big KEEP on the item and readable text<small>Built and merged: a KEEP chip on the game card in a game-style font. Your session showed it can cover the card's own text, so the advice card in step 7 may replace it</small></span><span class="when recent">changed 14 Oct</span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
@@ -288,14 +299,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase4">
-    <div class="slot now">4</div>
+    <div class="slot">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
-      <div class="gauge" aria-label="Phase 4 about 75 percent done">
-        <div class="bar"><i style="width:75%"></i></div>
-        <div class="read">~75%<small>6 of 10 steps</small></div>
+      <div class="gauge" aria-label="Phase 4 about 85 percent done">
+        <div class="bar"><i style="width:85%"></i></div>
+        <div class="read">~85%<small>9 of 11 steps</small></div>
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
@@ -304,9 +315,10 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <li class="done"><span class="tick">✓</span><span class="what">Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Tiles like ARC Tracker<small>The stack's worth on a solid patch over the type icon, a red have/need tag and outline when you are short, a green check when you have enough, gold only on the hovered slot</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">A bolder gold frame<small>Twice as thick and brighter, the red outline on short items thicker too. Waiting on your look in game</small></span><span class="when recent">done 15 Oct</span></li>
-        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">added 15 Oct</span></li>
-        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">added 15 Oct</span></li>
-        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="todo"><span class="tick">○</span><span class="what">Step 11, Badges in about a second, next<small>Paused halfway for the night. A pass takes 3 to 6 seconds live and was thrown away whole when anything changed. Items already seen are remembered, badges draw in batches</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Your run decides the drawing mode<small>X11 works today. The Wayland-native mode needs one optional package</small></span><span class="when"></span></li>
       </ul>
     </article>
@@ -334,7 +346,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 
   <li class="phase">
     <div class="slot">5</div>
-    <article class="card" data-tab="Phase 5">
+    <article class="card" data-tab="Phase 5" id="phase5">
       <div class="tags"><span class="tag started">Started</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
@@ -405,6 +417,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>15 Oct</time><span>Phase 3 done: slots found, icons identified by a learned model, tiers and stacks read. Gold borders and prices on every icon now draw live while your grid is still. Paused once at your usage limit, resumed. 446 tests.</span></li>
   <li><time>15 Oct</time><span>Tiles now look like ARC Tracker's: worth on a solid patch, red have/need tags and outlines, green checks, gold only on the hovered slot. Phase 5 moved up at your ask and its header reader built. The needs data checked against ARC Tracker once, privately: quests and projects match, Sheet Metal fixed. You asked for a more obvious gold frame, now twice as thick and brighter. 493 tests.</span></li>
   <li><time>15 Oct</time><span>Your four reports placed: popups fading and badges missing traced to the inventory trigger dropping on one missed check, badges in raid to the moving world behind the inventory, the advice card stuck in the corner, the frame on wide weapon slots. Blueprints get learn or sell from the game's check mark. Four workers running side by side.</span></li>
+  <li><time>15 Oct</time><span>All four merged after review: the trigger waits 2 seconds of misses, badges compare only the slots, the advice card lives under your second gun and comes back, blueprints say Learn it (violet) without the game's check mark, the gold frame fits wide slots. 539 tests. Waiting on your look after a restart.</span></li>
+  <li><time>15 Oct</time><span>Known blueprints now change the weapon advice and the card says why, garbled reads resolve to the item or show nothing. A whole-roadmap gauge added at your ask. 552 tests. The grid speed and keep work is paused halfway for the night.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
@@ -417,6 +431,6 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <span><span class="tag ahead mk">Planned</span>Nothing started yet</span>
   <span><i class="l-recent">11 Oct</i>Amber date: added, moved, changed or done in the last 14 days</span>
   <span>Click "Show the steps" on a finished phase to see what it took</span>
-  <span>Percent done is weighted by effort, the step count sits beside it</span>
+  <span>Percent done is weighted by effort, the step count sits beside it. The whole-roadmap bar at the top adds up every phase</span>
 </div>
 </div>

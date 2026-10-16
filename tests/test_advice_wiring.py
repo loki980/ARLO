@@ -404,3 +404,25 @@ def test_real_database_cards_for_snitch_scanner_and_microscope(monkeypatch):
         "Recycles into Advanced Mechanical Components, 3 Magnet, which you still need"
     )
     assert scope.rows == ()
+
+
+def test_unmatched_read_shows_nothing_and_hides_the_previous_item(monkeypatch):
+    scanner = _scanner(monkeypatch, advice_card=True)
+    missing = []
+    monkeypatch.setattr(scanner.db, "log_missing_item", missing.append)
+    monkeypatch.setattr(scanner, "_verdict_for", lambda *_: Verdict(KEEP, "r"))
+    scanner._handle_detected_item("Battery")  # noqa: SLF001
+    scanner._card_shown = object()  # noqa: SLF001 - Battery's card is up
+    _drain(scanner)
+
+    assert scanner._handle_detected_item("IUST'", new_card=True)  # noqa: SLF001
+
+    assert _drain(scanner) == [("hide",)]
+    assert missing == ["IUST'"]
+    assert not scanner._last_shown_item  # noqa: SLF001
+
+
+def test_unmatched_read_with_nothing_shown_queues_no_windows(monkeypatch):
+    scanner = _scanner(monkeypatch, advice_card=True)
+    scanner._handle_detected_item("IUST'", new_card=True)  # noqa: SLF001
+    assert _drain(scanner) == []

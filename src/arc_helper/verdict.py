@@ -172,6 +172,7 @@ def compute_verdict(
     home_outputs: Iterable | None = None,
     learned: bool | None = None,
     recorded_learned: bool = False,
+    owned_blueprints: Iterable[str] = (),
 ) -> Verdict:
     """Advice for an item, applying the rules in order.
 
@@ -184,7 +185,7 @@ def compute_verdict(
 
     0. A weapon is kept, at least one, and more while its blueprint (the
        catalog name of the "<base> Blueprint" entry, when one exists) is not
-       owned.
+       in owned_blueprints (names compare without regard to case).
     1. Needs are filtered to the active ones (see _is_active). Progress
        names match without regard to case.
     2. Active needs give keep with their summed quantity and up to three
@@ -199,18 +200,35 @@ def compute_verdict(
     if item is None:
         return Verdict(UNKNOWN, UNKNOWN_REASON)
 
+    known_names = {n.casefold() for n in owned_blueprints}
     if is_blueprint(item):
         if learned is False:
             return Verdict(LEARN, UNLEARNED_REASON)
         if learned is None and not recorded_learned:
             return Verdict(LEARN, MAYBE_LEARNED_REASON)
         known = _item_verdict(
-            item, needs, progress, owned, today, show_ended, blueprint, home_outputs
+            item,
+            needs,
+            progress,
+            owned,
+            today,
+            show_ended,
+            blueprint,
+            home_outputs,
+            known_names,
         )
         return known._replace(reason=f"{KNOWN_BLUEPRINT_REASON}. {known.reason}")
 
     return _item_verdict(
-        item, needs, progress, owned, today, show_ended, blueprint, home_outputs
+        item,
+        needs,
+        progress,
+        owned,
+        today,
+        show_ended,
+        blueprint,
+        home_outputs,
+        known_names,
     )
 
 
@@ -223,11 +241,14 @@ def _item_verdict(
     show_ended: bool,  # noqa: FBT001
     blueprint: str | None,
     home_outputs: Iterable | None,
+    known_blueprints: set[str],
 ) -> Verdict:
     """compute_verdict's rules 0 to 3 for a known item."""
     if is_weapon(item, blueprint):
         reason = "Weapon, keep at least one"
-        if blueprint:
+        if blueprint and blueprint.casefold() in known_blueprints:
+            reason += ", you know its blueprint"
+        elif blueprint:
             reason += f", more until you own the {blueprint}"
         return Verdict(KEEP, reason, 1)
 
