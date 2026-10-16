@@ -40,6 +40,8 @@ from arc_helper.badge_surface import Patch
 from arc_helper.badge_surface import Tag
 from arc_helper.cell_border import CellBorder
 from arc_helper.clickthrough import make_click_through
+from arc_helper.collections_screen import read_collections
+from arc_helper.collections_screen import record_collections
 from arc_helper.config import APP_DIR
 from arc_helper.config import DEFAULT_CAPTURE_LIMIT
 from arc_helper.config import SettingsManager
@@ -72,7 +74,9 @@ from arc_helper.icon_embed import default_embedder
 from arc_helper.ocr import CardSignature
 from arc_helper.ocr import OCREngine
 from arc_helper.ocr import OCREngineManager
+from arc_helper.ocr import clamp_bbox
 from arc_helper.ocr import get_ocr_engine
+from arc_helper.ocr import grab_screen
 from arc_helper.ocr import same_card
 from arc_helper.overlay import RECYCLE_LABEL_HOME_ONLY
 from arc_helper.overlay import RECYCLE_LABEL_HOME_RECYCLER
@@ -123,6 +127,8 @@ CARD_GONE_CYCLES = 2
 NO_CARD_SLEEP_CAP_S = 0.1
 # Seconds between INVENTORY trigger rechecks while ACTIVE
 TRIGGER_RECHECK_S = 1.0
+# Seconds between looks for the Collections screen (BLUEPRINTS tab) while IDLE
+COLLECTIONS_CHECK_S = 2.0
 # ACTIVE ends on a lost trigger only once the rechecks have missed for this
 # many seconds in a row (and on at least two rechecks). One hit resets it
 TRIGGER_LOST_S = 2.0
@@ -1778,6 +1784,14 @@ class Scanner:
     # Hotkey override (Ctrl+Shift to force tooltip scanning)
     _hotkey_override: bool = False
 
+    # Monotonic time of the last look for the Collections screen while IDLE,
+    # whether the screen showed then, and whether this visit has recorded a
+    # consistent read or logged an inconsistent one
+    _collections_checked: float = float("-inf")
+    _collections_open: bool = False
+    _collections_recorded: bool = False
+    _collections_warned: bool = False
+
     # Thread control
     _running: bool = False
     _scan_thread: Thread | None = None
@@ -1865,8 +1879,15 @@ class Scanner:
                         self._update_status("active")
                         logger.info("INVENTORY detected - activating tooltip scanner")
                     else:
-                        # Wait before next trigger scan
-                        time.sleep(settings.scan.trigger_scan_interval)
+                        # Look for the Collections screen at most every
+                        # COLLECTIONS_CHECK_S, inside the wait before the next
+                        # trigger scan so the trigger keeps its timing
+                        began = time.monotonic()
+                        self._check_collections(began)
+                        spent = time.monotonic() - began
+                        time.sleep(
+                            max(0.0, settings.scan.trigger_scan_interval - spent)
+                        )
 
                     self.stats.trigger_scans += 1
 
@@ -1910,6 +1931,54 @@ class Scanner:
                 logger.error(f"Scanner error: {e}")
                 self._update_status("error")
                 time.sleep(1.0)  # Back off on error
+
+    def _grab_full_screen(self):  # noqa: PLR6301 - test seam
+        """One capture of the whole primary screen."""
+        width, height = get_screen_resolution()
+        return grab_screen(clamp_bbox(0, 0, width, height))
+
+    def _check_collections(self, now: float) -> None:
+        """Record blueprint ownership from the Collections screen, once a visit.
+
+        Runs at most every COLLECTIONS_CHECK_S. A visit lasts while each look
+        finds the screen on its BLUEPRINTS tab. Its first consistent read is
+        recorded and nothing more is read until the screen has been left. An
+        inconsistent read (a tooltip over the grid) is retried on the next
+        look and logged once a visit. ARLO's windows and badges are untouched.
+        """
+        if now - self._collections_checked < COLLECTIONS_CHECK_S:
+            return
+        self._collections_checked = now
+        read = read_collections(_frame_rgb(self._grab_full_screen()))
+        if read is None:
+            if self._collections_open:
+                logger.debug("collections screen left")
+            self._collections_open = False
+            self._collections_recorded = False
+            self._collections_warned = False
+            return
+        self._collections_open = True
+        if self._collections_recorded:
+            return
+        if not read.consistent:
+            if not self._collections_warned:
+                self._collections_warned = True
+                logger.info("collections read inconsistent")
+            return
+        unknown = record_collections(self.db, read)
+        self._collections_recorded = True
+        recorded = sum(
+            1
+            for cell in read.cells
+            if self.db.blueprint_at(cell.grid_index) is not None
+        )
+        logger.info(
+            "collections read found=%d/%d recorded=%d unknown=%s",
+            read.found_count,
+            read.total,
+            recorded,
+            unknown,
+        )
 
     def _reset_scan_timing(self) -> None:
         """Forget scan timing and the shown card on entry to ACTIVE.
