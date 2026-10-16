@@ -9,7 +9,8 @@ column of --names, read from --captures) and the fixtures given as
 arguments. Every filled slot is embedded once on the app's gallery and
 twins (main.load_stash_gallery) and ranked as identify_slots ranks it, then
 judged twice: by BASELINE_RULE, a frozen copy of the rule before this work,
-and by stash_scan._resolve as it is now.
+and by stash_scan._resolve as it is now, given is_blueprint_tile's answer.
+Every is_blueprint_tile True and None is listed per set.
 
 For every slot the baseline leaves unidentified the report gives every
 applicable reason (similarity below MIN_SIMILARITY, base lead below
@@ -50,6 +51,7 @@ from arc_helper.grid import find_slots
 from arc_helper.icon_embed import crop_square
 from arc_helper.icon_embed import default_embedder
 from arc_helper.main import load_stash_gallery
+from arc_helper.slot_marks import is_blueprint_tile
 from arc_helper.slot_marks import read_tier
 from arc_helper.stash_scan import _rank
 from arc_helper.stash_scan import _resolve
@@ -183,7 +185,10 @@ def main() -> None:
                 tier_read = read_tier(crop)
                 read = tier_read.tier if tier_read else None
                 reasons, before = baseline_reasons(found, read, db.lookup, twins)
-                after, _, lead = _resolve(found, read, db.lookup, twins)
+                blueprint = is_blueprint_tile(crop)
+                after, _, lead = _resolve(
+                    found, read, db.lookup, twins, blueprint=blueprint
+                )
                 sid = f"{path.stem}@{slot.rect.left},{slot.rect.top}"
                 mark, note = labels.get(sid, ("", ""))
                 row = {
@@ -194,6 +199,7 @@ def main() -> None:
                     "similarity": round(found[0].similarity, 4),
                     "lead": round(lead, 4),
                     "read_tier": read or "",
+                    "blueprint_tile": "" if blueprint is None else str(blueprint),
                     "twins": ";".join(twins.get(found[0].name, ())),
                     "reasons": ";".join(reasons),
                     "before": before.name if before else "",
@@ -229,7 +235,8 @@ def _report(rows: list[dict]) -> list[str]:
         ),
         (
             "new rule: the same, and a slot whose tiered top name is settled by a"
-            " read numeral passes over untiered candidates in the lead, TOP_N 10"
+            " read numeral passes over untiered candidates in the lead, TOP_N 10,"
+            " and an item and blueprint twin pair settled by is_blueprint_tile"
         ),
         (
             "marks: right (top guess names the item, its base item when tiered),"
@@ -294,6 +301,15 @@ def _report(rows: list[dict]) -> list[str]:
             f" ({r['before_result']} -> {r['after_result']})"
             for r in changed
         )
+        tiles = [r for r in part if r["blueprint_tile"] == "True"]
+        lines.append(f"is_blueprint_tile True: {len(tiles)}")
+        lines.extend(
+            f"  {r['slot']} [{r['panel']}] {r['guess']} after {r['after'] or '?'}"
+            for r in tiles
+        )
+        covered = [r for r in part if not r["blueprint_tile"]]
+        lines.append(f"is_blueprint_tile None (covered): {len(covered)}")
+        lines.extend(f"  {r['slot']} [{r['panel']}] {r['guess']}" for r in covered)
         unjudged = [
             r
             for r in changed

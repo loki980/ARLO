@@ -84,6 +84,7 @@ def stubs(monkeypatch):
 
     monkeypatch.setattr(stash_scan, "read_tier", fake_tier)
     monkeypatch.setattr(stash_scan, "read_stack", fake_stack)
+    monkeypatch.setattr(stash_scan, "is_blueprint_tile", lambda _crop: None)
     return tiers, stack_reads
 
 
@@ -390,6 +391,79 @@ def test_the_acceptance_rule_on_hand_built_candidates(ranked, read, expected):
     found = _candidates(*ranked)
     item, _, _ = stash_scan._resolve(found, read, _catalog, {})  # noqa: SLF001
     assert (item.name if item else None) == expected
+
+
+def _named(name: str) -> Item:
+    return Item(name=name, action="Sell", sell_price=1000)
+
+
+@pytest.mark.parametrize(
+    ("ranked", "read", "blueprint", "expected"),
+    [
+        # An untiered item and its blueprint: the tile decides
+        (
+            (("Grappling Hook", 0.8), ("Metal Parts", 0.5)),
+            None,
+            True,
+            "Grappling Hook Blueprint",
+        ),
+        (
+            (("Grappling Hook", 0.8), ("Metal Parts", 0.5)),
+            None,
+            False,
+            "Grappling Hook",
+        ),
+        ((("Grappling Hook", 0.8), ("Metal Parts", 0.5)), None, None, None),
+        # The blueprint ranked first, a plain tile picks the item
+        (
+            (("Grappling Hook Blueprint", 0.8), ("Metal Parts", 0.5)),
+            None,
+            False,
+            "Grappling Hook",
+        ),
+        # A tiered item: a blueprint tile needs no numeral, a plain one does
+        ((("Anvil I", 0.8), ("Metal Parts", 0.5)), None, True, "Anvil Blueprint"),
+        ((("Anvil I", 0.8), ("Metal Parts", 0.5)), "III", False, "Anvil III"),
+        ((("Anvil I", 0.8), ("Metal Parts", 0.5)), None, False, None),
+        # Twins that are not one item and its blueprint keep the numeral rule
+        ((("Kettle", 0.8), ("Metal Parts", 0.5)), None, True, None),
+        ((("Kettle", 0.8), ("Metal Parts", 0.5)), None, False, None),
+    ],
+)
+def test_the_tile_settles_an_item_and_its_blueprint(ranked, read, blueprint, expected):
+    twins = {
+        "Grappling Hook": ("Grappling Hook Blueprint",),
+        "Grappling Hook Blueprint": ("Grappling Hook",),
+        "Anvil I": ("Anvil Blueprint",),
+        "Kettle": ("Amplified Kettle", "Kettle Blueprint"),
+    }
+    item, tier, _ = stash_scan._resolve(  # noqa: SLF001
+        _candidates(*ranked), read, _named, twins, blueprint=blueprint
+    )
+    assert (item.name if item else None) == expected
+    if expected and expected.endswith("Blueprint"):
+        assert tier is None
+
+
+@pytest.mark.usefixtures("stubs")
+def test_identify_slots_settles_twins_by_the_tile(monkeypatch):
+    slots = _slots(1)
+    gallery = EmbedGallery(
+        ("hook", "metal"),
+        ("Grappling Hook", "Metal Parts"),
+        np.eye(2, dtype=np.float32),
+    )
+    twins = {"Grappling Hook": ("Grappling Hook Blueprint",)}
+    monkeypatch.setattr(stash_scan, "is_blueprint_tile", lambda _crop: True)
+    found = identify_slots(
+        _frame(slots),
+        gallery,
+        _named,
+        embedder=QueueEmbedder([[1, 0]]),
+        slots=slots,
+        twins=twins,
+    )
+    assert found[0].item.name == "Grappling Hook Blueprint"
 
 
 def test_owned_totals_adds_stacks_and_skips_unidentified_slots():

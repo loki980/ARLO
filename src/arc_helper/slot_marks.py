@@ -29,6 +29,10 @@ the boxes of the type icon and the right mark, for painting over the icon:
 learned_check takes a whole frame and a slot rect, and reads the slot's top
 right corner for the white check mark the game draws on a learned
 blueprint (see the constants above it for the measured mark).
+
+is_blueprint_tile tells a blueprint's tile from its item's: the game draws a
+blueprint on a blue grid, every other tile on a dark slate (see the
+constants above it for the measured colours).
 """
 
 from __future__ import annotations
@@ -580,6 +584,57 @@ def bar_geometry(slot_rgb: np.ndarray) -> BarGeometry | None:
     return BarGeometry(
         bar.rect, (int(colour[0]), int(colour[1]), int(colour[2])), icon_box, mark_box
     )
+
+
+# Blueprint tile: the game draws a blueprint on a saturated blue grid where
+# every other tile has a dark slate background. Measured on the 449 filled
+# slots of the 12 sample captures, the raid and base fixtures and Jeffrey's
+# Collections screenshot, over the tile body (above the bar, inside a 4
+# percent margin): the grid background is about (13, 28, 75) with lines
+# about (55, 58, 128), the slate about (17, 28, 45), and the blue rarity
+# corner about (0, 165, 238), which the green test below leaves out. The
+# blue share of the body is 0.56 to 0.86 on the 27 blueprint tiles and at
+# most 0.016 on the other 422. A hovered tile turns cream, with 0.74 to 0.92
+# of its body bright (an item's own art reaches 0.24)
+_BLUE_OVER_GREEN = 25  # blue channel minus green, the slate is about 17
+_BLUE_OVER_RED = 25  # blue channel minus red
+_BLUE_GREEN_RATIO = 1.8  # blue over green, the grid 2.2 to 2.7, rarity 1.45
+_BLUEPRINT_SHARE = 0.25  # blue share of the body that makes a blueprint
+_BODY_MARGIN = 0.04  # of the slot width, the frame left out of the body
+_BODY_FALLBACK = 0.75  # body bottom, of the slot height, without a bar
+_TILE_COVER_LUMA = 170.0  # luminance that counts as covering the body
+# Covered body share above which a blueprint could fall under
+# _BLUEPRINT_SHARE (0.56 - 0.3 is still over 0.25), so the tile is not judged
+_TILE_COVER_MAX = 0.3
+
+
+def is_blueprint_tile(slot_rgb: np.ndarray) -> bool | None:
+    """Whether a slot crop shows a blueprint's blue grid background.
+
+    True when at least _BLUEPRINT_SHARE of the tile body (the part above the
+    bottom bar) is the grid's blue, False when less is and the body is
+    clear, None when more than _TILE_COVER_MAX of the body is bright (a
+    hovered tile, a tooltip), which could hide the grid.
+    """
+    rgb = np.asarray(slot_rgb)[..., :3]
+    height, width = rgb.shape[:2]
+    bar = _find_bar(rgb)
+    bottom = bar.rect.top if bar is not None else round(_BODY_FALLBACK * height)
+    margin = max(1, round(_BODY_MARGIN * width))
+    body = rgb[margin:bottom, margin : width - margin].astype(np.int32)
+    if body.size == 0:
+        return None
+    red, green, blue = body[..., 0], body[..., 1], body[..., 2]
+    grid = (
+        (blue - green >= _BLUE_OVER_GREEN)
+        & (blue - red >= _BLUE_OVER_RED)
+        & (blue >= _BLUE_GREEN_RATIO * green)
+    )
+    if grid.mean() >= _BLUEPRINT_SHARE:
+        return True
+    if (_luminance(body) >= _TILE_COVER_LUMA).mean() > _TILE_COVER_MAX:
+        return None
+    return False
 
 
 # Learned blueprint check: the game draws a small white check mark in the
