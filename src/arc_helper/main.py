@@ -447,12 +447,14 @@ class StashFrame(NamedTuple):
 
     image is the capture (a PIL image or an RGB array) and is never mutated
     after the hand off. card is the game's item card and overlays are ARLO's
-    own windows, both in physical screen px.
+    own windows, both in physical screen px. cursor is the pointer, in
+    capture px, when the screen backend gave it.
     """
 
     image: object
     card: Rect | None
     overlays: tuple[Rect, ...]
+    cursor: Point | None = None
 
 
 def frame_hidden(frame: StashFrame | None) -> list[Rect]:
@@ -509,6 +511,12 @@ def badge_marks(badge: Mapping) -> list[Rect]:
 def _centre_in(rect: Rect, region: Rect) -> bool:
     x, y = (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2
     return region.left <= x < region.right and region.top <= y < region.bottom
+
+
+def _near(a: Rect, b: Rect) -> bool:
+    """True when two slot rects are the same slot, within half a STILL_SCALE cell."""
+    reach = STILL_SCALE // 2
+    return all(abs(p - q) <= reach for p, q in zip(a, b, strict=True))
 
 
 def _within(rect: Rect, region: Rect) -> bool:
@@ -670,12 +678,14 @@ class GridChange(NamedTuple):
     """How the inventory grid changed between two frames.
 
     big is a change that clears every badge. changed are the slot rects
-    that changed on their own, slots the number of slots compared.
+    that changed on their own, slots the number of slots compared and lone
+    the number found on one frame only.
     """
 
     big: bool
     changed: tuple[Rect, ...] = ()
     slots: int = 0
+    lone: int = 0
 
 
 def stash_changes(
@@ -730,6 +740,7 @@ def stash_changes(
         or len(changed) >= BIG_CHANGE_FRACTION * total,
         changed=tuple(changed),
         slots=total,
+        lone=len(lone),
     )
 
 
@@ -865,12 +876,17 @@ class StashBadges:
     keeps a reference, so the hover path never waits here. A watcher daemon
     thread compares each capture with the one before and with the frame of
     the drawn badges, slot by slot (stash_changes), outside the game's card,
-    ARLO's windows and the drawn badges. A big change (BIG_CHANGE_FRACTION
-    of the slots, or a changed slot set) clears the badges at once. A
-    smaller one hides only the badges on the changed slots, which come back
-    when their slots look as they did in the badges' frame again. The card,
-    grown by CARD_MARGIN_PX, stays skipped for CARD_LINGER_S after it is
-    gone, while it fades out.
+    ARLO's windows, the drawn badges and the slot under the cursor (the
+    game brightens it on hover, its badges stay drawn). A big change
+    (BIG_CHANGE_FRACTION of the slots, or a changed slot set) waits one
+    frame: the badges clear only when the next frame is still big against
+    the frame before the change, with any card located on either frame or
+    lingering skipped, so a card fading in before the scanner locates it
+    clears nothing. A smaller one hides only the badges on the changed
+    slots, once the next frame shows them changed too, which come back when their slots look as they did in the badges'
+    frame again, or as soon as peek knows a changed slot's new look, from
+    the slot cache before the pass. The card, grown by CARD_MARGIN_PX, stays
+    skipped for CARD_LINGER_S after it is gone, while it fades out.
 
     A change that is big inside one of SCROLL_PANELS only, whose content
     moved by an offset grid.scroll_offset measures, is a scroll and clears
@@ -884,8 +900,10 @@ class StashBadges:
     A still pair starts a pass on the pass daemon thread when one is needed
     and none is running, at most once per gap_s. A finished pass keeps its
     badges for the slots unchanged since its frame and drops those on
-    changed slots, or all of them after a big change. Badges never cover
-    the card or ARLO's windows, and come back when those move away.
+    changed slots, or all of them after a big change. A pass that finds no
+    badge for a drawn slot whose look did not change keeps the drawn ones
+    there. Badges never cover the card or ARLO's windows, and come back
+    when those move away.
 
     A pass made while the card covered part of the grid has no badges
     there. Once the card is gone a second pass fills that part in and keeps
@@ -982,16 +1000,33 @@ class StashBadges:
         self._viewports: dict[str, Rect] = {}
         # Slots a peek after a scroll looked at since the last pass, moved with it
         self._peeked: list[Rect] = []
+        # The frame before a big change and that change's card, while the
+        # change waits for the next frame to confirm it
+        self._pending: tuple[tuple[np.ndarray, StashFrame], Rect | None] | None = None
+        # Badges of changed slots whose new look peek knew, by changed slot
+        self._renew: dict[Rect, list[dict]] = {}
+        # The slots changed since the badges' frame on the last compare,
+        # hidden or waiting for this compare to confirm them
+        self._raw_changed: tuple[Rect, ...] = ()
         # The latency since the last clear or slot hide, as clock times
         # (moved, still, drawn) and the pass's seconds, until it is logged
         self._lat: dict[str, float | None] | None = None
 
-    def feed(self, image, card: Rect | None, overlays: Sequence[Rect]) -> None:
-        """Hand over the newest full-screen capture. Never waits on a pass."""
+    def feed(
+        self,
+        image,
+        card: Rect | None,
+        overlays: Sequence[Rect],
+        cursor: Point | None = None,
+    ) -> None:
+        """Hand over the newest full-screen capture. Never waits on a pass.
+
+        cursor is the pointer in capture px, None when unknown.
+        """
         if self._disabled or self._stopping:
             return
         with self._lock:
-            self._latest = StashFrame(image, card, tuple(overlays))
+            self._latest = StashFrame(image, card, tuple(overlays), cursor)
             self._latest_at = self._clock()
             if card is not None:
                 self._card_seen = (card, self._clock())
@@ -1004,8 +1039,11 @@ class StashBadges:
                     thread.start()
         self._wake.set()
 
-    def clear(self, reason: str) -> None:
-        """Remove the badges at once and drop every pass and compare so far."""
+    def clear(self, reason: str, detail: str = "") -> None:
+        """Remove the badges at once and drop every pass and compare so far.
+
+        detail is added to the log line after the reason.
+        """
         with self._lock:
             busy = self._drawn or self._have_result or self._pass_running
             self._generation += 1
@@ -1013,9 +1051,11 @@ class StashBadges:
             self._slot_cache.clear()
             self._gray_cache.clear()
             self._badges, self._shown, self._marks, self._pass_hidden = [], [], [], []
-            self._changed = self._omitted = ()
+            self._changed = self._omitted = self._raw_changed = ()
             self._viewports = {}
             self._peeked = []
+            self._pending = None
+            self._renew = {}
             self._have_result = False
             self._need_pass = True
             self._peek_due = True
@@ -1023,7 +1063,7 @@ class StashBadges:
                 self._drawn = False
                 self._surface.clear()
         if busy:
-            logger.debug("stash badges cleared reason=%s", reason)
+            logger.debug("stash badges cleared reason=%s%s", reason, detail)
 
     def stop(self) -> None:
         """Clear, end both threads and stop the badge surface."""
@@ -1087,11 +1127,55 @@ class StashBadges:
         b: tuple[np.ndarray, StashFrame],
         extra: Sequence[Rect],
     ) -> GridChange:
-        """stash_changes of two held frames, outside both cards and windows and extra."""
-        ignore = [*frame_still_ignore(a[1]), *frame_still_ignore(b[1]), *extra]
+        """stash_changes of two held frames, outside both cards and windows and extra.
+
+        The slots under either frame's cursor are skipped too.
+        """
+        ignore = [*self._ignore_of(a, b), *extra]
         return stash_changes(
             a[0], b[0], ignore, self._still, self._slots_of, self._gray_of
         )
+
+    def _ignore_of(
+        self, a: tuple[np.ndarray, StashFrame], b: tuple[np.ndarray, StashFrame]
+    ) -> list[Rect]:
+        """What a compare of two held frames skips: cards, windows, hovered slots."""
+        return [
+            *frame_still_ignore(a[1]),
+            *frame_still_ignore(b[1]),
+            *self._hovered(a, b),
+        ]
+
+    def _hovered(
+        self, a: tuple[np.ndarray, StashFrame], b: tuple[np.ndarray, StashFrame]
+    ) -> list[Rect]:
+        """The slots of a and b under the cursor of either frame."""
+        points = [f[1].cursor for f in (a, b) if f[1].cursor is not None]
+        if not points:
+            return []
+        return [
+            r
+            for f in (a, b)
+            for r in self._slots_of(f[0])
+            if any(r.left <= p.x < r.right and r.top <= p.y < r.bottom for p in points)
+        ]
+
+    def _hover_left(
+        self, ref: tuple[np.ndarray, StashFrame], b: tuple[np.ndarray, StashFrame]
+    ) -> bool:
+        """True when the cursor of b is off a slot hovered in the badges' frame.
+
+        That slot is never compared with the badges' frame, so a pass renews it.
+        """
+        was = self._hovered(ref, ref)
+        if not was:
+            return False
+        now = self._hovered(b, b)
+        return any(not any(_near(r, c) for c in now) for r in was)
+
+    def _renew_marks(self) -> list[Rect]:
+        """The screen parts the badges of renewed slots change (under the lock)."""
+        return [m for v in self._renew.values() for b in v for m in badge_marks(b)]
 
     def _watch_round(self) -> None:
         """Compare the newest capture with the one before and the badges' frame."""
@@ -1101,7 +1185,8 @@ class StashBadges:
             generation = self._generation
             prev = self._prev
             ref = self._ref
-            extra = [*self._lingering(), *self._marks]
+            pending = self._pending
+            extra = [*self._lingering(), *self._marks, *self._renew_marks()]
         if frame is None:
             self._refresh()
             return
@@ -1112,6 +1197,12 @@ class StashBadges:
             self._prev = (rgb, frame)
         if prev is None:
             return
+        if pending is not None:
+            # A big change waits on this frame: compare it with the frame
+            # before the change, skipping the card the change came with
+            prev, card = pending
+            if card is not None:
+                extra.append(grown(card, CARD_MARGIN_PX))
         pair = self._changes(prev, (rgb, frame), extra)
         changed: tuple[Rect, ...] = ()
         if (
@@ -1129,19 +1220,46 @@ class StashBadges:
             if scroll is not None:
                 self._follow(generation, rgb, frame, fed_at, *scroll)
                 return
+        if pair.big and pending is None:
+            # A card fading in or out is gone or located by the next frame
+            with self._lock:
+                if generation == self._generation:
+                    self._pending = (prev, frame.card)
+                    # Kept for the compare with the next frame
+                    self._prev = prev
+            logger.debug(
+                "stash big change waits changed=%d slots=%d lone=%d",
+                len(pair.changed),
+                pair.slots,
+                pair.lone,
+            )
+            return
         if pair.big:
             with self._lock:
                 kept = self._slot_cache.get(id(rgb))
-            self.clear("grid_moved")
+            self.clear(
+                "grid_moved",
+                f" changed={len(pair.changed)} slots={pair.slots} lone={pair.lone}",
+            )
             with self._lock:
                 self._prev = (rgb, frame)
                 if kept is not None:
                     self._slot_cache[id(rgb)] = kept
                 self._lat = _latency_from(fed_at)
             return
+        left = ref is not None and self._hover_left(ref, (rgb, frame))
         with self._lock:
             if generation != self._generation:
                 return
+            if pending is not None:
+                self._pending = None
+            # A slot newly changed on this frame only hides once the next
+            # frame shows it changed too: a card fading in is located by then
+            raw = changed
+            changed = tuple(
+                r for r in raw if r in self._raw_changed or r in self._changed
+            )
+            self._raw_changed = raw
             if changed and set(changed) != set(self._changed):
                 self._lat = _latency_from(fed_at)
             elif self._lat is not None and self._lat["drawn"] is None:
@@ -1164,7 +1282,19 @@ class StashBadges:
                     "stash badges hidden slots=%d reason=slot_changed", len(changed)
                 )
             self._changed = changed
-            if self._uncovered(frame):
+            # A renewed slot whose look moved on, or that looks as in the
+            # badges' frame again, waits for a new peek
+            self._renew = {
+                r: v
+                for r, v in self._renew.items()
+                if r in changed and not any(_near(r, c) for c in pair.changed)
+            }
+            unknown = [
+                r
+                for r in changed
+                if r not in self._renew and not pair.changed and self._peek
+            ]
+            if self._uncovered(frame) or left:
                 self._need_pass = True
             now = self._clock()
             if not pair.changed and self._pass_due(frame, now):
@@ -1182,7 +1312,45 @@ class StashBadges:
                 self._lat = None
         if start and self._threaded:
             self._job_ready.set()
+        if unknown:
+            self._renew_slots(generation, rgb, frame, unknown)
         self._refresh()
+
+    def _renew_slots(
+        self, generation: int, rgb: np.ndarray, frame: StashFrame, slots: list[Rect]
+    ) -> None:
+        """Badges for changed slots whose new look peek knows, before the pass.
+
+        A slot peek does not know gets none and stays hidden until the pass.
+        """
+        try:
+            slot_items = [
+                s for s in self._peek(rgb) if any(_near(s.rect, r) for r in slots)
+            ]
+            badges = self._make_badges(slot_items) if slot_items else []
+        except Exception as e:  # noqa: BLE001 - the pass draws them instead
+            logger.warning("stash changed slots not redrawn (%s)", e)
+            return
+        if not self._keep_border:
+            badges = [b for b in badges if b["kind"] != "border"]
+        badges = badges_clear_of(badges, frame_hidden(frame))
+        renew = {
+            r: [b for b in badges if rects_intersect(Rect(*b["rect"]), r)]
+            for r in slots
+        }
+        with self._lock:
+            if generation != self._generation:
+                return
+            for r, made in renew.items():
+                if r in self._changed:
+                    self._renew[r] = made
+        known = [r for r, made in renew.items() if made]
+        if known:
+            logger.debug(
+                "stash changed slots redrawn slots=%d badges=%d",
+                len(known),
+                sum(len(renew[r]) for r in known),
+            )
 
     def _scroll_of(
         self,
@@ -1201,7 +1369,7 @@ class StashBadges:
         """
         if self._still is not frames_still:
             return None
-        ignore = [*frame_still_ignore(a[1]), *frame_still_ignore(b[1]), *extra]
+        ignore = [*self._ignore_of(a, b), *extra]
         found_a, found_b = self._found_of(a[0]), self._found_of(b[0])
 
         def changes(keep: Callable[[object], bool]) -> GridChange | None:
@@ -1290,7 +1458,9 @@ class StashBadges:
             ]
             if region not in self._omitted:
                 self._omitted = (*self._omitted, region)
-            self._changed = ()
+            self._changed = self._raw_changed = ()
+            self._renew = {}
+            self._pending = None
             if self._ref is not None:
                 # The badges now sit where this frame shows their slots
                 self._ref = (rgb, frame)
@@ -1501,8 +1671,12 @@ class StashBadges:
         with self._lock:
             newest = self._newest
             ref = self._ref
-            extra = [*self._lingering(), *self._marks]
-        current = generation == self._generation
+            extra = [*self._lingering(), *self._marks, *self._renew_marks()]
+            # A big change waiting for its next frame may be about to clear
+            waiting = self._pending is not None
+        current = generation == self._generation and not waiting
+        # Slots under the cursor in the last pass's frame, never compared with it
+        was_hovered = self._hovered(ref, ref) if ref is not None else []
         since = GridChange(big=False)
         if current and newest is not None and newest[1] is not frame:
             since = self._changes((rgb, frame), newest, extra)
@@ -1535,7 +1709,7 @@ class StashBadges:
                 renew = [
                     *self._pass_hidden,
                     *self._omitted,
-                    *(() if moved.big else moved.changed),
+                    *(() if moved.big else (*moved.changed, *was_hovered)),
                 ]
                 if moved.big:
                     old = []
@@ -1547,13 +1721,18 @@ class StashBadges:
                         if any(rects_intersect(Rect(*b["rect"]), h) for h in renew)
                     ]
                 badges = [*old, *badges]
+                if not moved.big:
+                    badges += self._kept_drawn(
+                        badges, [*since.changed, *moved.changed, *was_hovered]
+                    )
             self._badges = badges
             self._have_result = True
             self._ref = (rgb, frame)
             self._pass_hidden = hidden
-            self._changed = since.changed
+            self._changed = self._raw_changed = since.changed
             self._omitted = since.changed
             self._peeked = []
+            self._renew = {}
             self._marks = [m for b in badges for m in badge_marks(b)]
             if (
                 self._lat is not None
@@ -1565,11 +1744,32 @@ class StashBadges:
                 self._latency_check()
             self._evict_slots()
 
+    def _kept_drawn(self, badges: list[dict], looks: Sequence[Rect]) -> list[dict]:
+        """The drawn badges a pass's badges have nothing for, on unchanged slots.
+
+        A badge's rect is its slot's, so a drawn badge is kept when no badge
+        of the pass and no slot in looks (changed since the badges' frame)
+        meets it. Under the lock.
+        """
+        have = [Rect(*b["rect"]) for b in badges]
+        kept = [
+            b
+            for b in self._shown
+            if not any(rects_intersect(Rect(*b["rect"]), r) for r in (*have, *looks))
+        ]
+        if kept:
+            logger.debug("stash pass kept_drawn=%d", len(kept))
+        return kept
+
     def _refresh(self) -> None:
         """Draw the accepted badges clear of the newest card, windows and changed slots."""
         with self._lock:
             hidden = frame_hidden(self._newest[1]) if self._newest else []
-            visible = badges_clear_of(self._badges, [*hidden, *self._changed])
+            renewed = [b for r in self._changed for b in self._renew.get(r, ())]
+            visible = [
+                *badges_clear_of(self._badges, [*hidden, *self._changed]),
+                *badges_clear_of(renewed, hidden),
+            ]
             if visible == self._shown:
                 return
             generation = self._generation
@@ -2041,7 +2241,9 @@ class Scanner:
         capture. Only a reference changes hands, so the cycle does not wait.
         In a capture run the capture is also offered as a grid frame, also
         with the stash badges off. The first cycle of an ACTIVE stretch (no
-        scan period yet) starts a new stretch of grid frames.
+        scan period yet) starts a new stretch of grid frames. The stash gets
+        the card this cycle's locate found and the cursor from the screen
+        backend, in capture px, or None when the backend cannot say.
         """
         grid = getattr(ocr, "capture_library", False) is True
         if (self.stash is None and not grid) or self._hotkey_override:
@@ -2066,7 +2268,12 @@ class Scanner:
                 new_stretch=not self._scan_periods,
             )
         if self.stash is not None:
-            self.stash.feed(capture, card, overlays)
+            try:
+                at = get_backend().cursor_position()
+                cursor = Point(at.x - origin.x, at.y - origin.y)
+            except Exception:  # noqa: BLE001 - the hovered slot is then compared
+                cursor = None
+            self.stash.feed(capture, card, overlays, cursor)
 
     def _refresh_home(self, ocr: OCREngine) -> None:
         """Send home beneath the second gun when the weapon slots moved.

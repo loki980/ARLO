@@ -102,7 +102,7 @@ def test_still_frames_start_one_pass_and_draw():
     assert surface.draws() == [[tuple(SLOT_A)] * 2 + [tuple(SLOT_B)] * 2]
 
 
-def test_moving_frames_clear_at_once(caplog):
+def test_moving_frames_clear_on_the_next_frame(caplog):
     surface = _Surface()
     stash = _stash(lambda _rgb: [_slot(SLOT_A)], surface)
     stash.feed(_frame(0), None, ())
@@ -113,8 +113,13 @@ def test_moving_frames_clear_at_once(caplog):
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
         stash.feed(_frame(120), None, ())
         stash.step()
+        assert ("clear",) not in surface.calls
+        stash.feed(_frame(120), None, ())
+        stash.step()
     assert surface.calls[-1] == ("clear",)
-    assert "stash badges cleared reason=grid_moved" in caplog.text
+    assert "stash badges cleared reason=grid_moved changed=0 slots=0 lone=0" in (
+        caplog.text
+    )
 
 
 def test_stale_pass_result_is_dropped(caplog):
@@ -303,15 +308,19 @@ def _scanner_ocr(origin=ORIGIN):
     )
 
 
-def test_scanner_feeds_only_full_screen_captures_outside_the_hotkey():
+def test_scanner_feeds_only_full_screen_captures_outside_the_hotkey(monkeypatch):
     from arc_helper.main import Scanner
 
+    backend = SimpleNamespace(cursor_position=lambda: Point(30, 40))
+    monkeypatch.setattr(main, "get_backend", lambda: backend)
     fed = []
     stash = SimpleNamespace(feed=lambda *a: fed.append(a), clear=lambda _reason: None)
     scanner = Scanner(root=None, overlay=None, status=None, db=None, hotkey=None)
     scanner.stash = stash
     scanner._feed_stash(_scanner_ocr())  # noqa: SLF001
     assert len(fed) == 1
+    # The cursor goes with the capture, in capture px
+    assert fed[0][3] == Point(30, 40)
     scanner._feed_stash(_scanner_ocr(Point(10, 0)))  # noqa: SLF001
     assert len(fed) == 1
     scanner._hotkey_override = True  # noqa: SLF001
@@ -382,11 +391,17 @@ def test_a_fading_card_hides_nothing(monkeypatch, caplog):
     assert len(calls) == 1
 
 
-def test_a_hovered_slot_hides_only_its_badges_until_it_reverts(monkeypatch, caplog):
+def test_a_changed_slot_hides_only_its_badges_until_it_reverts(monkeypatch, caplog):
     surface = _Surface()
     stash, calls = _grid_stash(monkeypatch, surface)
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        # The first changed frame waits, the next one confirms the change
+        # (still changing, so no pass starts)
         stash.feed(_grid([5]), None, ())
+        stash.step()
+        assert len(surface.draws()[-1]) == 80
+        assert "hidden" not in caplog.text
+        stash.feed(_grid([5], 60), None, ())
         stash.step()
     assert _drawn_slots(surface) == {tuple(r) for r in GRID_SLOTS} - {
         tuple(GRID_SLOTS[5])
@@ -399,14 +414,150 @@ def test_a_hovered_slot_hides_only_its_badges_until_it_reverts(monkeypatch, capl
     assert len(calls) == 1
 
 
+# A card fading in over slots 0 to 2, 8 to 10, 16 and 17 that the scanner
+# has not located yet. find_slots also loses slot 3 at its edge, which looks
+# the same, so the fading frame alone is a big change
+FADING = (0, 1, 2, 8, 9, 10, 16, 17)
+FADING_CARD = Rect(0, 0, 104, 160)
+
+
+@pytest.mark.parametrize(
+    ("after", "card"),
+    [
+        pytest.param(False, None, id="fade_gone_next_frame"),
+        pytest.param(True, FADING_CARD, id="card_located_next_frame"),
+    ],
+)
+def test_a_fading_card_with_no_located_card_clears_nothing(
+    monkeypatch, caplog, after, card
+):
+    fading = _grid(FADING, shade=20)
+    surface = _Surface()
+    stash, calls = _grid_stash(
+        monkeypatch,
+        surface,
+        slots=lambda rgb: GRID_SLOTS[:3] + GRID_SLOTS[4:]
+        if rgb is fading
+        else GRID_SLOTS,
+    )
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(fading, None, ())
+        stash.step()
+        stash.feed(fading if after else _grid(), card, ())
+        stash.step()
+    assert "stash big change waits changed=9 slots=40 lone=1" in caplog.text
+    assert ("clear",) not in surface.calls
+    assert "cleared" not in caplog.text
+    assert "hidden" not in caplog.text
+    assert len(calls) == 1
+
+
+def _centre(i: int) -> Point:
+    r = GRID_SLOTS[i]
+    return Point((r.left + r.right) // 2, (r.top + r.bottom) // 2)
+
+
+def test_the_hovered_slot_never_hides(monkeypatch, caplog):
+    # The cursor moves over slot 5, then slot 6, then off the grid: the game
+    # brightens the slot under it, the badges stay drawn and no pass runs
+    surface = _Surface()
+    stash, calls = _grid_stash(monkeypatch, surface)
+    centre = _centre
+
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        for frame, cursor in (
+            (_grid([5]), centre(5)),
+            (_grid([5]), centre(5)),
+            (_grid([6]), centre(6)),
+            (_grid(), Point(440, 270)),
+        ):
+            stash.feed(frame, None, (), cursor)
+            stash.step()
+            assert len(surface.draws()[-1]) == 80
+    assert "hidden" not in caplog.text
+    assert ("clear",) not in surface.calls
+    assert len(calls) == 1
+
+
+def test_a_slot_hovered_in_the_pass_frame_is_renewed_once_the_cursor_leaves(
+    monkeypatch, caplog
+):
+    # The first pass runs while slot 5 is hovered, so slot 5 is never compared
+    # with its frame: once the cursor moves to slot 6 a pass renews slot 5,
+    # and no badge hides on the way
+    monkeypatch.setattr(
+        main, "find_slots", lambda _rgb: [SimpleNamespace(rect=r) for r in GRID_SLOTS]
+    )
+    calls = []
+
+    def identify(rgb):
+        calls.append(rgb)
+        return [_slot(r) for r in GRID_SLOTS]
+
+    surface = _Surface()
+    stash = _stash(identify, surface)
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        for frame, cursor in (
+            (_grid([5]), _centre(5)),
+            (_grid([5]), _centre(5)),
+            (_grid([5]), _centre(5)),
+            (_grid([6]), _centre(6)),
+            (_grid([6]), _centre(6)),
+        ):
+            stash.feed(frame, None, (), cursor)
+            stash.step()
+            if calls:
+                assert len(surface.draws()[-1]) == 80
+    assert len(calls) == 2
+    assert "hidden" not in caplog.text
+
+
+def test_a_changed_slot_is_redrawn_from_the_slot_cache_before_the_pass(
+    monkeypatch, caplog
+):
+    # Slot 5 takes a look the slot cache knows: hidden while it changes over
+    # two frames, then redrawn from peek on the first still frame, before
+    # that frame's pass
+    surface = _Surface()
+    draws_at_pass = []
+    peeks = []
+
+    def identify(_rgb):
+        draws_at_pass.append(list(surface.draws()))
+        return [_slot(r) for r in GRID_SLOTS]
+
+    def peek(_rgb):
+        peeks.append(1)
+        return [_slot(GRID_SLOTS[5])]
+
+    stash, _calls = _grid_stash(monkeypatch, surface, identify=identify, peek=peek)
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        for shade in (40, 60):
+            stash.feed(_grid([5], shade), None, ())
+            stash.step()
+        assert len(surface.draws()[-1]) == 78
+        assert peeks == []
+        stash.feed(_grid([5], 60), None, ())
+        stash.step()
+    assert peeks == [1]
+    assert "stash changed slots redrawn slots=1 badges=2" in caplog.text
+    # The second pass saw the redrawn slot already on screen
+    assert len(draws_at_pass) == 2
+    assert len(draws_at_pass[1][-1]) == 80
+    assert len(surface.draws()[-1]) == 80
+
+
 def test_half_the_slots_changing_clears_all(monkeypatch, caplog):
     surface = _Surface()
     stash, _calls = _grid_stash(monkeypatch, surface)
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
-        stash.feed(_grid(range(20)), None, ())
-        stash.step()
+        for _ in range(2):
+            stash.feed(_grid(range(20)), None, ())
+            stash.step()
     assert surface.calls[-1] == ("clear",)
-    assert "stash badges cleared reason=grid_moved" in caplog.text
+    assert "stash badges cleared reason=grid_moved changed=20 slots=40 lone=0" in (
+        caplog.text
+    )
 
 
 def test_a_scroll_clears_all(monkeypatch, caplog):
@@ -420,8 +571,9 @@ def test_a_scroll_clears_all(monkeypatch, caplog):
         slots=lambda rgb: shifted if rgb is scrolled else GRID_SLOTS,
     )
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
-        stash.feed(scrolled, None, ())
-        stash.step()
+        for _ in range(2):
+            stash.feed(scrolled, None, ())
+            stash.step()
     assert surface.calls[-1] == ("clear",)
     assert "stash badges cleared reason=grid_moved" in caplog.text
 
@@ -462,8 +614,9 @@ def _one_slot_off(monkeypatch, caplog, before, after):
         slots=lambda rgb: after if rgb is changed else before,
     )
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
-        stash.feed(changed, None, ())
-        stash.step()
+        for _ in range(2):
+            stash.feed(changed, None, ())
+            stash.step()
     assert surface.calls[-1] == ("clear",)
     assert "stash badges cleared reason=grid_moved" in caplog.text
 
@@ -477,21 +630,24 @@ def test_one_slot_added_clears_all(monkeypatch, caplog):
     _one_slot_off(monkeypatch, caplog, GRID_SLOTS[:-1], GRID_SLOTS)
 
 
-def test_a_slot_missed_because_its_look_changed_only_hides(monkeypatch):
+def test_a_slot_missed_because_its_look_changed_only_hides(monkeypatch, caplog):
     # find_slots loses slot 3 once it is darkened: a changed slot, not a new set
-    dark = _grid([3])
+    dark = [_grid([3]), _grid([3], 60)]
     surface = _Surface()
     stash, _calls = _grid_stash(
         monkeypatch,
         surface,
         slots=lambda rgb: GRID_SLOTS[:3] + GRID_SLOTS[4:]
-        if rgb is dark
+        if any(rgb is d for d in dark)
         else GRID_SLOTS,
     )
-    stash.feed(dark, None, ())
-    stash.step()
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        for frame in dark:
+            stash.feed(frame, None, ())
+            stash.step()
+    # The second frame confirms the hide and, still, starts the pass at once
     assert ("clear",) not in surface.calls
-    assert len(surface.draws()[-1]) == 78
+    assert "stash badges hidden slots=1 reason=slot_changed" in caplog.text
 
 
 def test_a_retry_restores_badges_a_partial_pass_dropped(monkeypatch):
@@ -545,6 +701,10 @@ def test_a_stale_pass_does_not_hold_the_next_back_by_the_gap():
     stash.step()
     assert len(calls) == 1
     assert surface.draws() == []
+    # The next frame confirms the scroll and clears, the one after is still
+    clock.now += 0.1
+    stash.feed(_frame(120), None, ())
+    stash.step()
     clock.now += 0.1
     stash.feed(_frame(120), None, ())
     stash.step()
@@ -585,7 +745,7 @@ def _feed_at(stash, clock, shades, start=100.0, apart=0.15) -> None:
 def test_known_slots_are_drawn_before_the_pass_and_replaced_by_it():
     clock = _Clock()
     stash, surface, order = _known_stash(clock, found=(SLOT_B,))
-    _feed_at(stash, clock, (0, 0, 120))
+    _feed_at(stash, clock, (0, 0, 120, 120))
     assert order == ["pass"]
     assert surface.calls[-1] == ("clear",)
     order.clear()
@@ -599,7 +759,7 @@ def test_known_slots_are_drawn_before_the_pass_and_replaced_by_it():
 def test_a_peek_that_finds_nothing_draws_nothing():
     clock = _Clock()
     stash, surface, order = _known_stash(clock, known=(), found=(SLOT_B,))
-    _feed_at(stash, clock, (0, 0, 120))
+    _feed_at(stash, clock, (0, 0, 120, 120))
     before = len(surface.draws())
     _feed_at(stash, clock, (120,), start=clock.now + 0.15)
     assert order == ["pass", "peek", "pass"]
@@ -617,8 +777,9 @@ def test_a_peek_that_finds_nothing_draws_nothing():
     ],
 )
 def test_the_latency_line_after_a_scroll(caplog, known, line):
-    # Frames 150 ms apart: two still ones, the moved one, then still again.
-    # Each pass takes 50 ms on the clock, known slots are drawn at once
+    # Frames 150 ms apart: two still ones, the moved one, the one that
+    # confirms it and clears, then still again. Each pass takes 50 ms on the
+    # clock, known slots are drawn at once
     clock = _Clock()
     stash, _surface, _order = _known_stash(clock, 0.05, known)
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
@@ -837,19 +998,49 @@ def test_a_panel_scroll_moves_its_badges_and_drops_those_scrolled_out(
     kept = {tuple(int(v) for v in b["rect"]) for b in stash._badges}  # noqa: SLF001
     assert kept == {tuple(r) for r in (*EQUIPMENT_SLOTS, *SCROLLED_BACKPACK)}
     assert len(calls) == 1
-    # The pass on the next still frame replaces them with its own
+    # The pass on the next still frame replaces them with its own, and the
+    # slot it found nothing on, whose look did not change, keeps its badges
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(scrolled, None, ())
+        stash.step()
+    assert len(calls) == 2
+    assert "stash pass kept_drawn=2" in caplog.text
+    assert _drawn_slots(surface) == kept
+
+
+def test_a_pass_with_fewer_badges_keeps_the_drawn_ones(monkeypatch, caplog):
+    # After the scroll the pass identifies none of the viewport's first row,
+    # whose looks did not change: their followed badges stay drawn
+    surface = _TranslatingSurface()
+    scrolled = _scrolled(_textured(1))
+    stash, calls, _base = _panel_stash(monkeypatch, surface, [scrolled])
     stash.feed(scrolled, None, ())
     stash.step()
-    assert len(calls) == 2
-    assert _drawn_slots(surface) == kept - {tuple(SCROLLED_BACKPACK[0])}
+    followed = {tuple(int(v) for v in b["rect"]) for b in stash._shown}  # noqa: SLF001
+    missed = set(SCROLLED_BACKPACK[:3])
+    monkeypatch.setattr(
+        stash,
+        "_identify",
+        lambda rgb: [
+            _slot(s.rect) for s in main.find_slots(rgb) if s.rect not in missed
+        ],
+    )
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(scrolled, None, ())
+        stash.step()
+    assert "stash pass kept_drawn=6" in caplog.text
+    assert _drawn_slots(surface) == followed
+    assert len(calls) == 1
 
 
 def test_a_tab_switch_still_clears_every_badge(monkeypatch, caplog):
     surface = _TranslatingSurface()
     stash, _calls, _base = _panel_stash(monkeypatch, surface, [])
+    switched = _textured(2)
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
-        stash.feed(_textured(2), None, ())
-        stash.step()
+        for _ in range(2):
+            stash.feed(switched, None, ())
+            stash.step()
     assert surface.calls[-1] == ("clear",)
     assert not [c for c in surface.calls if c[0] == "translate"]
     assert "stash badges cleared reason=grid_moved" in caplog.text
