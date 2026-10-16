@@ -45,17 +45,24 @@ LOADOUT_UPSCALE = 4
 # than COVER_RUN columns in a row. A longer run is something covering part of
 # the row, such as an item card or popup. The crop is then cut at the start of
 # the first such run and only the columns left of it are read. A truncated
-# value could read as whole, so the cut crop must end in at least EDGE_CLEAR
-# columns of plain background (wider than any gap between digits), else the
-# text runs into the cover and the read is given up. Isolated dark columns
+# value could read as whole, so a cut crop is only read when its last
+# EDGE_CLEAR columns are plain background (the text does not run into the
+# cover) and the text ends in a complete number: comma groups of exactly three
+# digits (_WHOLE_NUMBER), not a prefix such as 75,6 of 75,629. A cut that
+# falls in the gap just before a comma cannot be told from the end of a short
+# number, so an unseparated number is not accepted from a cut crop. Isolated
+# dark columns
 # beside glyph edges are normal.
 BACKGROUND_TOLERANCE = 6
 COVER_RUN = 6
-EDGE_CLEAR = 24
+EDGE_CLEAR = 3
 TEXT_CONTRAST = 60
 # One text line for the loadout, two (title and counts) for the stash
 ONE_LINE = "--psm 7 --oem 1"
 TWO_LINES = "--psm 6 --oem 1"
+
+# The value as the row ends, with Tesseract possibly reading the comma as a dot
+_WHOLE_NUMBER = re.compile(r"\d{1,3}(?:[.,]\d{3})+$")
 
 # Between the numbers sits the coin glyph, which Tesseract reads as junk
 _STASH = re.compile(r"^\D*?(\d+)\s*/\s*(\d+)\D+?(\d[\d.,]*)\s*$")
@@ -108,6 +115,7 @@ def _read_row(rgb: np.ndarray, rect: Rect, config: str, upscale: int = UPSCALE) 
     # half of the crop is still flagged and not taken for the background
     off = np.abs(columns - np.percentile(columns, 10)) > BACKGROUND_TOLERANCE
     cover = _first_run(off, COVER_RUN)
+    trimmed = cover is not None
     if cover is not None:
         background = np.median(gray)
         gray = gray[:, :cover]
@@ -121,9 +129,12 @@ def _read_row(rgb: np.ndarray, rect: Rect, config: str, upscale: int = UPSCALE) 
         binary = 255 - binary
     binary = cv2.copyMakeBorder(binary, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
     try:
-        return pytesseract.image_to_string(binary, config=config).strip()
+        text = pytesseract.image_to_string(binary, config=config).strip()
     except pytesseract.TesseractError:
         return ""
+    if trimmed and not _WHOLE_NUMBER.search(text.split()[-1] if text else ""):
+        return ""
+    return text
 
 
 def _row_rect(

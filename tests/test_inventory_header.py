@@ -133,6 +133,21 @@ def test_loadout_header_read_with_card_over_right_edge():
     assert result == LoadoutHeader(weight=34.6, weight_cap=90.0, value=75629)
 
 
+def test_loadout_header_read_with_card_just_after_the_last_digit():
+    # The value ends at about x 1945, the card starts at 1950: five blank
+    # columns are enough, the number is whole
+    frame = _cover(_frame(FULL), 1950, 2100)
+    result = read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT))
+    assert result == LoadoutHeader(weight=34.6, weight_cap=90.0, value=75629)
+
+
+def test_loadout_header_none_when_card_starts_between_value_digits():
+    # A card from x 1910 hides the last digits behind a clean cut, which
+    # would otherwise read as a number of its own
+    frame = _cover(_frame(FULL), 1910, 2100)
+    assert read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT)) is None
+
+
 def test_loadout_header_none_when_whole_row_is_covered():
     frame = _cover(_frame(FULL), 1500, 2200)
     assert read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT)) is None
