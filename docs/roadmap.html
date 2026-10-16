@@ -157,26 +157,24 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <div class="capacity"><b>2 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 61 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~61%</span></div>
-  <div class="track"><i style="width:61%"></i></div>
-  <small>48 of 69 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 65 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~65%</span></div>
+  <div class="track"><i style="width:65%"></i></div>
+  <small>52 of 69 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
   <div><b>2 / 8</b><span>phases done</span><small>phases 0 and 3 done</small></div>
-  <div><b>48 / 69</b><span>steps done</span><small>across all eight phases</small></div>
-  <div><b>618</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>52 / 69</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>639</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 14, Badges that move with the scroll</a><small>Badges shift with the grid at once, only new rows need reading</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 17, Slot boxes that hold still</a><small>The slot finder ignores ARLO's red outline</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 19, Tell a blueprint tile from its item</a><small>The blue grid background settles items that share a blueprint's icon</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4b">Phase 4b, step 2, Read the Collections screen</a><small>From your screenshot: FOUND 25/91, found cells mapped to blueprints and saved</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 18, Badges that never blink</a><small>Hover and fading cards no longer clear badges</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase5">Phase 5, step 2, Stitch the stash across scrolling</a><small>Your 67 scroll frames stitched into one stash map, checked against 275 used slots</small></span></li>
   </ul>
 </section>
 
@@ -208,7 +206,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
       <div class="gauge" aria-label="Phase 1 about 85 percent done">
         <div class="bar"><i style="width:85%"></i></div>
-        <div class="read">~85%<small>16 of 19 steps</small></div>
+        <div class="read">~90%<small>17 of 19 steps</small></div>
       </div>
       
       <div class="split">
@@ -307,9 +305,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
-      <div class="gauge" aria-label="Phase 4 about 75 percent done">
-        <div class="bar"><i style="width:75%"></i></div>
-        <div class="read">~75%<small>14 of 19 steps</small></div>
+      <div class="gauge" aria-label="Phase 4 about 90 percent done">
+        <div class="bar"><i style="width:90%"></i></div>
+        <div class="read">~90%<small>17 of 19 steps</small></div>
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
@@ -327,29 +325,29 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <li class="done"><span class="tick">✓</span><span class="what">Step 13, Badges right after a scroll<small>A one-row scroll draws in about 200 ms after the grid stops (was about 950), known items drawn first</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Step 15, Price text in the game's own font<small>Same size, weight, baseline and cream colour as the game's stack count</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Step 16, Price patches that hold still<small>The bar is found under ARLO's own patch, lost bars 19 to 1 in 1011 passes</small></span><span class="when recent">done 15 Oct</span></li>
-        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 14, Badges that move with the scroll<small>Badges shift with the grid at once, only the newly revealed rows need reading</small></span><span class="when recent">added 15 Oct</span></li>
-        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 17, Slot boxes that hold still<small>The slot finder ignores ARLO's red outline, so boxes never move under it</small></span><span class="when recent">added 15 Oct</span></li>
-        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 19, Tell a blueprint tile from its item<small>The blue grid background settles 19 right guesses a blueprint twin blocked</small></span><span class="when recent">added 15 Oct</span></li>
-        <li class="todo"><span class="tick">○</span><span class="what">Step 18, Badges that never blink<small>A fading card read as the grid moving and hover hiding a tile caused the flicker you saw. The slot under the cursor is ignored, a big change waits one frame. After step 14</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 14, Badges that move with the scroll<small>All badges stay on their items through a scroll, only new rows are read</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 17, Slot boxes that hold still<small>No box moves under the red outline, every slot hits the cache</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Step 19, Tell a blueprint tile from its item<small>The blue grid background settles 19 items that share a blueprint's icon, 283 right instead of 269, still 7 wrong</small></span><span class="when recent">done 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 18, Badges that never blink<small>The slot under the cursor is ignored, a big change waits a frame, hidden badges come back from the cache</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Your run decides the drawing mode<small>X11 works today. The Wayland-native mode needs one optional package</small></span><span class="when"></span></li>
       </ul>
     </article>
   </li>
 
   <li class="phase" id="phase4b">
-    <div class="slot now">4b</div>
+    <div class="slot">4b</div>
     <article class="card" data-tab="Phase 4b · added 11 Oct">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span><span class="when recent">added 11 Oct</span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span><span class="when recent">added 11 Oct</span></div>
       <h2>Blueprint tracker</h2>
       <p>Your Collections screen shows 20 of 91 blueprints found and 71 blank boxes. Reading that screen once also tells ARLO which blueprints you own, so the weapon rule stops guessing.</p>
-      <div class="gauge" aria-label="Phase 4b about 35 percent done">
-        <div class="bar"><i style="width:35%"></i></div>
-        <div class="read">~35%<small>2 of 5 steps</small></div>
+      <div class="gauge" aria-label="Phase 4b about 50 percent done">
+        <div class="bar"><i style="width:50%"></i></div>
+        <div class="read">~50%<small>3 of 5 steps</small></div>
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">The data<small>All 91 blueprints with icons. The wiki has the grid order, and it matched every one of your 20 found cells. Three slots are unnamed anywhere public and get worked out from your screen. Where-found data covers 84 to 87 of them</small></span><span class="when recent">done 11 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Blueprint data inside ARLO<small>All 91 blueprints, the grid order, where to find them, and a private record of which you own</small></span><span class="when recent">done 12 Oct</span></li>
-        <li class="now"><span class="nowmark">NOW</span><span class="what">Read the Collections screen<small>From your screenshot (FOUND 25/91): found versus empty cells, mapped to blueprints, ownership stored locally. Then wired into the scanner</small></span><span class="when recent">changed 15 Oct</span></li>
+        <li class="done"><span class="tick">✓</span><span class="what">Read the Collections screen<small>Your screenshot reads FOUND 25/91, the 25 found cells mapped to blueprints. Wiring into the scanner next</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Hover assist<small>Name and best places to find it, in the popup</small></span><span class="when"></span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Greyed icons in the empty cells<small>Needs the overlay surface from phase 4</small></span><span class="when"></span></li>
       </ul>
@@ -357,9 +355,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase">
-    <div class="slot">5</div>
+    <div class="slot now">5</div>
     <article class="card" data-tab="Phase 5" id="phase5">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
       <div class="gauge" aria-label="Phase 5 about 15 percent done">
@@ -368,7 +366,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Step 1, Read the headers<small>The stash's used and total slots and its value, the loadout's weight and value</small></span><span class="when recent">done 15 Oct</span></li>
-        <li class="todo"><span class="tick">○</span><span class="what">Step 2, Stitch the stash across scrolling, next: capture runs now save the whole grid, so a slow scroll in a capture run records it<small>Give each visible row its place in the whole stash, whatever filter tab is open. Waits on your screen recording</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 2, Stitch the stash across scrolling: your 67 scroll frames stitched into one stash map, checked against 275 used slots<small>Give each visible row its place in the whole stash, whatever filter tab is open. Waits on your screen recording</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 3, The ledger, next: the loadout tally and surer stack counts are merged (none wrong of 158, 60 times faster). The LOADOUT header now reads in raid and next to a card. Part 2, wiring it in, is next. <small>Stash, backpack, quick use, safe pocket and equipment in one local store, updated from every still frame</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 4, Use it<small>Your real totals in the have/need tags and the advice card</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 5, An unsure flag<small>Say so when the tally and the headers disagree, instead of showing wrong numbers</small></span><span class="when recent">added 15 Oct</span></li>
@@ -437,6 +435,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>15 Oct</time><span>You found scrolling about 2 to 3 seconds to redraw. The log showed the passes are fast and the time is in the waiting, so four steps started: faster badges after a scroll, the price text in the game's font, patches that hold still, and capture runs that save the whole grid. The LOADOUT header fix merged with your accept. 591 tests.</span></li>
   <li><time>15 Oct</time><span>Merged: badges about 200 ms after a scroll stops (was about 950), the price text in the game's font, size and cream colour, patches that hold still, capture runs that save the whole grid. Started: badges that move with the scroll, slot boxes that hold still, the identification check. 609 tests.</span></li>
   <li><time>15 Oct</time><span>Your stash scroll saved 67 full-grid frames and your Collections screenshot arrived. The flicker you saw traced to cards fading in and out and to hover, a fix queued after step 14. A tier-settled slot now ignores blueprint twins in its lead (5 more right). Started: the Collections reader and the blueprint tile detector. 618 tests.</span></li>
+  <li><time>15 Oct</time><span>Merged: badges that move with the scroll (all stay on their items), slot boxes that hold still, the Collections reader (FOUND 25/91 from your screenshot). Started: the blink fix and stitching your 67 scroll frames into one stash map. Codex is out of quota until 02:25, the backup reviewer covers. 639 tests.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

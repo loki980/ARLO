@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 61 percent of the whole roadmap, weighted by effort: 48 of 69 steps
+About 65 percent of the whole roadmap, weighted by effort: 52 of 69 steps
 done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
@@ -388,8 +388,9 @@ since they need every cell read (phase 3). Changed 14 Oct.
     Done 15 Oct, reviewed: a one-row scroll replay draws in about 200 ms
     after the grid stops, was about 950 ms. Added 15 Oct.
 14. Badges that move with the scroll: measure how far the grid moved and
-    shift the badges at once, so only the new row needs reading. Underway
-    15 Oct. Added 15 Oct.
+    shift the badges at once, so only the new row needs reading. Done
+    15 Oct, reviewed: on the replay all 22 badges stay on their items
+    through the scroll. Added 15 Oct.
 15. Price text in the game's own font. Jeffrey, 15 Oct, on his backpack
     screenshot: "Can you make the font and font size match?" The worth on
     the patch matches the game's count in font, weight, size and baseline,
@@ -398,17 +399,18 @@ since they need every cell read (phase 3). Changed 14 Oct.
     ARLO's own patch is drawn, so a patch could flicker. Done 15 Oct,
     reviewed: lost bars 19 to 1 of 1011 passes. Added 15 Oct.
 17. Slot boxes that hold still: the slot finder moves 1 or 2 boxes by
-    about 4 px under ARLO's red outline. Underway 15 Oct. Added 15 Oct.
+    about 4 px under ARLO's red outline. Done 15 Oct, reviewed: no box
+    moves, every slot hits the cache. Added 15 Oct.
 18. Badges that never blink. Jeffrey, 15 Oct: "I'm still getting a little
     bit of flicker, to be honest. It's not always, but it's happened a
     couple times now." The log showed a card fading in or out read as the
     grid moving (46 clears, median 1.57 s to come back), and hover hiding
     the hovered slot's badges (127 times). The slot under the cursor is
     ignored, a big change waits one frame, hidden slots come back from the
-    cache. After step 14. Added 15 Oct.
+    cache. Underway 15 Oct. Added 15 Oct.
 19. Tell a blueprint tile from its item: the blue grid background settles
-    19 right guesses that a blueprint twin blocked. Underway 15 Oct. Added
-    15 Oct.
+    19 right guesses that a blueprint twin blocked. Done 15 Oct, reviewed:
+    283 right instead of 269 on the captures, still 7 wrong. Added 15 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
@@ -436,7 +438,8 @@ Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
    the wiki template as a slot, so a named parameter added by an editor would
    shift later slots.
 2. Read the Collections screen (Jeffrey's screenshot of 15 Oct, FOUND
-   25/91). Part 1, the reader and the ownership record, underway 15 Oct.
+   25/91). Part 1, the reader and the ownership record, done 15 Oct,
+   reviewed (25 found cells of 91, checked by eye).
    Part 2 wires it into the scanner. The BLUEPRINTS tab and FOUND count, the
    lattice, found versus empty cells, cells mapped to blueprints by the grid
    order (or learned from the found icons when no public order exists), and
@@ -461,7 +464,9 @@ be useful without this, you know?" Moved up 15 Oct.
 2. Stitch the stash across scrolling. Part 0, capture runs save the whole
    grid, not only hovered cards. Jeffrey, 15 Oct: "You need to be able to
    take a screenshot of the entire screen, not just hover cards." Done
-   15 Oct, reviewed. Then: the scrollbar position and the
+   15 Oct, reviewed. His scroll run saved 67 frames (header 275 of 304).
+   Part 1, stitching those frames offline into one stash map, underway
+   15 Oct. Then: the scrollbar position and the
    overlap with the last frame give each visible row its absolute place.
    Needs a capture session scrolling the whole stash, waiting on Jeffrey's
    screen recording (the capture library only saves frames when a card is
