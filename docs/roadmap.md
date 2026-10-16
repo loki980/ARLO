@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 67 percent of the whole roadmap, weighted by effort: 54 of 69 steps
+About 68 percent of the whole roadmap, weighted by effort: 55 of 69 steps
 done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
@@ -467,8 +467,9 @@ be useful without this, you know?" Moved up 15 Oct.
    grid, not only hovered cards. Jeffrey, 15 Oct: "You need to be able to
    take a screenshot of the entire screen, not just hover cards." Done
    15 Oct, reviewed. His scroll run saved 67 frames (header 275 of 304).
-   Part 1, stitching those frames offline into one stash map, underway
-   15 Oct. Then: the scrollbar position and the
+   Part 1, stitching those frames offline into one stash map, done 15 Oct,
+   reviewed: rows 0 to 71, 275 filled slots, the header says 275. Part 2
+   stitches live from the scanner. Then: the scrollbar position and the
    overlap with the last frame give each visible row its absolute place.
    Needs a capture session scrolling the whole stash, waiting on Jeffrey's
    screen recording (the capture library only saves frames when a card is
