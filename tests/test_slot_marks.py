@@ -156,6 +156,25 @@ def test_bar_geometry_colour_matches_a_real_bar() -> None:
     assert geometry.icon_box.right < geometry.right_mark_box.left
 
 
+# The slot at (720, 752, 912, 944) of 20261012-001728-258_BURLETTAIV.png,
+# clean and with its price patch drawn by badge_helper.render_png. The
+# patch's white worth text lifts the median of rows 170 and 172 above the
+# bar threshold, which split the bar before
+PATCH_CLEAN = "price_patch_slot_clean"
+PATCH_DRAWN = "price_patch_slot_patched"
+
+
+def test_bar_geometry_is_the_same_with_the_price_patch_drawn() -> None:
+    clean = bar_geometry(_slot(PATCH_CLEAN))
+    patched = bar_geometry(_slot(PATCH_DRAWN))
+    assert clean is not None
+    assert patched is not None
+    assert patched.bar_rect == clean.bar_rect
+    assert patched.right_mark_box == clean.right_mark_box
+    assert patched.patch_right == clean.patch_right
+    assert np.all(np.abs(np.array(patched.colour) - clean.colour) <= 3)
+
+
 # Slot crops from Jeffrey's 15 Oct loadout screenshot, stretched to 3840x2160
 # (blueprint-checks-4k.png): the Vertical Grip III Blueprint shows the game's
 # learned check, the Bettina Blueprint does not
