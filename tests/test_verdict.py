@@ -235,3 +235,40 @@ def test_learn_word_and_colours():
         "You have not learned this blueprint yet",
     )
     assert KIND_COLORS[LEARN] not in {v for k, v in KIND_COLORS.items() if k != LEARN}
+
+
+def test_weapon_with_an_owned_blueprint_drops_the_more_until_clause():
+    got = compute_verdict(
+        ANVIL,
+        [],
+        {},
+        None,
+        TODAY,
+        show_ended=False,
+        blueprint="Anvil Blueprint",
+        owned_blueprints={"anvil blueprint"},
+    )
+    assert got == Verdict(
+        "keep", "Weapon, keep at least one, you know its blueprint", 1
+    )
+
+
+def test_weapon_whose_blueprint_is_not_owned_keeps_the_more_until_clause():
+    got = compute_verdict(
+        ANVIL,
+        [],
+        {},
+        None,
+        TODAY,
+        show_ended=False,
+        blueprint="Anvil Blueprint",
+        owned_blueprints={"Stiletto Blueprint"},
+    )
+    assert got.reason.endswith("more until you own the Anvil Blueprint")
+
+
+def test_unknown_item_ignores_owned_blueprints():
+    got = compute_verdict(
+        None, [], {}, None, TODAY, show_ended=False, owned_blueprints={"x"}
+    )
+    assert got == Verdict("unknown", "Item not in database", None)

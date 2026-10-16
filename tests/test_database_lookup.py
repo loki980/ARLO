@@ -195,3 +195,45 @@ def test_tolerant_fused_numeral_needs_a_vote(tmp_path):
 def test_tolerant_read_matching_two_names_stays_unknown(tmp_path):
     # One substitution from both Ferro and Fervo
     assert _tolerant_db(tmp_path).lookup("FERDO") is None
+
+
+# Prefix step: a catalog name followed by junk
+
+
+def _prefix_db(tmp_path):
+    db = _db(tmp_path)
+    with db._get_connection() as conn:  # noqa: SLF001 - test seam
+        conn.executemany(
+            "INSERT INTO items (name, action) VALUES (?, ?)",
+            [
+                ("Cracked Bioscanner", "Keep"),
+                ("Wires", "Sell"),
+                ("Wires Crossed", "Keep"),
+            ],
+        )
+        conn.commit()
+    return db
+
+
+def test_prefix_catalog_name_plus_junk(tmp_path):
+    read = "CRACKED BIOSCANNER ;MER:;{JC:'EDDI:TO CRAFTING MATERIALS. @ MEDICAL"
+    assert _prefix_db(tmp_path).lookup(read).name == "Cracked Bioscanner"
+
+
+def test_prefix_too_short_is_ignored(tmp_path):
+    # "Wires" is 5 key characters, under the 6 minimum
+    assert _prefix_db(tmp_path).lookup("WIRES ;;JUNK TEXT HERE") is None
+
+
+def test_prefix_needs_a_word_boundary(tmp_path):
+    assert _prefix_db(tmp_path).lookup("CRACKED BIOSCANNERZZ ;;") is None
+
+
+def test_prefix_prefers_the_longest_name(tmp_path):
+    assert _prefix_db(tmp_path).lookup("WIRES CROSSED ;;JUNK").name == "Wires Crossed"
+
+
+def test_read_matched_before_is_unchanged_by_the_prefix_step(tmp_path):
+    db = _prefix_db(tmp_path)
+    assert db.lookup("ILTOROII").name == "Il Toro II"
+    assert db.lookup("Cracked Bioscanner").name == "Cracked Bioscanner"

@@ -1588,9 +1588,17 @@ class Scanner:
             self.stats.items_found_in_db += 1
             logger.debug(f"Found: {item_name} → {recommendation.action}")
         else:
-            logger.debug(f"Unknown item: {item_name}")
+            logger.debug("read unmatched read=%s", item_name)
             # Log to missing items file for easier database updates
             self.db.log_missing_item(item_name)
+            # A read matching nothing shows no card. An older item's windows
+            # hide, as for a read with no name
+            if self._card_shown is not None:
+                self._log_card_state("hide", "reason=unmatched")
+                self._hide_card_windows()
+            # Handled: the card counts as read so the next cycle does not
+            # read and log it again
+            return True
 
         # The slot under the cursor is found once per shown card. Its frame
         # goes to the chips and its learned check to the verdict
@@ -1695,6 +1703,7 @@ class Scanner:
             home_outputs=home,
             learned=learned,
             recorded_learned=recorded,
+            owned_blueprints=self.db.owned_blueprints(),
         )
 
     def _show_overlay(
