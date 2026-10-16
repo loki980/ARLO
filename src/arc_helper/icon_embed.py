@@ -21,6 +21,7 @@ gallery is embedded once and rebuilt only when an icon changes.
 """
 
 import hashlib
+import threading
 import time
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -116,12 +117,17 @@ class Embedder:
         self._download = download
         self.pooling = pooling
         self._session = None
+        self._load_lock = threading.Lock()
 
     @property
     def loaded(self) -> bool:
         return self._session is not None
 
     def _load(self):
+        with self._load_lock:
+            return self._load_locked()
+
+    def _load_locked(self):
         if self._session is None:
             path = model_path(self._model_dir, download=self._download)
             import onnxruntime as ort  # optional 'icons' extra
@@ -147,6 +153,10 @@ class Embedder:
             rows.append(self._pool(hidden))
         vectors = np.concatenate(rows).astype(np.float32)
         return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+    def warm(self) -> None:
+        """Load the model and run one blank embed, so a later embed() is quick."""
+        self.embed([np.zeros((INPUT_SIDE, INPUT_SIDE, 3), dtype=np.uint8)])
 
     def _pool(self, hidden: np.ndarray) -> np.ndarray:
         cls = _unit(hidden[:, 0])
