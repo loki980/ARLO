@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 65 percent of the whole roadmap, weighted by effort: 52 of 69 steps
+About 67 percent of the whole roadmap, weighted by effort: 54 of 69 steps
 done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
@@ -407,7 +407,8 @@ since they need every cell read (phase 3). Changed 14 Oct.
     grid moving (46 clears, median 1.57 s to come back), and hover hiding
     the hovered slot's badges (127 times). The slot under the cursor is
     ignored, a big change waits one frame, hidden slots come back from the
-    cache. Underway 15 Oct. Added 15 Oct.
+    cache. Done 15 Oct, reviewed: on the replay a fading card, a hover and a
+    pass with fewer badges clear and hide nothing. Added 15 Oct.
 19. Tell a blueprint tile from its item: the blue grid background settles
     19 right guesses that a blueprint twin blocked. Done 15 Oct, reviewed:
     283 right instead of 269 on the captures, still 7 wrong. Added 15 Oct.
