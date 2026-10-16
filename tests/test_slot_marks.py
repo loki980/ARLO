@@ -8,6 +8,7 @@ from PIL import Image
 
 from arc_helper.slot_marks import PATCH_FALLBACK
 from arc_helper.slot_marks import bar_geometry
+from arc_helper.slot_marks import is_blueprint_tile
 from arc_helper.slot_marks import learned_check
 from arc_helper.slot_marks import read_stack
 from arc_helper.slot_marks import read_stacks
@@ -204,3 +205,43 @@ def test_learned_check_cannot_judge_a_corner_off_the_frame_or_covered():
     covered = rgb.copy()
     covered[:, width // 2 :] = (240, 230, 210)  # the cream item card over it
     assert learned_check(covered, _whole(covered)) is None
+
+
+# Blueprint grid tiles: the two from the stretched blueprint checks crop, the
+# raid fixture's Vertical Grip III Blueprint at (2620, 1424) and a 101 px
+# blueprint at (1567, 411) of Jeffrey's Collections screenshot
+BLUEPRINT_TILES = (
+    "vertical_grip_iii_blueprint_checked",
+    "bettina_blueprint_unchecked",
+    "vertical_grip_iii_blueprint_raid",
+    "collections_blueprint_small",
+)
+# Plain tiles, among them the raid fixture's lamp at (2412, 1424) with the
+# blue rarity corner, and a wide weapon slot
+PLAIN_TILES = (
+    "rare_corner_plain_tile",
+    "grappling_hook_no_mark",
+    "stack_x53",
+    "torrente_ii",
+    "wide_anvil_iv",
+)
+
+
+@pytest.mark.parametrize("name", BLUEPRINT_TILES)
+def test_is_blueprint_tile_on_the_blue_grid(name: str) -> None:
+    assert is_blueprint_tile(_slot(name)) is True
+
+
+@pytest.mark.parametrize("name", PLAIN_TILES)
+def test_is_blueprint_tile_is_false_on_a_plain_tile(name: str) -> None:
+    assert is_blueprint_tile(_slot(name)) is False
+
+
+def test_is_blueprint_tile_cannot_judge_a_covered_tile() -> None:
+    # The hovered Adrenaline Shot at (3008, 548) of
+    # 20261014-211303-478_ADRENALINE-SHOT.png, its tile turned cream
+    assert is_blueprint_tile(_slot("hovered_tile_covered")) is None
+    # A blueprint under the cream item card
+    covered = _slot("vertical_grip_iii_blueprint_raid").copy()
+    covered[:, : covered.shape[1] * 3 // 4] = (240, 230, 210)
+    assert is_blueprint_tile(covered) is None
