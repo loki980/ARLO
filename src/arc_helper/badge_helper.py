@@ -11,12 +11,18 @@ reads one JSON message per line from stdin:
 
     {"op": "draw", "badges": [...]}   replace the drawn set with these badges
     {"op": "clear"}                   remove every badge
+    {"op": "translate", "region": [...], "dy": 12}
+                                      move the drawn badges inside region
 
-and exits when stdin closes. Badge rects are [left, top, right, bottom] in
-physical screen pixels, right and bottom exclusive.
+and exits when stdin closes. Badge rects and the region are [left, top,
+right, bottom] in physical screen pixels, right and bottom exclusive. A
+translate moves every drawn badge whose rect's centre lies inside region
+down by dy px (up when negative), drops a moved badge that no longer meets
+the region and draws the rest clipped to it (translate_badges).
 
-PNG mode (--png OUT --size W H) reads one draw message from stdin and draws
-it with the same cairo code onto a transparent W x H PNG, with no display.
+PNG mode (--png OUT --size W H) reads the messages on stdin, applies them in
+order and draws the result with the same cairo code onto a transparent
+W x H PNG, with no display.
 """
 
 import argparse
@@ -89,8 +95,11 @@ def parse_rgb(value) -> tuple[float, float, float, float]:
 
 
 def parse_message(line: str) -> tuple[str, list[dict]]:
-    """Return the op and badge list of one JSON line from BadgeSurface."""
-    message = json.loads(line)
+    """Return the op and badge list of one draw or clear line from BadgeSurface."""
+    return _parsed(json.loads(line))
+
+
+def _parsed(message: dict) -> tuple[str, list[dict]]:
     op = message.get("op")
     if op not in {"draw", "clear"}:
         msg = f"unknown op {op!r}"
@@ -118,6 +127,48 @@ def parse_message(line: str) -> tuple[str, list[dict]]:
             msg = "a patch needs icon_right, patch_right and colour"
             raise ValueError(msg)
     return op, badges
+
+
+def _inside(x: float, y: float, region) -> bool:
+    left, top, right, bottom = region
+    return left <= x < right and top <= y < bottom
+
+
+def translate_badges(badges: list[dict], region, dy: int) -> list[dict]:
+    """The drawn badges after their region scrolled by dy px.
+
+    A badge whose rect's centre lies inside region, or that an earlier
+    translate of this region moved (clipped to it), moves down by dy (up
+    when negative) and is clipped to region from then on. A moved badge
+    whose rect no longer meets the region is dropped. Other badges stay.
+    """
+    left, top, right, bottom = (int(v) for v in region)
+    kept = []
+    clip = [left, top, right, bottom]
+    for badge in badges:
+        x0, y0, x1, y1 = badge["rect"]
+        followed = badge.get("clip") == clip
+        if not followed and not _inside((x0 + x1) / 2, (y0 + y1) / 2, clip):
+            kept.append(badge)
+            continue
+        y0, y1 = y0 + dy, y1 + dy
+        if y1 <= top or y0 >= bottom or x1 <= left or x0 >= right:
+            continue
+        kept.append({**badge, "rect": [x0, y0, x1, y1], "clip": clip})
+    return kept
+
+
+def apply_message(badges: list[dict], line: str) -> list[dict]:
+    """The badges drawn after one JSON line from BadgeSurface, given those drawn now."""
+    message = json.loads(line)
+    if message.get("op") == "translate":
+        region, dy = message.get("region", ()), message.get("dy")
+        if len(region) != 4 or not isinstance(dy, int):
+            msg = "a translate needs a region of four edges and an int dy"
+            raise ValueError(msg)
+        return translate_badges(badges, region, dy)
+    op, drawn = _parsed(message)
+    return drawn if op == "draw" else []
 
 
 def register_font(path: Path = FONT_FILE) -> bool:
@@ -361,12 +412,20 @@ def draw_badges(cr, badges: list[dict], family: str = FONT_FAMILY) -> None:
     cr.restore()
     cr.set_operator(cairo.OPERATOR_OVER)
     for badge in sorted(badges, key=lambda b: DRAW_ORDER[b["kind"]]):
+        clip = badge.get("clip")
+        if clip is not None:
+            # A badge a translate moved stays inside its scrolled region
+            cr.save()
+            cr.rectangle(clip[0], clip[1], clip[2] - clip[0], clip[3] - clip[1])
+            cr.clip()
         if badge["kind"] == "border":
             _draw_border(cr, badge)
         elif badge["kind"] == "patch":
             _draw_patch(cr, badge, family)
         else:
             _draw_tag(cr, badge, family)
+        if clip is not None:
+            cr.restore()
 
 
 def render_png(badges: list[dict], width: int, height: int, out: Path) -> None:
@@ -503,11 +562,10 @@ def run_live(physical: tuple[int, int] | None = None) -> int:
                 Gtk.main_quit()
                 return False
             try:
-                op, badges = parse_message(line)
+                state["badges"] = apply_message(state["badges"], line)
             except ValueError as e:
                 print(f"badge helper: ignored a bad message: {e}", file=sys.stderr)
                 return True
-            state["badges"] = badges if op == "draw" else []
             area.queue_draw()
             return True
         Gtk.main_quit()
@@ -525,9 +583,11 @@ def run_live(physical: tuple[int, int] | None = None) -> int:
 
 
 def run_png(out: Path, width: int, height: int) -> int:
-    """Read one draw message from stdin and write it as a transparent PNG."""
-    line = sys.stdin.readline()
-    _op, badges = parse_message(line) if line.strip() else ("clear", [])
+    """Apply the messages on stdin in order and write the result as a transparent PNG."""
+    badges: list[dict] = []
+    for line in sys.stdin:
+        if line.strip():
+            badges = apply_message(badges, line)
     render_png(badges, width, height, out)
     return 0
 

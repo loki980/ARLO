@@ -2,6 +2,7 @@
 
 import inspect
 import logging
+import subprocess
 import threading
 
 import pytest
@@ -9,6 +10,7 @@ from PIL import Image
 
 from arc_helper import badge_helper
 from arc_helper import badge_surface
+from arc_helper.badge_helper import apply_message
 from arc_helper.badge_helper import checked_physical
 from arc_helper.badge_helper import draw_scale
 from arc_helper.badge_helper import parse_message
@@ -466,3 +468,94 @@ def test_a_normal_helper_receives_draw_then_clear_in_order(monkeypatch, caplog):
         encode_message("clear"),
     ]
     assert _off_warnings(caplog) == []
+
+
+def test_translate_moves_the_badges_inside_its_region_and_drops_those_left():
+    region = (0, 100, 200, 400)
+    drawn = apply_message(
+        [],
+        encode_message(
+            "draw",
+            [
+                Border((0, 120, 50, 170)),
+                Tag((0, 300, 50, 350), "9"),
+                Border((300, 120, 350, 170)),
+            ],
+        ),
+    )
+    moved = apply_message(drawn, encode_message("translate", region=region, dy=-40))
+    assert [b["rect"] for b in moved] == [
+        [0, 80, 50, 130],
+        [0, 260, 50, 310],
+        [300, 120, 350, 170],
+    ]
+    # Moved badges are clipped to the region from then on, the other is not
+    assert [b.get("clip") for b in moved] == [list(region), list(region), None]
+    gone = apply_message(moved, encode_message("translate", region=region, dy=-40))
+    assert [b["rect"] for b in gone] == [[0, 220, 50, 270], [300, 120, 350, 170]]
+
+
+def test_a_clipped_badge_keeps_following_until_it_leaves_the_region():
+    # After the first move its centre (y 105) is out of the region, but it
+    # was moved there, so it moves on and is dropped once it no longer meets it
+    region = (0, 100, 200, 400)
+    move = encode_message("translate", region=region, dy=-40)
+    drawn = apply_message([], encode_message("draw", [Border((0, 145, 50, 195))]))
+    once = apply_message(drawn, move)
+    assert [b["rect"] for b in once] == [[0, 105, 50, 155]]
+    twice = apply_message(once, move)
+    assert [b["rect"] for b in twice] == [[0, 65, 50, 115]]
+    assert apply_message(twice, move) == []
+
+
+def test_png_mode_draws_a_translated_border_clipped_to_its_region(tmp_path):
+    python = find_system_python()
+    if python is None:
+        pytest.skip("no system Python with gi, cairo and Xlib")
+    out = tmp_path / "badges.png"
+    lines = encode_message("draw", [Border((40, 60, 140, 160))]) + encode_message(
+        "translate", region=(0, 50, 320, 200), dy=-30
+    )
+    result = subprocess.run(
+        [python, str(badge_surface.HELPER), "--png", str(out), "--size", "320", "200"],
+        input=lines,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    image = Image.open(out)
+    # The border moved up from 60 to 160 to 30 to 130, nothing left below
+    assert image.getpixel((41, 100)) == (*GOLD, 255)
+    assert image.getpixel((90, 128)) == (*GOLD, 255)
+    assert image.getpixel((41, 145))[3] == 0
+    # Its top edge and the left edge above y 50 are clipped to the region
+    assert image.getpixel((90, 31))[3] == 0
+    assert image.getpixel((41, 40))[3] == 0
+
+
+def test_a_translate_follows_a_waiting_draw_and_a_draw_replaces_it(monkeypatch):
+    surface, proc, _writer = _surface_with(monkeypatch, blocking=True)
+    surface.draw(DRAW_A)
+    assert proc.stdin.entered.wait(5)
+    surface.draw(DRAW_B)
+    surface.translate((0, 0, 50, 50), -5)
+    surface.translate((0, 0, 50, 50), -5)
+    proc.stdin.release.set()
+    assert proc.stdin.wait_for(2)
+    proc.stdin.release.clear()
+    proc.stdin.entered.clear()
+    surface.translate((0, 0, 50, 50), -5)
+    assert proc.stdin.entered.wait(5)
+    surface.translate((0, 0, 50, 50), -7)
+    surface.draw(DRAW_C)
+    proc.stdin.release.set()
+    assert proc.stdin.wait_for(4)
+    surface.stop()
+    move = encode_message("translate", region=(0, 0, 50, 50), dy=-5)
+    assert proc.stdin.lines == [
+        encode_message("draw", DRAW_A),
+        encode_message("draw", DRAW_B) + move + move,
+        move,
+        encode_message("draw", DRAW_C),
+    ]

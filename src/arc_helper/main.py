@@ -53,10 +53,13 @@ from arc_helper.database import Database
 from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
+from arc_helper.grid import BACKPACK
+from arc_helper.grid import STASH
 from arc_helper.grid import STILL_MEAN
 from arc_helper.grid import STILL_SCALE
 from arc_helper.grid import find_slots
 from arc_helper.grid import frames_still
+from arc_helper.grid import scroll_offset
 from arc_helper.grid import slot_diffs
 from arc_helper.grid import still_gray
 from arc_helper.hotkey import HotkeyMonitor
@@ -414,6 +417,9 @@ STASH_TICK_S = 0.1
 # itself, a scroll or tab switch) to clear every badge. Fewer changed slots
 # only hide the badges on them.
 BIG_CHANGE_FRACTION = 0.4
+# The panels that scroll on their own. A big change inside one of them only,
+# by a measured vertical offset, moves its badges with it instead of clearing
+SCROLL_PANELS = (STASH, BACKPACK)
 # Px around the game's item card the stillness compare skips: the ACTIONS tab
 # above the card (about 98 px tall at 3840x2160, 51 px on the 2000 px wide
 # jeffrey-popup-corner screenshot) and its shadow. The card stays skipped for
@@ -498,6 +504,45 @@ def badge_marks(badge: Mapping) -> list[Rect]:
     if str(badge.get("corner", "bl")).startswith("t"):
         return [Rect(left, top, right, top + band)]
     return [Rect(left, bottom - band, right, bottom)]
+
+
+def _centre_in(rect: Rect, region: Rect) -> bool:
+    x, y = (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2
+    return region.left <= x < region.right and region.top <= y < region.bottom
+
+
+def _within(rect: Rect, region: Rect) -> bool:
+    return (
+        region.left <= rect.left
+        and rect.right <= region.right
+        and region.top <= rect.top
+        and rect.bottom <= region.bottom
+    )
+
+
+def followed_rect(rect: Rect, region: Rect, dy: int) -> Rect:
+    """rect moved down by dy when its centre lies inside region, else rect."""
+    if not _centre_in(rect, region):
+        return rect
+    return Rect(rect.left, rect.top + dy, rect.right, rect.bottom + dy)
+
+
+def follow_badges(badges: Sequence[dict], region: Rect, dy: int) -> list[dict]:
+    """The badges after the content of region scrolled down by dy px.
+
+    A badge whose rect's centre lies inside region moves by dy, and is
+    dropped when its moved rect is no longer wholly inside region (a full
+    draw cannot clip it). Other badges stay as they are.
+    """
+    kept = []
+    for b in badges:
+        rect = Rect(*(int(v) for v in b["rect"]))
+        moved = followed_rect(rect, region, dy)
+        if moved is rect:
+            kept.append(b)
+        elif _within(moved, region):
+            kept.append({**b, "rect": tuple(moved)})
+    return kept
 
 
 def badges_clear_of(badges: Sequence[dict], hidden: Sequence[Rect]) -> list[dict]:
@@ -827,6 +872,15 @@ class StashBadges:
     grown by CARD_MARGIN_PX, stays skipped for CARD_LINGER_S after it is
     gone, while it fades out.
 
+    A change that is big inside one of SCROLL_PANELS only, whose content
+    moved by an offset grid.scroll_offset measures, is a scroll and clears
+    nothing: that panel's badges, their marks and the parts the last pass
+    could not see move with it (follow_badges), those scrolled out of its
+    viewport are dropped, and the surface is told to translate them, one
+    small message instead of a full draw. The slots peek knows among those
+    scrolled in are drawn at once, and the next pass renews the whole
+    viewport. Any other big change still clears.
+
     A still pair starts a pass on the pass daemon thread when one is needed
     and none is running, at most once per gap_s. A finished pass keeps its
     badges for the slots unchanged since its frame and drops those on
@@ -901,9 +955,9 @@ class StashBadges:
         self._card_seen: tuple[Rect, float] | None = None
         # The pass handed over and not yet taken, and the pass state
         self._job: tuple[int, np.ndarray, StashFrame] | None = None
-        # find_slots rects and still_gray copies of the RGB frames held
+        # find_slots slots and still_gray copies of the RGB frames held
         # above, by id (with the array, so a reused id never hits)
-        self._slot_cache: dict[int, tuple[np.ndarray, list[Rect]]] = {}
+        self._slot_cache: dict[int, tuple[np.ndarray, list]] = {}
         self._gray_cache: dict[int, tuple[np.ndarray, np.ndarray]] = {}
         self._pass_running = False
         self._last_pass_start: float | None = None
@@ -924,6 +978,10 @@ class StashBadges:
         self._drawn = False
         # Set by a clear: the next still frame draws the known slots first
         self._peek_due = False
+        # The viewport of each panel followed since the last clear
+        self._viewports: dict[str, Rect] = {}
+        # Slots a peek after a scroll looked at since the last pass, moved with it
+        self._peeked: list[Rect] = []
         # The latency since the last clear or slot hide, as clock times
         # (moved, still, drawn) and the pass's seconds, until it is logged
         self._lat: dict[str, float | None] | None = None
@@ -956,6 +1014,8 @@ class StashBadges:
             self._gray_cache.clear()
             self._badges, self._shown, self._marks, self._pass_hidden = [], [], [], []
             self._changed = self._omitted = ()
+            self._viewports = {}
+            self._peeked = []
             self._have_result = False
             self._need_pass = True
             self._peek_due = True
@@ -1064,6 +1124,11 @@ class StashBadges:
             if since.big:
                 pair = since
             changed = since.changed
+        if pair.big or pair.changed:
+            scroll = self._scroll_of(prev, (rgb, frame), extra)
+            if scroll is not None:
+                self._follow(generation, rgb, frame, fed_at, *scroll)
+                return
         if pair.big:
             with self._lock:
                 kept = self._slot_cache.get(id(rgb))
@@ -1119,6 +1184,183 @@ class StashBadges:
             self._job_ready.set()
         self._refresh()
 
+    def _scroll_of(
+        self,
+        a: tuple[np.ndarray, StashFrame],
+        b: tuple[np.ndarray, StashFrame],
+        extra: Sequence[Rect],
+    ) -> tuple[str, Rect, int] | None:
+        """The panel that scrolled from a to b alone, its viewport and offset.
+
+        The change must be big within the panel's own slots, not big within
+        all other slots, and scroll_offset must measure a nonzero offset
+        inside the viewport. The viewport is the bounds of the panel's slots
+        on both frames of the first scroll step since the last clear, kept
+        for the steps that follow: mid scroll find_slots can report a partly
+        shown row at its full size, past the viewport's edge. None otherwise.
+        """
+        if self._still is not frames_still:
+            return None
+        ignore = [*frame_still_ignore(a[1]), *frame_still_ignore(b[1]), *extra]
+        found_a, found_b = self._found_of(a[0]), self._found_of(b[0])
+
+        def changes(keep: Callable[[object], bool]) -> GridChange | None:
+            rects_a = [s.rect for s in found_a if keep(s)]
+            rects_b = [s.rect for s in found_b if keep(s)]
+            if not rects_a and not rects_b:
+                return None
+            return stash_changes(
+                a[0],
+                b[0],
+                ignore,
+                frames_still,
+                lambda rgb: rects_a if rgb is a[0] else rects_b,
+                self._gray_of,
+            )
+
+        for panel in SCROLL_PANELS:
+            mine_a = [s.rect for s in found_a if getattr(s, "panel", None) == panel]
+            mine_b = [s.rect for s in found_b if getattr(s, "panel", None) == panel]
+            if not mine_a or not mine_b:
+                continue
+            inside = changes(lambda s, p=panel: getattr(s, "panel", None) == p)
+            if not inside.big:
+                continue
+            outside = changes(lambda s, p=panel: getattr(s, "panel", None) != p)
+            if outside is not None and outside.big:
+                return None
+            with self._lock:
+                seen = self._viewports.get(panel)
+            rects = [*mine_a, *mine_b]
+            region = seen or Rect(
+                min(r.left for r in rects),
+                min(r.top for r in rects),
+                max(r.right for r in rects),
+                max(r.bottom for r in rects),
+            )
+
+            def filled(found: list, p: str = panel) -> list[Rect]:
+                return [
+                    s.rect
+                    for s in found
+                    if getattr(s, "panel", None) == p and getattr(s, "filled", False)
+                ]
+
+            dy = scroll_offset(
+                a[0],
+                b[0],
+                region,
+                filled(found_a),
+                filled(found_b),
+                grays=(self._gray_of(a[0]), self._gray_of(b[0])),
+            )
+            if not dy:
+                return None
+            return panel, region, dy
+        return None
+
+    def _follow(
+        self,
+        generation: int,
+        rgb: np.ndarray,
+        frame: StashFrame,
+        fed_at: float,
+        panel: str,
+        region: Rect,
+        dy: int,
+    ) -> None:
+        """Move the badges of a scrolled panel with it instead of clearing them."""
+        translate = getattr(self._surface, "translate", None)
+        with self._lock:
+            if generation != self._generation:
+                return
+            self._newest = (rgb, frame)
+            self._viewports[panel] = region
+            # Badges hidden on changed slots stay off, the next pass renews them
+            before = badges_clear_of(self._badges, self._changed)
+            self._badges = follow_badges(before, region, dy)
+            self._marks = [m for b in self._badges for m in badge_marks(b)]
+            self._pass_hidden = [
+                followed_rect(r, region, dy) for r in self._pass_hidden
+            ]
+            self._peeked = [
+                m
+                for m in (followed_rect(r, region, dy) for r in self._peeked)
+                if _within(m, region)
+            ]
+            if region not in self._omitted:
+                self._omitted = (*self._omitted, region)
+            self._changed = ()
+            if self._ref is not None:
+                # The badges now sit where this frame shows their slots
+                self._ref = (rgb, frame)
+            self._need_pass = True
+            self._lat = _latency_from(fed_at)
+            if self._drawn and translate is not None:
+                translate(tuple(region), dy)
+                self._shown = follow_badges(self._shown, region, dy)
+            kept = len(self._badges)
+        logger.debug(
+            "stash badges followed panel=%s dy=%d kept=%d dropped=%d",
+            panel,
+            dy,
+            kept,
+            len(before) - kept,
+        )
+        self._draw_scrolled_in(generation, rgb, frame, region)
+        self._refresh()
+
+    def _draw_scrolled_in(
+        self, generation: int, rgb: np.ndarray, frame: StashFrame, region: Rect
+    ) -> None:
+        """Add the badges of the known slots in region that have none, before the pass.
+
+        peek runs only when a filled slot in region has no badge and was not
+        looked at by an earlier peek since the scroll began.
+        """
+        if self._peek is None:
+            return
+        with self._lock:
+            have = [Rect(*(int(v) for v in b["rect"])) for b in self._badges]
+            peeked = list(self._peeked)
+        bare = [
+            s.rect
+            for s in self._found_of(rgb)
+            if getattr(s, "filled", False)
+            and _within(s.rect, region)
+            and not any(rects_intersect(s.rect, h) for h in have)
+        ]
+        _seen, alone = _match_slots(bare, peeked)
+        new = [r for r in alone if r in bare]
+        if not new:
+            return
+        with self._lock:
+            if generation != self._generation:
+                return
+            self._peeked += new
+        try:
+            slot_items = [
+                s
+                for s in self._peek(rgb)
+                if _within(s.rect, region)
+                and not any(rects_intersect(s.rect, h) for h in have)
+            ]
+            badges = self._make_badges(slot_items) if slot_items else []
+        except Exception as e:  # noqa: BLE001 - the pass draws them instead
+            logger.warning("stash scrolled in slots not drawn (%s)", e)
+            return
+        if not self._keep_border:
+            badges = [b for b in badges if b["kind"] != "border"]
+        badges = badges_clear_of(badges, frame_hidden(frame))
+        if not badges:
+            return
+        with self._lock:
+            if generation != self._generation:
+                return
+            self._badges = [*self._badges, *badges]
+            self._marks += [m for b in badges for m in badge_marks(b)]
+        logger.debug("stash scrolled in slots drawn badges=%d", len(badges))
+
     def _draw_known(self, generation: int, rgb: np.ndarray, frame: StashFrame) -> None:
         """Draw the badges of the slots peek already knows, before the pass."""
         if self._peek is None:
@@ -1172,11 +1414,13 @@ class StashBadges:
             self._last_pass_start is None or now - self._last_pass_start >= self._gap_s
         )
 
+    def _found_of(self, rgb: np.ndarray) -> list:
+        """find_slots of a frame, found once while StashBadges holds it."""
+        return self._cached(self._slot_cache, rgb, find_slots)
+
     def _slots_of(self, rgb: np.ndarray) -> list[Rect]:
         """find_slots rects of a frame, found once while StashBadges holds it."""
-        return self._cached(
-            self._slot_cache, rgb, lambda f: [s.rect for s in find_slots(f)]
-        )
+        return [s.rect for s in self._found_of(rgb)]
 
     def _gray_of(self, rgb: np.ndarray) -> np.ndarray:
         """The still_gray copy of a frame, made once while StashBadges keeps it."""
@@ -1309,6 +1553,7 @@ class StashBadges:
             self._pass_hidden = hidden
             self._changed = since.changed
             self._omitted = since.changed
+            self._peeked = []
             self._marks = [m for b in badges for m in badge_marks(b)]
             if (
                 self._lat is not None

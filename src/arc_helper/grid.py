@@ -53,6 +53,7 @@ Pure functions, no Tk or screen access.
 """
 
 from collections.abc import Iterable
+from collections.abc import Sequence
 from typing import NamedTuple
 
 import cv2
@@ -112,6 +113,16 @@ OUTLINE_LIGHT = 120
 OUTLINE_ROWS = 2
 STILL_SCALE = 8
 STILL_MEAN = 3.0
+# scroll_offset: the least phase correlation peak of a clean shift, the most
+# sideways drift it allows in grey cells, and the most a slot's look may
+# differ (mean grey difference) to vote for the offset its match implies
+SCROLL_PEAK_MIN = 0.2
+SCROLL_DX_MAX = 0.5
+SCROLL_LOOK_MAX = 12.0
+# On RGB frames the offset is refined at full size within this many px of
+# the grey copies' estimate, comparing every SCROLL_REFINE_STEP-th column
+SCROLL_REFINE_PX = STILL_SCALE
+SCROLL_REFINE_STEP = 4
 
 STASH = "stash"
 EQUIPMENT = "equipment"
@@ -625,6 +636,128 @@ def frames_still(
 def still_gray(rgb: np.ndarray) -> np.ndarray:
     """The 1/8 scale grey copy of an RGB frame that the stillness compares use."""
     return _small_gray(rgb)
+
+
+def _cells(rect: Rect, shape: Sequence[int]) -> tuple[int, int, int, int]:
+    """The STILL_SCALE cells wholly inside rect: top, bottom, left, right."""
+    scale = STILL_SCALE
+    rows, cols = shape[:2]
+    return (
+        max(0, -(-rect.top // scale)),
+        min(rows, rect.bottom // scale),
+        max(0, -(-rect.left // scale)),
+        min(cols, rect.right // scale),
+    )
+
+
+def _look_vote(
+    gray_a: np.ndarray,
+    gray_b: np.ndarray,
+    slots_a: Sequence[Rect],
+    slots_b: Sequence[Rect],
+) -> int | None:
+    """The vertical offset most slot looks of b agree on against a, in px.
+
+    Each slot of b is matched to the slot of a of the same size whose grey
+    cells differ least, when they differ by less than SCROLL_LOOK_MAX. Each
+    match votes for the difference of their tops, and the offset with the
+    most votes within one cell of it wins (their median). None without a
+    match.
+    """
+    looks_a = []
+    for ra in slots_a:
+        top, bottom, left, right = _cells(ra, gray_a.shape)
+        if bottom > top and right > left:
+            looks_a.append((ra, gray_a[top:bottom, left:right].astype(np.int16)))
+    votes = []
+    for rb in slots_b:
+        top, bottom, left, right = _cells(rb, gray_b.shape)
+        if bottom <= top or right <= left:
+            continue
+        look = gray_b[top:bottom, left:right].astype(np.int16)
+        best = None
+        for ra, seen in looks_a:
+            if seen.shape != look.shape:
+                continue
+            diff = float(np.abs(seen - look).mean())
+            if diff < SCROLL_LOOK_MAX and (best is None or diff < best[0]):
+                best = (diff, rb.top - ra.top)
+        if best is not None:
+            votes.append(best[1])
+    if not votes:
+        return None
+    near = [[v for v in votes if abs(v - w) <= STILL_SCALE] for w in votes]
+    return int(np.median(max(near, key=len)))
+
+
+def _refined(a: np.ndarray, b: np.ndarray, band: Rect, offset: int) -> int:
+    """The offset within SCROLL_REFINE_PX of offset that best matches band at full size."""
+    height, width = a.shape[:2]
+    top, bottom = max(0, band.top), min(height, band.bottom)
+    left, right = max(0, band.left), min(width, band.right)
+    step = SCROLL_REFINE_STEP
+    cols = slice(left, right, step)
+    win_a = cv2.cvtColor(np.ascontiguousarray(a[top:bottom, cols]), cv2.COLOR_RGB2GRAY)
+    win_b = cv2.cvtColor(np.ascontiguousarray(b[top:bottom, cols]), cv2.COLOR_RGB2GRAY)
+    win_a, win_b = win_a.astype(np.int16), win_b.astype(np.int16)
+    rows = bottom - top
+    best = (None, offset)
+    for d in range(offset - SCROLL_REFINE_PX, offset + SCROLL_REFINE_PX + 1):
+        # b's row y shows a's row y - d
+        if abs(d) >= rows // 2:
+            continue
+        seen = win_a[max(0, -d) : rows - max(0, d)]
+        now = win_b[max(0, d) : rows - max(0, -d)]
+        diff = float(np.abs(seen - now).mean())
+        if best[0] is None or diff < best[0]:
+            best = (diff, d)
+    return best[1]
+
+
+def scroll_offset(
+    a: np.ndarray,
+    b: np.ndarray,
+    band: Rect,
+    slots_a: Sequence[Rect] = (),
+    slots_b: Sequence[Rect] = (),
+    grays: tuple[np.ndarray, np.ndarray] | None = None,
+) -> int | None:
+    """How far the content inside band moved down from frame a to b, in px.
+
+    a and b are RGB frames of one size or their still_gray copies, band the
+    scrolling panel's viewport in frame px. The offset is the phase
+    correlation of the two grey copies inside band (grays, when given, or
+    made here), so negative when the content moved up. On RGB frames it is
+    then refined at full size, to the shift within SCROLL_REFINE_PX that
+    differs least. slots_a and slots_b, the filled slots of the panel on
+    each frame, vote on that final offset by their looks (_look_vote). None when
+    the motion is no clean vertical shift: a correlation peak under
+    SCROLL_PEAK_MIN, a sideways drift over SCROLL_DX_MAX cells, or a slot
+    vote more than one cell away.
+    """
+    if grays is not None:
+        gray_a, gray_b = grays
+    else:
+        gray_a = a if a.ndim == 2 else _small_gray(a)
+        gray_b = b if b.ndim == 2 else _small_gray(b)
+    if gray_a.shape != gray_b.shape:
+        return None
+    top, bottom, left, right = _cells(band, gray_a.shape)
+    if bottom - top < 4 or right - left < 4:
+        return None
+    win_a = gray_a[top:bottom, left:right].astype(np.float32)
+    win_b = gray_b[top:bottom, left:right].astype(np.float32)
+    window = cv2.createHanningWindow((right - left, bottom - top), cv2.CV_32F)
+    (dx, dy), peak = cv2.phaseCorrelate(win_a, win_b, window)
+    if peak < SCROLL_PEAK_MIN or abs(dx) > SCROLL_DX_MAX:
+        return None
+    offset = round(dy * STILL_SCALE)
+    if a.ndim == 3 and a.shape == b.shape:
+        offset = _refined(a, b, band, offset)
+    vote = _look_vote(gray_a, gray_b, slots_a, slots_b)
+    if vote is not None and abs(vote - offset) > STILL_SCALE:
+        return None
+    return offset
 
 
 def slot_diffs(

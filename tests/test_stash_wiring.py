@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from arc_helper import grid
 from arc_helper import main
 from arc_helper import stash_scan
 from arc_helper.grid import STILL_MEAN
@@ -667,3 +668,188 @@ def test_peek_leaves_the_slot_cache_unchanged(monkeypatch):
     assert [s.rect for s in found] == [slots[0].rect, slots[2].rect]
     assert list(cache._entries) == keys  # noqa: SLF001
     assert list(cache._bars) == bars  # noqa: SLF001
+
+
+# A textured frame with two panels of 48 px slots 56 px apart: equipment
+# (2 x 4) on the left, which never scrolls, and backpack (3 x 5) on the
+# right, whose viewport is SCROLL_VIEW. A scroll rolls the viewport's content
+# up by SCROLL_DY, 2 grey cells, so the slot looks still vote on it
+SCROLL_SHAPE = (320, 448, 3)
+SCROLL_VIEW = Rect(224, 16, 392, 296)
+SCROLL_DY = -16
+EQUIPMENT_SLOTS = [
+    Rect(16 + 56 * c, 16 + 56 * r, 64 + 56 * c, 64 + 56 * r)
+    for r in range(4)
+    for c in range(2)
+]
+BACKPACK_SLOTS = [
+    Rect(224 + 56 * c, 16 + 56 * r, 272 + 56 * c, 64 + 56 * r)
+    for r in range(5)
+    for c in range(3)
+]
+
+
+def _textured(seed: int) -> np.ndarray:
+    """Random grey 8 px cells over the whole frame, as RGB."""
+    cells = np.random.default_rng(seed).integers(0, 256, (40, 56), dtype=np.uint8)
+    grey = np.repeat(np.repeat(cells, 8, 0), 8, 1)
+    return np.repeat(grey[:, :, None], 3, 2)
+
+
+def _scrolled(rgb: np.ndarray) -> np.ndarray:
+    """rgb with the backpack viewport's content rolled up by -SCROLL_DY px."""
+    out = rgb.copy()
+    v = SCROLL_VIEW
+    out[v.top : v.bottom, v.left : v.right] = np.roll(
+        rgb[v.top : v.bottom, v.left : v.right], SCROLL_DY, axis=0
+    )
+    return out
+
+
+def _moved(rect: Rect, dy: int) -> Rect:
+    return Rect(rect.left, rect.top + dy, rect.right, rect.bottom + dy)
+
+
+# The backpack slots on the scrolled frame: the top row is partly out of the
+# viewport and not found
+SCROLLED_BACKPACK = [
+    _moved(r, SCROLL_DY) for r in BACKPACK_SLOTS if r.top + SCROLL_DY >= 16
+]
+
+
+class _TranslatingSurface(_Surface):
+    def translate(self, region, dy) -> None:
+        self.calls.append(("translate", tuple(region), dy))
+
+
+def _panel_stash(monkeypatch, surface, frames):
+    """A stash on the textured frame with every slot's badges drawn.
+
+    find_slots finds the backpack slots of SCROLLED_BACKPACK on the frames
+    in frames (by identity) and BACKPACK_SLOTS on any other. On those
+    frames the pass identifies every slot but SCROLLED_BACKPACK[0].
+    """
+
+    def find(rgb):
+        backpack = (
+            SCROLLED_BACKPACK if any(rgb is f for f in frames) else BACKPACK_SLOTS
+        )
+        return [
+            *(Slot(r, "equipment", filled=True) for r in EQUIPMENT_SLOTS),
+            *(Slot(r, "backpack", filled=True) for r in backpack),
+        ]
+
+    monkeypatch.setattr(main, "find_slots", find)
+    calls = []
+
+    def identify(rgb):
+        calls.append(rgb)
+        found = [s.rect for s in find(rgb)]
+        if any(rgb is f for f in frames):
+            found.remove(SCROLLED_BACKPACK[0])
+        return [_slot(r) for r in found]
+
+    stash = _stash(identify, surface)
+    base = _textured(1)
+    for _ in range(2):
+        stash.feed(base, None, ())
+        stash.step()
+    assert len(surface.draws()[-1]) == 2 * (8 + 15)
+    return stash, calls, base
+
+
+def test_scroll_offset_measures_a_shifted_panel():
+    base = _textured(1)
+    assert main.scroll_offset(base, _scrolled(base), SCROLL_VIEW) == SCROLL_DY
+    down = base.copy()
+    v = SCROLL_VIEW
+    down[v.top : v.bottom, v.left : v.right] = np.roll(
+        base[v.top : v.bottom, v.left : v.right], 13, axis=0
+    )
+    # Off the 8 px cell grid: the grey copies estimate, the full size refines
+    assert main.scroll_offset(base, down, SCROLL_VIEW) == 13
+
+
+def test_scroll_offset_is_none_for_a_change_that_is_no_shift():
+    base = _textured(1)
+    other = base.copy()
+    v = SCROLL_VIEW
+    other[v.top : v.bottom, v.left : v.right] = _textured(2)[
+        v.top : v.bottom, v.left : v.right
+    ]
+    assert main.scroll_offset(base, other, SCROLL_VIEW) is None
+
+
+def test_scroll_offset_is_none_when_the_slot_looks_disagree():
+    # The frame repeats its viewport's top 64 rows 64 px lower, so slot a's
+    # look is found 88 px above where the content moved by 24
+    base = _textured(1)
+    v = SCROLL_VIEW
+    base[v.top + 64 : v.top + 128, v.left : v.right] = base[
+        v.top : v.top + 64, v.left : v.right
+    ]
+    moved = base.copy()
+    moved[v.top : v.bottom, v.left : v.right] = np.roll(
+        base[v.top : v.bottom, v.left : v.right], -24, axis=0
+    )
+    slot = Rect(v.left, v.top + 24, v.left + 48, v.top + 56)
+    assert main.scroll_offset(base, moved, SCROLL_VIEW) == -24
+    vote = main.scroll_offset(
+        base, moved, SCROLL_VIEW, [_moved(slot, 64)], [_moved(slot, -24)]
+    )
+    assert vote is None
+
+
+def test_the_slot_vote_checks_the_refined_offset(monkeypatch):
+    # The vote sits a cell above the grey estimate and the refinement moves
+    # the offset a cell below it, so the final offset is two cells off
+    base = _textured(1)
+    seen = {}
+
+    def refined(_a, _b, _band, offset, by=-8):
+        seen["coarse"] = offset
+        return offset + by
+
+    monkeypatch.setattr(grid, "_refined", refined)
+    monkeypatch.setattr(grid, "_look_vote", lambda *_args: seen["coarse"] + 8)
+    assert main.scroll_offset(base, _scrolled(base), SCROLL_VIEW) is None
+    # Without the refinement's move the same vote is within a cell
+    monkeypatch.setattr(grid, "_refined", lambda *args: refined(*args, by=0))
+    assert main.scroll_offset(base, _scrolled(base), SCROLL_VIEW) == seen["coarse"]
+
+
+def test_a_panel_scroll_moves_its_badges_and_drops_those_scrolled_out(
+    monkeypatch, caplog
+):
+    surface = _TranslatingSurface()
+    scrolled = _scrolled(_textured(1))
+    stash, calls, _base = _panel_stash(monkeypatch, surface, [scrolled])
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(scrolled, None, ())
+        stash.step()
+    region = Rect(224, 16, 384, 288)
+    assert surface.calls[-1] == ("translate", tuple(region), SCROLL_DY)
+    assert ("clear",) not in surface.calls
+    assert "stash badges followed panel=backpack dy=-16 kept=40 dropped=6" in (
+        caplog.text
+    )
+    # Equipment badges stay, backpack rows 1 to 4 move up, row 0 is gone
+    kept = {tuple(int(v) for v in b["rect"]) for b in stash._badges}  # noqa: SLF001
+    assert kept == {tuple(r) for r in (*EQUIPMENT_SLOTS, *SCROLLED_BACKPACK)}
+    assert len(calls) == 1
+    # The pass on the next still frame replaces them with its own
+    stash.feed(scrolled, None, ())
+    stash.step()
+    assert len(calls) == 2
+    assert _drawn_slots(surface) == kept - {tuple(SCROLLED_BACKPACK[0])}
+
+
+def test_a_tab_switch_still_clears_every_badge(monkeypatch, caplog):
+    surface = _TranslatingSurface()
+    stash, _calls, _base = _panel_stash(monkeypatch, surface, [])
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(_textured(2), None, ())
+        stash.step()
+    assert surface.calls[-1] == ("clear",)
+    assert not [c for c in surface.calls if c[0] == "translate"]
+    assert "stash badges cleared reason=grid_moved" in caplog.text
