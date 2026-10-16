@@ -3,6 +3,7 @@
 
     uv run --extra icons python scripts/replay_stash_badges.py <captures> <out folder>
     uv run --extra icons python scripts/replay_stash_badges.py --keep <capture> <out file>
+    uv run --extra icons python scripts/replay_stash_badges.py --keep --out <folder> <capture>
     uv run --extra icons python scripts/replay_stash_badges.py --latency --out <folder> <capture>
     uv run --extra icons python scripts/replay_stash_badges.py --latency --scroll-steps N --out <folder> <capture>
 
@@ -26,6 +27,19 @@ frame again, 3 backpack slots' interiors brightened (a hover) and the frame
 shifted up by one slot row (a scroll). The out file gets, for each step,
 how many badges are drawn, the badge rects drawn before and hidden now and the stash
 log lines.
+
+With --keep --out the flicker cases of the flicker-why-s1 timeline are fed,
+each to its own StashBadges on one warm slot cache: a card fading in (a
+half-faded card rect over 16 backpack slots before the scanner locates it,
+then the card located), a card fading out after its linger lapsed, the
+cursor hovering three slots in turn (each brightened, the cursor passed when
+StashBadges takes one) and a pass that finds fewer badges on a still grid
+(the backpack viewport scrolled one row, then a pass that misses three
+slots in it). real-data.txt in the out folder gets, per step, the badges
+drawn and the clear and hide lines, and per case the clears and hides in
+all and the fewest badges drawn after the first draw (steps with a located
+card and the step after one left out, the card covers badges by design). When keep-before.txt is in the folder (a run on the code before), that
+file comes first.
 
 With --latency one capture is fed as a scroll on a clock the script moves,
 frames LATENCY_FRAME_S apart: the slot cache is warmed by identifying the
@@ -52,6 +66,7 @@ and how far the ones in the viewport sit from their items, then the time
 from the first and the last scroll frame to the final draw.
 """
 
+import inspect
 import logging
 import sys
 import time
@@ -71,6 +86,7 @@ from arc_helper.main import CARD_LINGER_S
 from arc_helper.main import StashBadges
 from arc_helper.main import stash_badge_maker
 from arc_helper.main import stash_identifier
+from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 
 FULL_SIZE = (3840, 2160)
@@ -203,6 +219,225 @@ def keep_main(capture: Path, out: Path) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(report) + "\n", encoding="utf-8")
     print("\n".join(report))
+    return 0
+
+
+# Cream the game's item card is drawn in, blended over the slots at half
+# strength for a card fading in or out
+CARD_CREAM = (226, 218, 196)
+
+
+class _FlickerSurface(RecordingSurface):
+    """A recording surface that applies translates as the badge helper does."""
+
+    def draw(self, badges: list) -> None:
+        self.drawn = [{**asdict(b), "rect": list(b.rect)} for b in badges]
+
+    def translate(self, region, dy: int) -> None:
+        if self.drawn is not None:
+            self.drawn = translate_badges(self.drawn, region, dy)
+
+
+def _faded(rgb: np.ndarray, card: Rect) -> np.ndarray:
+    """rgb with a card rect blended halfway to the card's cream."""
+    out = rgb.copy()
+    area = out[card.top : card.bottom, card.left : card.right]
+    area[:] = (area * 0.5 + np.array(CARD_CREAM) * 0.5).astype(np.uint8)
+    return out
+
+
+def _lit(rgb: np.ndarray, slot: Rect) -> np.ndarray:
+    """rgb with a slot's interior brightened, as the game lights a hovered slot."""
+    out = rgb.copy()
+    inset = 16
+    part = out[
+        slot.top + inset : slot.bottom - inset, slot.left + inset : slot.right - inset
+    ]
+    part[:] = (part * 0.75 + 255 * 0.25).astype(np.uint8)
+    return out
+
+
+def _centre(rect: Rect) -> tuple[int, int]:
+    return ((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)
+
+
+def _flicker_cases(rgb: np.ndarray) -> list[tuple[str, list]]:
+    """The cases as (name, steps), each step (label, frame, card, cursor, wait, miss).
+
+    miss is the slot rects the next pass leaves out, None for none.
+    """
+
+    backpack = [s.rect for s in find_slots(rgb) if s.panel == "backpack"]
+    card = _bounds(backpack[:16])
+    half = _faded(rgb, card)
+    full = rgb.copy()
+    full[card.top : card.bottom, card.left : card.right] = CARD_CREAM
+    hovered = backpack[5:8]
+    off = Point(rgb.shape[1] - 10, rgb.shape[0] - 10)
+    frames, _band, _pitch = _scroll_frames(rgb, 1)
+    scrolled = frames[0][0]
+    viewport = [s.rect for s in find_slots(scrolled) if s.panel == "backpack"]
+    missed = viewport[:3]
+    start = [
+        ("frame", rgb, None, off, 0.1, None),
+        ("frame again", rgb, None, off, 0.1, None),
+    ]
+    return [
+        (
+            "card fade in (22:20:38.365, clear 0.07 s before 'card new')",
+            [
+                *start,
+                (
+                    "half-faded card over 16 slots, not located",
+                    half,
+                    None,
+                    off,
+                    0.1,
+                    None,
+                ),
+                ("card located", full, card, off, 0.1, None),
+                ("card located again", full, card, off, 0.1, None),
+            ],
+        ),
+        (
+            "card fade out after the linger (22:15:09.777, clear 0.06 s after 'card gone')",
+            [
+                *start,
+                ("card located", full, card, off, 0.1, None),
+                (
+                    "half-faded card, linger lapsed",
+                    half,
+                    None,
+                    off,
+                    CARD_LINGER_S + 0.1,
+                    None,
+                ),
+                ("card gone", rgb, None, off, 0.1, None),
+                ("card gone again", rgb, None, off, 0.1, None),
+            ],
+        ),
+        (
+            "hover over three slots (22:20:35 to 22:20:47, hide then pass per move)",
+            [
+                *start,
+                *(
+                    (
+                        f"slot {n} hovered and lit",
+                        _lit(rgb, r),
+                        None,
+                        Point(*_centre(r)),
+                        0.1,
+                        None,
+                    )
+                    for n, r in enumerate(hovered, 1)
+                    for _ in range(2)
+                ),
+                ("cursor off the grid", rgb, None, off, 0.1, None),
+                ("cursor off the grid again", rgb, None, off, 0.1, None),
+            ],
+        ),
+        (
+            "fewer badges on a still grid (22:40:07.489, 76 then 61)",
+            [
+                *start,
+                ("backpack scrolled one row", scrolled, None, off, 0.1, None),
+                ("still, the pass misses 3 slots", scrolled, None, off, 0.1, missed),
+                ("still again", scrolled, None, off, 0.1, None),
+            ],
+        ),
+    ]
+
+
+def flicker_main(capture: Path, out: Path) -> int:
+    """Replay the flicker cases and write the clears and hides of each step."""
+    lines = _Lines()
+    logger.addHandler(lines)
+    logger.setLevel(logging.DEBUG)
+    settings = get_settings()
+    db = Database()
+    identify = stash_identifier(db, settings.icon_cache_dir)
+    make = stash_badge_maker(db, lambda: settings.show_ended_projects)
+    with Image.open(capture) as image:
+        rgb = np.asarray(image.convert("RGB"))
+    identify(rgb)
+    takes_cursor = "cursor" in inspect.signature(StashBadges.feed).parameters
+    report = [f"capture: {capture.name}", f"cursor passed: {takes_cursor}", ""]
+    totals = []
+    for name, steps in _flicker_cases(rgb):
+        miss: list = []
+
+        def passing(frame, miss=miss):
+            found = identify(frame)
+            if miss:
+                gone = miss.pop()
+                found = [s for s in found if s.rect not in gone]
+            return found
+
+        if hasattr(identify, "peek"):
+            passing.peek = identify.peek
+        surface = _FlickerSurface()
+        clock = _Clock()
+        stash = StashBadges(
+            passing,
+            make,
+            surface,
+            keep_border=settings.overlay.stash_badge_keep_border,
+            gap_s=0,
+            threaded=False,
+            clock=clock,
+        )
+        report.append(f"== {name}")
+        clears = hides = 0
+        counts: list[int] = []
+        for label, frame, card, cursor, wait, missed in steps:
+            clock.now += wait
+            if missed:
+                miss.append(set(missed))
+            first = len(lines.lines)
+            if takes_cursor:
+                stash.feed(frame, card, (), cursor)
+            else:
+                stash.feed(frame, card, ())
+            stash.step()
+            new = lines.lines[first:]
+            clears += sum("badges cleared" in line for line in new)
+            hides += sum("badges hidden" in line for line in new)
+            counts.append(len(surface.drawn or []))
+            report.append(f"{label}: {counts[-1]} badges drawn")
+            report += [
+                f"  log: {line}"
+                for line in new
+                if not line.startswith(("stash pass identified", "stash latency"))
+            ]
+        # The fewest drawn after the first draw, outside steps a card covers
+        # and the step right after one (the badges under it stay off)
+        cards = [step[2] for step in steps]
+        shown = [
+            n
+            for i, n in enumerate(counts)
+            if cards[i] is None and (i == 0 or cards[i - 1] is None)
+        ]
+        first = next((i for i, n in enumerate(shown) if n), len(shown))
+        least = min(shown[first:], default=0)
+        tally = (
+            f"clears={clears} hides={hides} drawn={shown[first] if shown[first:] else 0}"
+            f" fewest_after={least}"
+        )
+        report += [f"  in all: {tally}", ""]
+        totals.append(f"{name}: {tally}")
+    report += ["summary:", *totals]
+    out.mkdir(parents=True, exist_ok=True)
+    text = "\n".join(report) + "\n"
+    before = out / "keep-before.txt"
+    if before.exists():
+        text = (
+            "=== before (keep-before.txt, the code before this change) ===\n"
+            + before.read_text(encoding="utf-8")
+            + "\n=== after ===\n"
+            + text
+        )
+    (out / "real-data.txt").write_text(text, encoding="utf-8")
+    print(text)
     return 0
 
 
@@ -511,6 +746,8 @@ def main() -> int:
         and sys.argv[4] == "--out"
     ):
         return scroll_main(Path(sys.argv[6]), Path(sys.argv[5]), int(sys.argv[3]))
+    if len(sys.argv) == 5 and sys.argv[1:3] == ["--keep", "--out"]:
+        return flicker_main(Path(sys.argv[4]), Path(sys.argv[3]))
     if len(sys.argv) == 4 and sys.argv[1] == "--keep":
         return keep_main(Path(sys.argv[2]), Path(sys.argv[3]))
     if len(sys.argv) == 5 and sys.argv[1] == "--latency" and sys.argv[2] == "--out":
