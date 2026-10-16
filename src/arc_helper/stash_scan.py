@@ -72,7 +72,14 @@ from .icon_embed import EmbedCandidate
 from .icon_embed import EmbedGallery
 from .icon_embed import crop_square
 from .icon_embed import default_embedder
+from .slot_marks import _ICON_START_MAX
+from .slot_marks import _INK_ABOVE
+from .slot_marks import _RIGHT_HALF
 from .slot_marks import BarGeometry
+from .slot_marks import _Bar
+from .slot_marks import _luminance
+from .slot_marks import _word_box
+from .slot_marks import _words
 from .slot_marks import bar_geometry
 from .slot_marks import read_stack
 from .slot_marks import read_tier
@@ -98,6 +105,9 @@ SIG_BORDER_MIN = 6
 SIG_TAG_ROWS = 2.2
 # Rows above a square slot's bar also left out with the patch part of it
 SIG_BAR_MARGIN = 2
+# look_signature leaves out a square slot's rows from this share of its
+# height down, above every bar measured (bar tops at 0.734 to 0.758)
+SIG_LOOK_BOTTOM = 0.7
 # Every SIG_STEP-th pixel, its low SIG_SHIFT bits dropped
 SIG_STEP = 2
 SIG_SHIFT = 2
@@ -218,13 +228,17 @@ class _Cached(NamedTuple):
 class SlotCache:
     """Identified slots by signature, the least recently used dropped at size.
 
-    Keep one per gallery: its entries are only valid for the gallery and
-    lookup that made them.
+    Beside the entries it keeps, by look_signature, the bar box of the last
+    square slot with that look, so a slot whose bar is not found under a
+    drawn patch can still be keyed (see identify_slots). Keep one per
+    gallery: its entries are only valid for the gallery and lookup that
+    made them.
     """
 
     def __init__(self, size: int = SLOT_CACHE_SIZE):
         self.size = size
         self._entries: OrderedDict[tuple, _Cached] = OrderedDict()
+        self._bars: OrderedDict[tuple, Rect] = OrderedDict()
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -244,36 +258,102 @@ class SlotCache:
         while len(self._entries) > self.size:
             self._entries.popitem(last=False)
 
+    def bar_box(self, look: tuple) -> Rect | None:
+        """The bar box last kept for a look, None when none was."""
+        found = self._bars.get(look)
+        if found is not None:
+            self._bars.move_to_end(look)
+        return found
 
-def slot_signature(crop: np.ndarray, bar: BarGeometry | None = None) -> tuple:
-    """A key for a slot crop's look that ignores what ARLO draws on it.
+    def keep_bar_box(self, look: tuple, box: Rect) -> None:
+        self._bars[look] = box
+        self._bars.move_to_end(look)
+        while len(self._bars) > self.size:
+            self._bars.popitem(last=False)
 
-    Left out: a border band on every side (the red outline drawn inside the
-    rect, the hovered frame's edge), the top band where the have/need tag
-    and a wide slot's price pill go (sized like badge_helper's tag), and,
-    given the square slot's bar (slot_marks.bar_geometry of the crop), the
-    bar left of bar.patch_right, where the price patch goes. The stack
-    count or tier numeral is the bar's right mark, which patch_right stays
-    left of, so a changed count is a new key. The rest is sampled every
-    SIG_STEP pixels with its low bits dropped and hashed with the crop's
-    size. ARLO's drawings are left out rather than keyed on a capture
-    before badges, because the captures the pass gets already show the
-    badges.
-    """
+
+def _band(crop: np.ndarray) -> int:
+    """Width of the border band slot_signature leaves out."""
+    return max(SIG_BORDER_MIN, round(SIG_BORDER * min(crop.shape[:2])))
+
+
+def _unmarked(crop: np.ndarray) -> np.ndarray:
+    """A copy of the crop with its border band and top tag band zeroed."""
     height, width = crop.shape[:2]
     kept = np.array(crop, dtype=np.uint8)
-    band = max(SIG_BORDER_MIN, round(SIG_BORDER * min(height, width)))
+    band = _band(crop)
     text = max(TAG_TEXT_MIN, min(TAG_TEXT_MAX, round(height * TAG_TEXT_SHARE)))
     kept[: max(band, round(SIG_TAG_ROWS * text))] = 0
     kept[height - band :] = 0
     kept[:, :band] = 0
     kept[:, width - band :] = 0
-    if bar is not None:
-        top = max(0, bar.bar_rect.top - SIG_BAR_MARGIN)
-        kept[top:, : bar.patch_right] = 0
+    return kept
+
+
+def _digest(kept: np.ndarray) -> tuple:
+    height, width = kept.shape[:2]
     sampled = np.ascontiguousarray(kept[::SIG_STEP, ::SIG_STEP] >> SIG_SHIFT)
-    digest = hashlib.blake2b(sampled.tobytes(), digest_size=16).digest()
-    return (height, width, digest)
+    return (height, width, hashlib.blake2b(sampled.tobytes(), digest_size=16).digest())
+
+
+def patch_boundary(crop: np.ndarray, box: Rect) -> int:
+    """Where the price patch can reach in the bar box of a square slot crop.
+
+    The right mark is found as slot_marks.bar_geometry finds it, on the
+    bar box given, but only in the rows and columns inside the border band,
+    where the red outline cannot add ink. The boundary is then
+    BarGeometry.patch_right: the mark stays right of it, the patch left.
+    """
+    band = _band(crop)
+    height, width = crop.shape[:2]
+    inner = Rect(
+        max(box.left, band),
+        max(box.top, band),
+        min(box.right, width - band),
+        min(box.bottom, height - band),
+    )
+    if inner.right <= inner.left or inner.bottom <= inner.top:
+        return BarGeometry(box, (0, 0, 0), None, None).patch_right
+    lum = _luminance(crop)[inner.top : inner.bottom, inner.left : inner.right]
+    background = float(np.median(lum))
+    bar = _Bar(lum, lum > background + _INK_ABOVE, background, inner)
+    words = _words(bar)
+    # Shares of the whole bar box, as bar_geometry measures them
+    start = inner.left - box.left
+    icon = words and start + words[0][0] < _ICON_START_MAX * box.width
+    rest = words[1:] if icon else words
+    right_half = _RIGHT_HALF * box.width
+    mark = rest[-1] if rest and start + rest[-1][1] >= right_half else None
+    mark_box = _word_box(bar, mark) if mark else None
+    return BarGeometry(box, (0, 0, 0), None, mark_box).patch_right
+
+
+def slot_signature(crop: np.ndarray, bar_box: Rect | None = None) -> tuple:
+    """A key for a slot crop's look that ignores what ARLO draws on it.
+
+    Left out: a border band on every side (the red outline drawn inside the
+    rect, the hovered frame's edge), the top band where the have/need tag
+    and a wide slot's price pill go (sized like badge_helper's tag), and,
+    given the square slot's bar box (from slot_marks.bar_geometry), the bar
+    left of patch_boundary, where the price patch goes. The stack count or
+    tier numeral is the bar's right mark, which the boundary stays left of,
+    so a changed count is a new key. The rest is sampled every SIG_STEP
+    pixels with its low bits dropped and hashed with the crop's size.
+    ARLO's drawings are left out rather than keyed on a capture before
+    badges, because the captures the pass gets already show the badges.
+    """
+    kept = _unmarked(crop)
+    if bar_box is not None:
+        top = max(0, bar_box.top - SIG_BAR_MARGIN)
+        kept[top:, : patch_boundary(crop, bar_box)] = 0
+    return _digest(kept)
+
+
+def look_signature(crop: np.ndarray) -> tuple:
+    """slot_signature's key without the bar rows, the same with any count."""
+    kept = _unmarked(crop)
+    kept[round(SIG_LOOK_BOTTOM * kept.shape[0]) :] = 0
+    return _digest(kept)
 
 
 def _rank(vectors: np.ndarray, gallery: EmbedGallery) -> list[list[EmbedCandidate]]:
@@ -355,8 +435,17 @@ def identify_slots(
     known: list[_Cached | None] = [None] * len(crops)
     if cache is not None:
         for n, crop in enumerate(crops):
-            keys[n] = (read_stacks, *slot_signature(crop, bars[n]))
+            box = bars[n].bar_rect if bars[n] is not None else None
+            keys[n] = (read_stacks, *slot_signature(crop, box))
             known[n] = cache.get(keys[n])
+            if known[n] is None and not is_wide(filled[n].rect):
+                # A patch or outline drawn over the bar can hide it from
+                # bar_geometry or move its box. Key again on the box this
+                # look had when it was identified
+                kept_box = cache.bar_box(look_signature(crop))
+                if kept_box is not None and kept_box != box:
+                    again = (read_stacks, *slot_signature(crop, kept_box))
+                    known[n] = cache.get(again)
     missed = [n for n, entry in enumerate(known) if entry is None]
     if missed:
         squares = [crop_square(crops[n]) for n in missed]
@@ -380,6 +469,8 @@ def identify_slots(
             )
             if cache is not None:
                 cache.put(keys[n], known[n])
+                if bar is not None:
+                    cache.keep_bar_box(look_signature(crop), bar.bar_rect)
     return [
         SlotItem(slot.rect, slot.panel, *entry)
         for slot, entry in zip(filled, known, strict=True)

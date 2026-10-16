@@ -506,25 +506,83 @@ def test_the_slot_cache_drops_the_least_recently_used_entry():
     assert "c" in cache
 
 
-def test_the_signature_ignores_the_tag_outline_and_patch_but_not_the_count():
+# A 194 by 192 tile with art above a dark bar, a type icon at its left and a
+# one digit count at its right (patch boundary 150 - 5 = 145)
+BOX = Rect(11, 145, 181, 191)
+
+
+def _tile() -> np.ndarray:
     crop = np.random.default_rng(0).integers(0, 256, (194, 192, 3), dtype=np.uint8)
-    bar = BarGeometry(
-        Rect(11, 145, 181, 189),
-        (20, 20, 20),
-        Rect(15, 150, 40, 185),
-        Rect(150, 152, 175, 182),
-    )
-    clean = stash_scan.slot_signature(crop, bar)
-    badged = crop.copy()
-    # Red outline, BORDER_WIDTH wide inside the rect
+    crop[145:191, 11:181] = 15
+    crop[155:180, 15:40] = 220  # type icon
+    crop[155:180, 150:160] = 220  # count
+    return crop
+
+
+def _badged(crop: np.ndarray) -> np.ndarray:
+    """The tile with a red outline, a have/need pill and a price patch."""
+    out = crop.copy()
     edge = stash_scan.BORDER_WIDTH
-    badged[:edge] = badged[-edge:] = (255, 92, 77)
-    badged[:, :edge] = badged[:, -edge:] = (255, 92, 77)
+    out[:edge] = out[-edge:] = (255, 92, 77)
+    out[:, :edge] = out[:, -edge:] = (255, 92, 77)
     # A have/need pill top left: 33 px text, inset 10, pill about 44 tall
-    badged[9:56, 9:120] = (20, 20, 20)
-    # The price patch over the bar up to patch_right (146 here)
-    badged[145:189, 11 : bar.patch_right] = (200, 40, 40)
-    assert stash_scan.slot_signature(badged, bar) == clean
+    out[9:56, 9:120] = (20, 20, 20)
+    # The patch in the bar's colour up to 145, its price text in white
+    out[145:191, 11:145] = 15
+    out[158:178, 20:90] = 230
+    return out
+
+
+def test_the_signature_ignores_the_tag_outline_and_patch_but_not_the_count():
+    crop = _tile()
+    clean = stash_scan.slot_signature(crop, BOX)
+    assert stash_scan.patch_boundary(crop, BOX) == 145
+    assert stash_scan.slot_signature(_badged(crop), BOX) == clean
+    assert stash_scan.look_signature(_badged(crop)) == stash_scan.look_signature(crop)
+    # 5 becomes 15: a leading digit left of the old count
     counted = crop.copy()
-    counted[160, 160] = 255 - counted[160, 160]
-    assert stash_scan.slot_signature(counted, bar) != clean
+    counted[155:180, 137:147] = 220
+    assert stash_scan.slot_signature(counted, BOX) != clean
+    assert stash_scan.slot_signature(_badged(counted), BOX) != clean
+
+
+def test_a_slot_whose_bar_is_lost_under_its_patch_still_hits(stubs, monkeypatch):
+    _, stack_reads = stubs
+    bar = BarGeometry(
+        BOX, (15, 15, 15), Rect(15, 155, 40, 180), Rect(150, 155, 160, 180)
+    )
+    # As on the rendered frames: no bar is found once the patch is drawn
+    monkeypatch.setattr(
+        stash_scan,
+        "bar_geometry",
+        lambda crop: bar if crop[160, 16, 0] == 220 else None,
+    )
+    slots = [Slot(Rect(0, 0, 192, 194), "stash", filled=True)]
+    rgb = np.zeros((200, 200, 3), dtype=np.uint8)
+    rgb[:194, :192] = _tile()
+    cache = stash_scan.SlotCache()
+    clean = identify_slots(
+        rgb,
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder([METAL]),
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    badged = rgb.copy()
+    badged[:194, :192] = _badged(_tile())
+    never = QueueEmbedder([])
+    found = identify_slots(
+        badged,
+        _gallery(),
+        _catalog,
+        embedder=never,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    assert never.calls == 0
+    assert len(stack_reads) == 1
+    assert found == clean
+    assert found[0].bar is bar

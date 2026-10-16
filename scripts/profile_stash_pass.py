@@ -18,12 +18,17 @@ whole identify_slots call, other is total minus the stages.
 
 Modes, each a median over --repeats passes:
 
-- no cache: identify_slots without a slot cache, the path before the cache.
-- cold: the first pass with an empty slot cache.
-- repeat: the same frame again with the cache the cold pass filled.
-- scroll: after the cold pass, a frame where the busiest panel's slot rows
-  moved up one row, the top row gone and a new bottom row taken from the
-  next frame at the same place. Most slots are then cached.
+- before: cold, repeat and scroll, identify_slots without a slot cache,
+  the path before the cache, so each of them identifies every slot.
+- after: cold, the first pass with an empty slot cache.
+- after: repeat, the same frame again with the cache the cold pass filled.
+- after: scroll, after the cold pass, a frame where the busiest panel's
+  slot rows moved up one row, the top row gone and a new bottom row taken
+  from the next frame at the same place. Most slots are then cached.
+
+The before scroll pass uses the same scrolled frame. --old appends an
+earlier output of this script verbatim, by default profile-before.txt, the
+no cache table taken on the code before the slot cache.
 
 Results are checked against the no cache pass of the same frame: every slot
 must keep its rect, item, tier, stack, guess and bar exactly, and its
@@ -31,10 +36,9 @@ confidence and lead within SCORE_TOLERANCE. onnxruntime gives slightly
 different vectors for a picture in a different batch, so a cached slot's
 scores can differ from a fresh pass in the fourth decimal.
 
-Last, the badges of each frame (stash_scan.badges_for with every verdict
-short, enough and without needs) are drawn with badge_helper.render_png and
-laid over the frame, and each identified slot's slot_signature is compared
-with the clean frame's, each with its own bar_geometry.
+Last, each frame is passed clean on a new slot cache and then with its
+badges drawn over it (see badged_passes), which must hit the cache on
+every slot.
 """
 
 import argparse
@@ -61,6 +65,8 @@ HANDOFF = HANDOFF / ".claude" / "handoff"
 CAPTURES = Path("/home/jefflamb/workspace/ARLO/debug/captures")
 NAMES = HANDOFF / "bar-patch-s1" / "attempt-1" / "stash_scan.csv"
 RAID = HANDOFF / "raid-still-s1" / "raid-inventory-4k.png"
+# This script's no cache table, run on the code before the slot cache
+OLD = HANDOFF / "grid-fast-s1" / "attempt-1" / "profile-before.txt"
 STAGES = ("find_slots", "crop", "embed", "match", "tier", "stack", "bar", "sig")
 WRAPPED = {
     "find_slots": "find_slots",
@@ -80,10 +86,12 @@ class Clock:
 
     def __init__(self) -> None:
         self.spent: dict[str, float] = defaultdict(float)
+        self.calls: dict[str, int] = defaultdict(int)
         self.embedded = 0
 
     def reset(self) -> None:
         self.spent = defaultdict(float)
+        self.calls = defaultdict(int)
         self.embedded = 0
 
     def wrap(self, stage: str, func):
@@ -93,6 +101,7 @@ class Clock:
                 return func(*args, **kwargs)
             finally:
                 self.spent[stage] += time.perf_counter() - start
+                self.calls[stage] += 1
 
         return timed
 
@@ -193,14 +202,19 @@ def same(found: list, reference: list) -> bool:
     )
 
 
-def badged_signatures(frames, identify, out: list[str]) -> None:
-    """Compare each slot's signature with badges drawn over it and without."""
+def badged_passes(frames, identify, clock: Clock, out: list[str]) -> None:
+    """Pass each frame clean, then with its badges drawn, on one slot cache.
+
+    The badges are stash_scan.badges_for of the clean pass with every
+    verdict short, enough and without needs, drawn with
+    badge_helper.render_png and laid over the frame. Each badged pass must
+    embed nothing, read no tier or stack and give the clean pass's slots.
+    """
     import tempfile
 
     from PIL import Image as PILImage
 
     from arc_helper.badge_helper import render_png
-    from arc_helper.slot_marks import bar_geometry
     from arc_helper.verdict import Verdict
 
     verdicts = {
@@ -208,43 +222,40 @@ def badged_signatures(frames, identify, out: list[str]) -> None:
         "enough": Verdict("keep", "", 1, (("need", 1),)),
         "no needs": Verdict("sell", ""),
     }
-    total = unchanged = 0
-    changed: list[str] = []
+    passes = slots = 0
+    problems: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
         png = Path(tmp) / "badges.png"
         for name, rgb in frames:
-            items = [s for s in identify(rgb) if s.item is not None]
+            cache = stash_scan.SlotCache()
+            clean = identify(rgb, cache=cache)
             height, width = rgb.shape[:2]
             for label, verdict in verdicts.items():
-                badges = stash_scan.badges_for(items, lambda _s, v=verdict: v)
+                badges = stash_scan.badges_for(clean, lambda _s, v=verdict: v)
                 render_png(badges, width, height, png)
                 with PILImage.open(png) as layer:
                     base = PILImage.fromarray(rgb).convert("RGBA")
                     drawn = PILImage.alpha_composite(base, layer.convert("RGBA"))
                 badged = np.asarray(drawn.convert("RGB"))
-                for slot in items:
-                    r = slot.rect
-                    clean = rgb[r.top : r.bottom, r.left : r.right]
-                    over = badged[r.top : r.bottom, r.left : r.right]
-                    wide = stash_scan.is_wide(r)
-                    bar_clean = None if wide else bar_geometry(clean)
-                    bar_over = None if wide else bar_geometry(over)
-                    total += 1
-                    if stash_scan.slot_signature(
-                        clean, bar_clean
-                    ) == stash_scan.slot_signature(over, bar_over):
-                        unchanged += 1
-                    else:
-                        lost = bar_clean is not None and bar_over is None
-                        changed.append(
-                            f"  {name[:33]} {label} {tuple(r)}"
-                            + (" bar not found under the patch" if lost else "")
-                        )
+                _, result = run(identify, badged, clock, cache=cache)
+                passes += 1
+                slots += len(result)
+                reads = clock.calls["tier"] + clock.calls["stack"]
+                if clock.embedded or reads or not same(result, clean):
+                    problems.append(
+                        f"  {name[:33]} {label}: {clock.embedded} embedded,"
+                        f" {reads} tier or stack reads,"
+                        f" slots {'same' if same(result, clean) else 'differ'}"
+                    )
     out.extend(
         [
-            "\nsignatures with badges drawn over the slot",
-            f"{unchanged} of {total} identified slots keep their signature",
-            *changed,
+            "\nbadged passes on the cache of the clean pass",
+            (
+                f"{passes} passes, {slots} slots, "
+                f"{passes - len(problems)} with no embed, no tier or stack read"
+                " and the clean pass's slots"
+            ),
+            *problems,
         ]
     )
 
@@ -288,6 +299,9 @@ def main() -> int:
     parser.add_argument("--names", type=Path, default=NAMES)
     parser.add_argument("--raid", type=Path, default=RAID)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--old", type=Path, default=OLD, help="an earlier profile to append"
+    )
     args = parser.parse_args()
 
     out: list[str] = []
@@ -326,21 +340,33 @@ def main() -> int:
     frames = [(p.name, load(p)) for p in paths]
     modes: dict[str, list] = defaultdict(list)
     mismatches: list[str] = []
-    hits: list[str] = []
+    hits: dict[str, list[str]] = defaultdict(list)
     for n, (name, rgb) in enumerate(frames):
         filler = frames[(n + 1) % len(frames)][1]
         scroll = scrolled(rgb, filler)
-        plain, reference = [], None
+        plain, again, plain_scroll = [], [], []
+        reference = scroll_reference = None
         for _ in range(args.repeats):
             stages, reference = run(identify, rgb, clock)
             plain.append(stages)
+            if scroll is not None:
+                stages, scroll_reference = run(identify, scroll, clock)
+                plain_scroll.append(stages)
+            stages, _ = run(identify, rgb, clock)
+            again.append(stages)
         slots = len(reference)
-        modes["no cache"].append((name, {**median_row(plain), "slots": slots}))
+        modes["before: cold"].append((name, {**median_row(plain), "slots": slots}))
+        modes["before: repeat"].append((name, {**median_row(again), "slots": slots}))
+        if plain_scroll:
+            row = {**median_row(plain_scroll), "slots": len(scroll_reference)}
+            modes["before: scroll"].append((name, row))
+            ratio = 100 * row["total"] / median_row(plain)["total"]
+            hits["before"].append(
+                f"{name}: scroll pass {row['slots']:.0f} slots, "
+                f"{row['embedded']:.0f} embedded, {ratio:.0f} percent of cold"
+            )
         if not cached:
             continue
-        scroll_reference = None
-        if scroll is not None:
-            _, scroll_reference = run(identify, scroll, clock)
         cold, repeat, after = [], [], []
         for _ in range(args.repeats):
             cache = stash_scan.SlotCache()
@@ -357,13 +383,13 @@ def main() -> int:
             repeat.append(stages)
             if not same(result, reference):
                 mismatches.append(f"{name} repeat differs from no cache")
-        modes["cold"].append((name, {**median_row(cold), "slots": slots}))
-        modes["repeat"].append((name, {**median_row(repeat), "slots": slots}))
+        modes["after: cold"].append((name, {**median_row(cold), "slots": slots}))
+        modes["after: repeat"].append((name, {**median_row(repeat), "slots": slots}))
         if after:
             scroll_slots = len(scroll_reference)
             row = {**median_row(after), "slots": scroll_slots}
-            modes["scroll"].append((name, row))
-            hits.append(
+            modes["after: scroll"].append((name, row))
+            hits["after"].append(
                 f"{name}: scroll pass {scroll_slots} slots, "
                 f"{scroll_slots - row['embedded']:.0f} from the cache, "
                 f"{row['embedded']:.0f} embedded, "
@@ -373,9 +399,9 @@ def main() -> int:
 
     for mode, rows in modes.items():
         table(mode, rows, out)
-    if hits:
-        out.append("\nscroll passes")
-        out.extend(hits)
+    for label, lines in hits.items():
+        out.append(f"\nscroll passes {label} the slot cache")
+        out.extend(lines)
     if cached:
         out.append("\nresults against the no cache pass")
         unchanged = (
@@ -384,7 +410,14 @@ def main() -> int:
             " and scroll"
         )
         out.extend(mismatches or [unchanged])
-        badged_signatures(frames, identify, out)
+        badged_passes(frames, identify, clock, out)
+    if args.old is not None:
+        out.extend(
+            [
+                f"\nprofile of the code before the slot cache ({args.old.name})",
+                args.old.read_text(encoding="utf-8").rstrip("\n"),
+            ]
+        )
     text = "\n".join(out) + "\n"
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8")
