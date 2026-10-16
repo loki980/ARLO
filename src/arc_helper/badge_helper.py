@@ -50,7 +50,7 @@ OUTLINE_WIDTH = 2
 # A patch's font size as a share of the bar height (digits 24 px tall on the
 # 44 px bar of a 4K tile, like the game's count), the smallest it may shrink
 # to, the step it shrinks by, and its padding and icon gap in px
-PATCH_TEXT_SHARE = 0.8
+PATCH_TEXT_SHARE = 0.76
 PATCH_TEXT_MIN_SHARE = 0.57
 PATCH_TEXT_STEP = 0.9
 # The game's own count ink, measured on 44 counts in real 4K captures

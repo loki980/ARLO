@@ -196,8 +196,8 @@ def test_patch_digits_are_the_game_counts_size_on_its_baseline(tmp_path):
 
 def test_long_patch_value_fits_only_after_shrinking(tmp_path):
     _, normal_last, normal = _patch_text_height(tmp_path, "88", 120)
-    # '88888' is too wide for 85 px at the normal size but fits at a smaller one
-    _, last, height = _patch_text_height(tmp_path, "88888", 85)
+    # '88888' is too wide for 78 px at the normal size but fits at a smaller one
+    _, last, height = _patch_text_height(tmp_path, "88888", 78)
     assert 0.57 * 38 * 0.7 - 1.5 <= height < normal - 2
     assert last == normal_last or abs(last - normal_last) <= 1.5
 
