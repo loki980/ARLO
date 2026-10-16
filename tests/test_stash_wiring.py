@@ -445,3 +445,74 @@ def test_a_stale_pass_keeps_the_unchanged_slots(monkeypatch, caplog):
     assert _drawn_slots(surface) == {tuple(r) for r in GRID_SLOTS} - {
         tuple(GRID_SLOTS[7])
     }
+
+
+def _one_slot_off(monkeypatch, caplog, before, after):
+    """Feed a frame whose find_slots finds after, with badges from before."""
+    changed = _grid()
+    surface = _Surface()
+    stash, _calls = _grid_stash(
+        monkeypatch,
+        surface,
+        slots=lambda rgb: after if rgb is changed else before,
+    )
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(changed, None, ())
+        stash.step()
+    assert surface.calls[-1] == ("clear",)
+    assert "stash badges cleared reason=grid_moved" in caplog.text
+
+
+def test_one_slot_removed_clears_all(monkeypatch, caplog):
+    _one_slot_off(monkeypatch, caplog, GRID_SLOTS, GRID_SLOTS[:-1])
+
+
+def test_one_slot_added_clears_all(monkeypatch, caplog):
+    # The last slot found on the newer frame only
+    _one_slot_off(monkeypatch, caplog, GRID_SLOTS[:-1], GRID_SLOTS)
+
+
+def test_a_slot_missed_because_its_look_changed_only_hides(monkeypatch):
+    # find_slots loses slot 3 once it is darkened: a changed slot, not a new set
+    dark = _grid([3])
+    surface = _Surface()
+    stash, _calls = _grid_stash(
+        monkeypatch,
+        surface,
+        slots=lambda rgb: GRID_SLOTS[:3] + GRID_SLOTS[4:]
+        if rgb is dark
+        else GRID_SLOTS,
+    )
+    stash.feed(dark, None, ())
+    stash.step()
+    assert ("clear",) not in surface.calls
+    assert len(surface.draws()[-1]) == 78
+
+
+def test_a_retry_restores_badges_a_partial_pass_dropped(monkeypatch):
+    # Slot 7 changes during the first pass and reverts before the retry
+    surface = _Surface()
+    stash = None
+    passes = []
+
+    def identify(_rgb):
+        passes.append(1)
+        if len(passes) == 1:
+            stash.feed(_grid([7]), None, ())
+            stash._watch_once()  # noqa: SLF001
+        return [_slot(r) for r in GRID_SLOTS]
+
+    def find(_rgb):
+        return [SimpleNamespace(rect=r) for r in GRID_SLOTS]
+
+    monkeypatch.setattr(main, "find_slots", find)
+    stash = _stash(identify, surface)
+    for _ in range(2):
+        stash.feed(_grid(), None, ())
+        stash.step()
+    assert len(surface.draws()[-1]) == 78
+    for _ in range(3):
+        stash.feed(_grid(), None, ())
+        stash.step()
+    assert len(passes) == 2
+    assert len(surface.draws()[-1]) == 80

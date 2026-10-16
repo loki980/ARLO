@@ -645,8 +645,10 @@ def stash_changes(
     half a STILL_SCALE cell. A matched slot changed when its own mean
     difference outside ignore reaches STILL_MEAN (grid.slot_diffs). A slot
     found on one frame only changed too, unless ignore covers all of it and
-    it may only be hidden. When at least BIG_CHANGE_FRACTION of the slots
-    changed (a scroll or tab switch changes the slot set) the change is big. Without a slot on either frame, or with an
+    it may only be hidden. The change is big when such a slot looks the same
+    on both frames, so the slot set itself changed (a scroll, a tab switch,
+    the inventory layout) and not just the slot's look, or when at least
+    BIG_CHANGE_FRACTION of the slots changed. Without a slot on either frame, or with an
     injected still other than frames_still, the whole compare of
     stash_still decides: not still is big. gray, when given, returns the
     grey copy of a frame (a cached grid.still_gray).
@@ -668,12 +670,16 @@ def stash_changes(
         for r, m in zip(pairs, means, strict=True)
         if m is not None and m >= STILL_MEAN
     ]
-    # A lone slot wholly under ignore rects may only be covered on one frame
+    # A lone slot wholly under ignore rects may only be covered on one frame.
+    # One whose look changed was missed for that (find_slots loses a darkened
+    # or lit slot), one that looks the same means the slot set changed
     seen = slot_diffs(a, b, alone, ignore)
-    changed += [r for r, m in zip(alone, seen, strict=True) if m is not None]
+    lone = [(r, m) for r, m in zip(alone, seen, strict=True) if m is not None]
+    changed += [r for r, _m in lone]
     total = len(pairs) + len(alone)
     return GridChange(
-        big=len(changed) >= BIG_CHANGE_FRACTION * total,
+        big=any(m < STILL_MEAN for _r, m in lone)
+        or len(changed) >= BIG_CHANGE_FRACTION * total,
         changed=tuple(changed),
         slots=total,
     )
@@ -851,6 +857,9 @@ class StashBadges:
         self._pass_hidden: list[Rect] = []
         self._marks: list[Rect] = []
         self._changed: tuple[Rect, ...] = ()
+        # Slots whose badges a partial pass dropped, renewed by the next pass
+        # even when they look as in the last pass's frame again
+        self._omitted: tuple[Rect, ...] = ()
         self._shown: list[dict] = []
         self._drawn = False
 
@@ -880,7 +889,7 @@ class StashBadges:
             self._slot_cache.clear()
             self._gray_cache.clear()
             self._badges, self._shown, self._marks, self._pass_hidden = [], [], [], []
-            self._changed = ()
+            self._changed = self._omitted = ()
             self._have_result = False
             self._need_pass = True
             if self._drawn:
@@ -1144,9 +1153,13 @@ class StashBadges:
                 badges = kept
                 self._need_pass = True
             if self._have_result:
-                # A later pass: new badges where the last pass could not see
-                # or the slot changed, the last pass's badges elsewhere
-                renew = [*self._pass_hidden, *(() if moved.big else moved.changed)]
+                # A later pass: new badges where the last pass could not see,
+                # dropped badges or the slot changed, the last pass's elsewhere
+                renew = [
+                    *self._pass_hidden,
+                    *self._omitted,
+                    *(() if moved.big else moved.changed),
+                ]
                 if moved.big:
                     old = []
                 else:
@@ -1162,6 +1175,7 @@ class StashBadges:
             self._ref = (rgb, frame)
             self._pass_hidden = hidden
             self._changed = since.changed
+            self._omitted = since.changed
             self._marks = [m for b in badges for m in badge_marks(b)]
             self._evict_slots()
 
