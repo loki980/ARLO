@@ -1,111 +1,124 @@
 # ruff: noqa: INP001
-"""Read the stash and loadout headers on a fixed sample of saved captures.
+"""Read the stash and loadout headers on saved captures and fixtures.
 
-Usage: uv run python scripts/eval_inventory_header.py <captures folder> <output folder>
+Usage: uv run python scripts/eval_inventory_header.py --out <folder>
+           --expected <csv> --captures <folder> [fixture.png ...]
+           [--old <csv>]
 
-Takes every 10th full-screen 3840x2160 PNG in name order, starting with the
-first, and runs read_stash_header and read_loadout_header on it. Writes to
-the output folder header_reads.csv (file, what each reader returned, ms for
-the two readers) and header_sheet.png, one contact sheet of the header crops
-with the reads printed under each, to check by eye. Ends with the median ms
-per frame. The captures folder is only read.
+Runs read_stash_header and read_loadout_header on every file named in the
+expected CSV (columns file, stash, loadout, written as used/capacity/value,
+weight/cap/value or none, by viewing each capture) found in the captures
+folder, then on each fixture path. The old reads come from the --old CSV
+(default: the ledger-s1 header_reads.csv, made with the fixed-height reader)
+and are matched by file name, fixtures have none. Writes real-data.txt in the
+output folder with one line per file (old, new and expected for each reader)
+and the match counts. The two fixtures are checked against FIXTURE_EXPECTED.
+The captures folder is only read.
 """
 
+import argparse
 import csv
+import re
 import statistics
-import sys
 import time
 from pathlib import Path
 
-import cv2
 import numpy as np
 from PIL import Image
 
 from arc_helper.grid import EQUIPMENT
 from arc_helper.grid import STASH
 from arc_helper.grid import find_slots
+from arc_helper.inventory_header import StashHeader
 from arc_helper.inventory_header import read_loadout_header
 from arc_helper.inventory_header import read_stash_header
 
-FULL_SCREEN = (3840, 2160)
-STEP = 10
-CROP_TOP, CROP_BOTTOM = 270, 410
-STASH_SPAN = (-10, 560)
-LOADOUT_SPAN = (200, 600)
-SHEET_SCALE = 0.5
-COLUMNS = 2
-FALLBACK_LEFT = {STASH_SPAN: 302, LOADOUT_SPAN: 1384}
+OLD_READS = Path(
+    "/home/jefflamb/workspace/ARLO/.claude/worktrees/overlay-roadmap/.claude"
+    "/handoff/ledger-s1/attempt-1/header_reads.csv"
+)
+# Header values read by eye on the two fixtures (neither shows a stash capacity)
+FIXTURE_EXPECTED = {
+    "raid-inventory-4k.png": ("none", "39.5/90.0/116685"),
+    "base-stiletto-4k.png": ("none", "32.7/90.0/61737"),
+}
 
 
-def _sample(folder: Path) -> list[Path]:
-    full = []
-    for path in sorted(folder.glob("*.png")):
-        with Image.open(path) as image:
-            if image.size == FULL_SCREEN:
-                full.append(path)
-    return full[::STEP]
+def _text(read) -> str:
+    """A read as used/capacity/value or weight/cap/value, none for None."""
+    if read is None:
+        return "none"
+    if isinstance(read, StashHeader):
+        return f"{read.used}/{read.capacity}/{read.value}"
+    return f"{read.weight:.1f}/{read.weight_cap:.1f}/{read.value}"
 
 
-def _crop(rgb: np.ndarray, left: int | None, span: tuple[int, int]) -> np.ndarray:
-    width = span[1] - span[0]
-    if left is None:
-        # No slots found: show the crop at the usual left edge, labelled in
-        # the caption, so the header can still be checked by eye
-        left = FALLBACK_LEFT[span]
-    start = max(0, left + span[0])
-    crop = rgb[CROP_TOP:CROP_BOTTOM, start : start + width]
-    pad = width - crop.shape[1]
-    return np.pad(crop, ((0, 0), (0, pad), (0, 0)))
-
-
-def _tile(rgb: np.ndarray, stash, equipment, label: str, stash_read, loadout_read):
-    left_s = min((s.rect.left for s in stash), default=None)
-    left_e = min((s.rect.left for s in equipment), default=None)
-    row = np.hstack([_crop(rgb, left_s, STASH_SPAN), _crop(rgb, left_e, LOADOUT_SPAN)])
-    row = cv2.resize(
-        row, None, fx=SHEET_SCALE, fy=SHEET_SCALE, interpolation=cv2.INTER_AREA
-    )
-    caption = np.zeros((34, row.shape[1], 3), np.uint8)
-    text = f"{label} S:{stash_read} L:{loadout_read}"
-    if left_s is None or left_e is None:
-        text += " (fallback crop, no slots)"
-    cv2.putText(
-        caption, text, (2, 13), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 0), 1
-    )
-    return np.vstack([row, caption])
+def _old_text(old: dict[str, tuple[str, str]], name: str) -> str:
+    """The old reads of a name as 'stash loadout', n/a when it has none."""
+    if name not in old:
+        return "n/a n/a"
+    parts = []
+    for cell in old[name]:
+        numbers = re.findall(r"=(\d[\d.]*)", cell)
+        parts.append("/".join(numbers) if numbers else "none")
+    return " ".join(parts)
 
 
 def main() -> None:
-    folder, out = Path(sys.argv[1]), Path(sys.argv[2])
-    out.mkdir(parents=True, exist_ok=True)
-    rows, tiles, times = [], [], []
-    for path in _sample(folder):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--expected", type=Path, required=True)
+    parser.add_argument("--captures", type=Path, required=True)
+    parser.add_argument("--old", type=Path, default=OLD_READS)
+    parser.add_argument("fixtures", nargs="*", type=Path)
+    args = parser.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+
+    with args.expected.open() as handle:
+        cases = [
+            (args.captures / r["file"], r["stash"], r["loadout"])
+            for r in csv.DictReader(handle)
+        ]
+    with args.old.open() as handle:
+        old = {r["file"]: (r["stash"], r["loadout"]) for r in csv.DictReader(handle)}
+    cases += [(p, *FIXTURE_EXPECTED[p.name]) for p in args.fixtures]
+
+    lines, times = [], []
+    kept = fixed = lost = 0
+    for path, want_stash, want_loadout in cases:
         rgb = np.array(Image.open(path).convert("RGB"))
         slots = find_slots(rgb)
         stash = [s for s in slots if s.panel == STASH]
         equipment = [s for s in slots if s.panel == EQUIPMENT]
         start = time.perf_counter()
-        stash_read = read_stash_header(rgb, stash)
-        loadout_read = read_loadout_header(rgb, equipment)
-        ms = (time.perf_counter() - start) * 1000
-        times.append(ms)
-        rows.append([path.name, stash_read, loadout_read, f"{ms:.0f}"])
-        label = path.name[9:15] + path.name[16:19]
-        tiles.append(_tile(rgb, stash, equipment, label, stash_read, loadout_read))
-        print(rows[-1])
-    with (out / "header_reads.csv").open("w", newline="") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(["file", "stash", "loadout", "ms"])
-        writer.writerows(rows)
-    per_column = -(-len(tiles) // COLUMNS)
-    blank = np.zeros_like(tiles[0])
-    columns = []
-    for c in range(COLUMNS):
-        part = tiles[c * per_column : (c + 1) * per_column]
-        part += [blank] * (per_column - len(part))
-        columns.append(np.vstack(part))
-    Image.fromarray(np.hstack(columns)).save(out / "header_sheet.png")
-    print(f"frames {len(times)}, median ms {statistics.median(times):.0f}")
+        new_stash = _text(read_stash_header(rgb, stash))
+        new_loadout = _text(read_loadout_header(rgb, equipment))
+        times.append((time.perf_counter() - start) * 1000)
+        old_stash, old_loadout = _old_text(old, path.name).split()
+        ok = new_stash == want_stash and new_loadout == want_loadout
+        if path.name in old:
+            was = old_stash == want_stash and old_loadout == want_loadout
+            kept += was and ok
+            fixed += ok and not was
+            lost += was and not ok
+        lines.append(
+            f"{path.name}\n"
+            f"  stash   old {old_stash}  new {new_stash}  expected {want_stash}\n"
+            f"  loadout old {old_loadout}  new {new_loadout}  expected {want_loadout}"
+            f"  {'MATCH' if ok else 'DIFFERS'}"
+        )
+    lines.extend(
+        [
+            (
+                f"captures matching before and after {kept}, "
+                f"newly matching {fixed}, regressed {lost}"
+            ),
+            f"frames {len(times)}, median ms {statistics.median(times):.0f}",
+        ]
+    )
+    report = "\n".join(lines)
+    (args.out / "real-data.txt").write_text(report + "\n")
+    print(report)
 
 
 if __name__ == "__main__":
