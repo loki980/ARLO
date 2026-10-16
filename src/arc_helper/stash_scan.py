@@ -11,7 +11,10 @@ identify_slots runs the pieces of phase 3 over one full-screen frame:
 3. The top candidate is accepted when its similarity is at least
    MIN_SIMILARITY and it leads the best candidate of another base item in
    the top TOP_N by at least MIN_LEAD (tier siblings sit within a few
-   hundredths of each other, so they do not count against the lead).
+   hundredths of each other, so they do not count against the lead). When
+   the top name is tiered and a tier numeral is read, untiered candidates
+   (an amplified variant, a blueprint) do not count against it either: they
+   cannot show a numeral.
 4. slot_marks.read_tier reads the tier numeral. For a tiered item the base
    name plus the read tier is looked up, so the numeral decides the tier and
    the embedding only the base item. Without a numeral the candidate's own
@@ -90,7 +93,9 @@ from .verdict import compute_verdict
 DUPLICATE_SIMILARITY = 0.995
 MIN_SIMILARITY = 0.65
 MIN_LEAD = 0.04
-TOP_N = 5
+# Deep enough that the lead is measured against the best other base item,
+# not a stand-in, also when untiered candidates are passed over
+TOP_N = 10
 TIER = re.compile(r"\s+(I|II|III|IV|V)$")
 
 # The slot cache: entries kept, least recently used dropped first
@@ -164,16 +169,22 @@ def name_tier(name: str) -> str | None:
     return found.group(1) if found else None
 
 
-def base_lead(found: Sequence[EmbedCandidate]) -> float:
+def base_lead(found: Sequence[EmbedCandidate], *, tiered_only: bool = False) -> float:
     """Top similarity minus the best candidate of another base item.
 
-    When every candidate is a tier of the top item, the last one stands in
-    for the best other item (a lower bound on the lead).
+    With tiered_only, untiered candidates are passed over too (for a slot
+    whose tier numeral was read). When no candidate is left, the last one
+    stands in for the best other item (a lower bound on the lead).
     """
     if not found:
         return 0.0
     top = base_name(found[0].name).casefold()
-    others = [c.similarity for c in found[1:] if base_name(c.name).casefold() != top]
+    others = [
+        c.similarity
+        for c in found[1:]
+        if base_name(c.name).casefold() != top
+        and not (tiered_only and name_tier(c.name) is None)
+    ]
     rest = others[0] if others else found[-1].similarity
     return found[0].similarity - rest if len(found) > 1 else found[0].similarity
 
@@ -389,15 +400,16 @@ def _resolve(
     When the top name has twins (items with the same icon), the item is kept
     only when the read numeral settles it: the top name is tiered, a numeral
     was read and no twin is tiered (an untiered blueprint or variant cannot
-    show a numeral).
+    show a numeral). For the same reason a settled slot's lead passes over
+    the untiered candidates.
     """
-    lead = base_lead(found)
     top = found[0]
     catalog_tier = name_tier(top.name)
     tier = read or catalog_tier
+    settled = catalog_tier is not None and read is not None
+    lead = base_lead(found, tiered_only=settled)
     if top.similarity < MIN_SIMILARITY or lead < MIN_LEAD:
         return None, tier, lead
-    settled = catalog_tier is not None and read is not None
     alike = twins.get(top.name, ())
     if alike and not (settled and all(name_tier(t) is None for t in alike)):
         return None, tier, lead

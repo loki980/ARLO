@@ -10,6 +10,7 @@ import pytest
 from arc_helper import stash_scan
 from arc_helper.database import Item
 from arc_helper.grid import Slot
+from arc_helper.icon_embed import EmbedCandidate
 from arc_helper.icon_embed import EmbedGallery
 from arc_helper.slot_marks import BarGeometry
 from arc_helper.slot_marks import TierRead
@@ -338,6 +339,57 @@ def test_an_untiered_item_with_twins_is_unidentified(stubs):
     assert found[0].item is None
     assert found[0].guess == "Grappling Hook"
     assert found[0].confidence == pytest.approx(1.0)
+
+
+def _candidates(*ranked: tuple[str, float]) -> list[EmbedCandidate]:
+    return [EmbedCandidate(name, name, similarity) for name, similarity in ranked]
+
+
+@pytest.mark.parametrize(
+    ("ranked", "read", "expected"),
+    [
+        # Similarity exactly MIN_SIMILARITY and just below it, with a wide lead
+        ((("Anvil I", 0.65), ("Metal Parts", 0.5)), None, "Anvil I"),
+        ((("Anvil I", 0.6499), ("Metal Parts", 0.5)), None, None),
+        # Base lead exactly MIN_LEAD and just below it
+        ((("Anvil I", 0.79), ("Metal Parts", 0.75)), None, "Anvil I"),
+        ((("Anvil I", 0.79), ("Metal Parts", 0.7501)), None, None),
+        # Tier siblings do not count against the lead, the next base item does
+        (
+            (
+                ("Anvil I", 0.8),
+                ("Anvil II", 0.79),
+                ("Anvil III", 0.78),
+                ("Ferro I", 0.7),
+            ),
+            None,
+            "Anvil I",
+        ),
+        (
+            (
+                ("Anvil I", 0.8),
+                ("Anvil II", 0.79),
+                ("Anvil III", 0.78),
+                ("Ferro I", 0.77),
+            ),
+            None,
+            None,
+        ),
+        # A read numeral passes over an untiered candidate, not without it
+        (
+            (("Anvil I", 0.8), ("Amplified Anvil", 0.78), ("Ferro I", 0.72)),
+            "III",
+            "Anvil III",
+        ),
+        ((("Anvil I", 0.8), ("Amplified Anvil", 0.78), ("Ferro I", 0.72)), None, None),
+        # ... but never a tiered one
+        ((("Anvil I", 0.8), ("Ferro I", 0.78), ("Amplified Anvil", 0.7)), "III", None),
+    ],
+)
+def test_the_acceptance_rule_on_hand_built_candidates(ranked, read, expected):
+    found = _candidates(*ranked)
+    item, _, _ = stash_scan._resolve(found, read, _catalog, {})  # noqa: SLF001
+    assert (item.name if item else None) == expected
 
 
 def test_owned_totals_adds_stacks_and_skips_unidentified_slots():
