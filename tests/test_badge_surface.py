@@ -128,18 +128,18 @@ def test_patch_fills_to_its_text_and_stops_at_the_computed_edge(tmp_path):
     row = [image.getpixel((x, 154)) for x in range(200)]
     edge = next(x for x, p in enumerate(row) if p != (*BAR_COLOUR, 255))
     assert all(p[3] == 0 for p in row[edge:])
-    white = [
+    cream = [
         x
         for x in range(200)
         for y in range(152, 190)
-        if image.getpixel((x, y)) == WHITE
+        if image.getpixel((x, y)) == (0xF9, 0xEE, 0xDF, 255)
     ]
-    assert white, "the worth text is drawn white"
-    assert min(white) >= 8
+    assert cream, "the worth text is drawn in the game's cream count colour"
+    assert min(cream) >= 8
     # '1.3k' is wider than the icon gap, so the edge is the text's end plus
     # 8 px padding (a pixel or two more for the glyph's side bearing)
     assert 44 < edge <= 120
-    assert 8 <= edge - (max(white) + 1) <= 11
+    assert 8 <= edge - (max(cream) + 1) <= 11
     # Nothing above the bar
     assert image.getpixel((20, 150))[3] == 0
 
