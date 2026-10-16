@@ -197,5 +197,5 @@ def test_hidden_outline_colours_match_the_drawn_ones():
         value = hex_colour.lstrip("#")
         return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
 
-    assert grid.SHORT_RED == rgb(SHORT_RED)
+    assert rgb(SHORT_RED) == grid.SHORT_RED
     assert rgb(HOVER_GOLD) in grid.ARLO_GOLDS
