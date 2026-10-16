@@ -412,10 +412,11 @@ STASH_TICK_S = 0.1
 # only hide the badges on them.
 BIG_CHANGE_FRACTION = 0.4
 # Px around the game's item card the stillness compare skips: the ACTIONS tab
-# above the card (96 px tall at 3840x2160 on the jeffrey screenshots) and its
-# shadow. The card stays skipped for CARD_LINGER_S after it is gone, while it
-# fades out over a few frames on which no card is found.
-CARD_MARGIN_PX = 112
+# above the card (about 98 px tall at 3840x2160, 51 px on the 2000 px wide
+# jeffrey-popup-corner screenshot) and its shadow. The card stays skipped for
+# CARD_LINGER_S after it is gone, while it fades out over a few frames on
+# which no card is found.
+CARD_MARGIN_PX = 120
 CARD_LINGER_S = 0.6
 # Px around the game's item card that the stillness compare and the badges
 # keep clear of, for the card's shadow
@@ -454,6 +455,26 @@ def frame_hidden(frame: StashFrame | None) -> list[Rect]:
         c, m = frame.card, STASH_CARD_MARGIN
         hidden.append(Rect(c.left - m, c.top - m, c.right + m, c.bottom + m))
     return hidden
+
+
+def grown(rect: Rect, margin: int) -> Rect:
+    """A rect grown by margin px on every side."""
+    return Rect(
+        rect.left - margin, rect.top - margin, rect.right + margin, rect.bottom + margin
+    )
+
+
+def frame_still_ignore(frame: StashFrame | None) -> list[Rect]:
+    """The parts of a frame the stillness compare skips: ARLO's windows and the card.
+
+    The card is grown by CARD_MARGIN_PX, for its ACTIONS tab and shadow.
+    """
+    if frame is None:
+        return []
+    ignore = list(frame.overlays)
+    if frame.card is not None:
+        ignore.append(grown(frame.card, CARD_MARGIN_PX))
+    return ignore
 
 
 def badge_marks(badge: Mapping) -> list[Rect]:
@@ -623,9 +644,9 @@ def stash_changes(
     given, returns their rects for a frame instead), matched by rect within
     half a STILL_SCALE cell. A matched slot changed when its own mean
     difference outside ignore reaches STILL_MEAN (grid.slot_diffs). A slot
-    found on one frame only changed too, unless it meets an ignore rect
-    and may only be covered. When at least BIG_CHANGE_FRACTION of the slots
-    changed the change is big. Without a slot on either frame, or with an
+    found on one frame only changed too, unless ignore covers all of it and
+    it may only be hidden. When at least BIG_CHANGE_FRACTION of the slots
+    changed (a scroll or tab switch changes the slot set) the change is big. Without a slot on either frame, or with an
     injected still other than frames_still, the whole compare of
     stash_still decides: not still is big. gray, when given, returns the
     grey copy of a frame (a cached grid.still_gray).
@@ -642,8 +663,14 @@ def stash_changes(
     if gray is not None:
         a, b = gray(a), gray(b)
     means = slot_diffs(a, b, pairs, ignore)
-    changed = [r for r, m in zip(pairs, means, strict=True) if m is not None and m >= STILL_MEAN]
-    changed += [r for r in alone if not any(rects_intersect(r, h) for h in ignore)]
+    changed = [
+        r
+        for r, m in zip(pairs, means, strict=True)
+        if m is not None and m >= STILL_MEAN
+    ]
+    # A lone slot wholly under ignore rects may only be covered on one frame
+    seen = slot_diffs(a, b, alone, ignore)
+    changed += [r for r, m in zip(alone, seen, strict=True) if m is not None]
     total = len(pairs) + len(alone)
     return GridChange(
         big=len(changed) >= BIG_CHANGE_FRACTION * total,
@@ -741,13 +768,20 @@ class StashBadges:
 
     The scan thread hands each full-screen capture to feed(), which only
     keeps a reference, so the hover path never waits here. A watcher daemon
-    thread compares each capture with the one before, outside the game's
-    card, ARLO's windows and the drawn badges. A moved grid clears the
-    badges at once. A still pair starts a pass on the pass daemon thread
-    when none is running, at most once per gap_s. A finished pass is drawn
-    when its frame is still the same as the newest capture, else dropped as
-    stale. Badges never cover the card or ARLO's windows, and come back when
-    those move away.
+    thread compares each capture with the one before and with the frame of
+    the drawn badges, slot by slot (stash_changes), outside the game's card,
+    ARLO's windows and the drawn badges. A big change (BIG_CHANGE_FRACTION
+    of the slots, or a changed slot set) clears the badges at once. A
+    smaller one hides only the badges on the changed slots, which come back
+    when their slots look as they did in the badges' frame again. The card,
+    grown by CARD_MARGIN_PX, stays skipped for CARD_LINGER_S after it is
+    gone, while it fades out.
+
+    A still pair starts a pass on the pass daemon thread when one is needed
+    and none is running, at most once per gap_s. A finished pass keeps its
+    badges for the slots unchanged since its frame and drops those on
+    changed slots, or all of them after a big change. Badges never cover
+    the card or ARLO's windows, and come back when those move away.
 
     A pass made while the card covered part of the grid has no badges
     there. Once the card is gone a second pass fills that part in and keeps
@@ -755,7 +789,8 @@ class StashBadges:
 
     identify turns an RGB frame into SlotItems (stash_scan.identify_slots),
     make_badges turns those into badge dicts (stash_scan.badges_for).
-    surface is a BadgeSurface, started on the first draw. With threaded
+    surface is a BadgeSurface, started on the first draw. clock gives the
+    time in seconds for the pass gap and the card linger. With threaded
     False no thread starts and step() does one watcher round, running a
     started pass inline (for tests and the replay script).
     """
@@ -771,6 +806,7 @@ class StashBadges:
         gap_s: float = STASH_PASS_GAP_S,
         tick_s: float = STASH_TICK_S,
         threaded: bool = True,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._identify = identify
         self._make_badges = make_badges
@@ -780,6 +816,7 @@ class StashBadges:
         self._gap_s = gap_s
         self._tick_s = tick_s
         self._threaded = threaded
+        self._clock = clock
         self._lock = threading.Lock()
         self._wake = threading.Event()
         self._job_ready = threading.Event()
@@ -790,24 +827,30 @@ class StashBadges:
         # Bumped by every clear, so a pass or compare from before is stale
         self._generation = 0
         # Newest capture not yet compared, the one before it (RGB and frame)
-        # and the newest still one, for the stale check and the badge hiding
+        # and the newest compared one, for the stale check and the badge hiding
         self._latest: StashFrame | None = None
         self._prev: tuple[np.ndarray, StashFrame] | None = None
         self._newest: tuple[np.ndarray, StashFrame] | None = None
+        # The last card fed and when, kept as an ignore rect while it fades
+        self._card_seen: tuple[Rect, float] | None = None
         # The pass handed over and not yet taken, and the pass state
         self._job: tuple[int, np.ndarray, StashFrame] | None = None
-        # find_slots rects of the RGB frames held above, by id (with the
-        # array, so a reused id never hits)
+        # find_slots rects and still_gray copies of the RGB frames held
+        # above, by id (with the array, so a reused id never hits)
         self._slot_cache: dict[int, tuple[np.ndarray, list[Rect]]] = {}
+        self._gray_cache: dict[int, tuple[np.ndarray, np.ndarray]] = {}
         self._pass_running = False
         self._last_pass_start: float | None = None
         self._need_pass = True
-        # The accepted badges, the parts of their pass's frame that were
-        # hidden, the screen parts they change and the badges drawn now
+        # The accepted badges, the frame of their pass, the parts of it that
+        # were hidden, the screen parts they change, the slots changed since
+        # that frame (their badges hidden) and the badges drawn now
         self._badges: list[dict] = []
         self._have_result = False
+        self._ref: tuple[np.ndarray, StashFrame] | None = None
         self._pass_hidden: list[Rect] = []
         self._marks: list[Rect] = []
+        self._changed: tuple[Rect, ...] = ()
         self._shown: list[dict] = []
         self._drawn = False
 
@@ -817,6 +860,8 @@ class StashBadges:
             return
         with self._lock:
             self._latest = StashFrame(image, card, tuple(overlays))
+            if card is not None:
+                self._card_seen = (card, self._clock())
             if self._threaded and not self._threads:
                 self._threads = [
                     Thread(target=self._watch_loop, name="stash-watch", daemon=True),
@@ -831,9 +876,11 @@ class StashBadges:
         with self._lock:
             busy = self._drawn or self._have_result or self._pass_running
             self._generation += 1
-            self._latest = self._prev = self._newest = None
+            self._latest = self._prev = self._newest = self._ref = None
             self._slot_cache.clear()
+            self._gray_cache.clear()
             self._badges, self._shown, self._marks, self._pass_hidden = [], [], [], []
+            self._changed = ()
             self._have_result = False
             self._need_pass = True
             if self._drawn:
@@ -882,20 +929,42 @@ class StashBadges:
                 self._wake.set()
 
     def _watch_once(self) -> None:
-        """One watcher round, then the slot cache keeps only held frames."""
+        """One watcher round, then the caches keep only held frames."""
         try:
             self._watch_round()
         finally:
             with self._lock:
                 self._evict_slots()
 
+    def _lingering(self) -> list[Rect]:
+        """The last card, grown, while it is less than CARD_LINGER_S gone (under the lock)."""
+        if self._card_seen is None:
+            return []
+        card, seen = self._card_seen
+        if self._clock() - seen >= CARD_LINGER_S:
+            return []
+        return [grown(card, CARD_MARGIN_PX)]
+
+    def _changes(
+        self,
+        a: tuple[np.ndarray, StashFrame],
+        b: tuple[np.ndarray, StashFrame],
+        extra: Sequence[Rect],
+    ) -> GridChange:
+        """stash_changes of two held frames, outside both cards and windows and extra."""
+        ignore = [*frame_still_ignore(a[1]), *frame_still_ignore(b[1]), *extra]
+        return stash_changes(
+            a[0], b[0], ignore, self._still, self._slots_of, self._gray_of
+        )
+
     def _watch_round(self) -> None:
-        """Compare the newest capture with the one before and act on it."""
+        """Compare the newest capture with the one before and the badges' frame."""
         with self._lock:
             frame, self._latest = self._latest, None
             generation = self._generation
             prev = self._prev
-            marks = list(self._marks)
+            ref = self._ref
+            extra = [*self._lingering(), *self._marks]
         if frame is None:
             self._refresh()
             return
@@ -906,8 +975,19 @@ class StashBadges:
             self._prev = (rgb, frame)
         if prev is None:
             return
-        ignore = [*frame_hidden(prev[1]), *frame_hidden(frame), *marks]
-        if not stash_still(prev[0], rgb, ignore, self._still, self._slots_of):
+        pair = self._changes(prev, (rgb, frame), extra)
+        changed: tuple[Rect, ...] = ()
+        if (
+            not pair.big
+            and ref is not None
+            and ref[0] is not rgb
+            and self._still is frames_still
+        ):
+            since = self._changes(ref, (rgb, frame), extra)
+            if since.big:
+                pair = since
+            changed = since.changed
+        if pair.big:
             with self._lock:
                 kept = self._slot_cache.get(id(rgb))
             self.clear("grid_moved")
@@ -921,17 +1001,15 @@ class StashBadges:
             if generation != self._generation:
                 return
             self._newest = (rgb, frame)
+            if changed and set(changed) != set(self._changed):
+                logger.debug(
+                    "stash badges hidden slots=%d reason=slot_changed", len(changed)
+                )
+            self._changed = changed
             if self._uncovered(frame):
                 self._need_pass = True
-            now = time.monotonic()
-            if (
-                self._need_pass
-                and not self._pass_running
-                and (
-                    self._last_pass_start is None
-                    or now - self._last_pass_start >= self._gap_s
-                )
-            ):
+            now = self._clock()
+            if not pair.changed and self._pass_due(frame, now):
                 self._need_pass = False
                 self._pass_running = True
                 self._last_pass_start = now
@@ -941,40 +1019,66 @@ class StashBadges:
             self._job_ready.set()
         self._refresh()
 
+    def _pass_due(self, frame: StashFrame, now: float) -> bool:
+        """True when a still frame should start a pass now (under the lock).
+
+        A pass is due when one is needed or slots changed since the badges'
+        frame, none is running, gap_s has passed since the last one and no
+        card is fading out over the grid.
+        """
+        if not (self._need_pass or self._changed) or self._pass_running:
+            return False
+        if frame.card is None and self._lingering():
+            return False
+        return (
+            self._last_pass_start is None or now - self._last_pass_start >= self._gap_s
+        )
+
     def _slots_of(self, rgb: np.ndarray) -> list[Rect]:
         """find_slots rects of a frame, found once while StashBadges holds it."""
+        return self._cached(
+            self._slot_cache, rgb, lambda f: [s.rect for s in find_slots(f)]
+        )
+
+    def _gray_of(self, rgb: np.ndarray) -> np.ndarray:
+        """The still_gray copy of a frame, made once while StashBadges keeps it."""
+        return self._cached(self._gray_cache, rgb, still_gray)
+
+    def _cached(self, cache: dict, rgb: np.ndarray, make: Callable):
         with self._lock:
-            hit = self._slot_cache.get(id(rgb))
+            hit = cache.get(id(rgb))
         if hit is not None and hit[0] is rgb:
             return hit[1]
-        rects = [s.rect for s in find_slots(rgb)]
+        value = make(rgb)
         with self._lock:
             if any(r is rgb for r in self._held()):
-                self._slot_cache[id(rgb)] = (rgb, rects)
-        return rects
+                cache[id(rgb)] = (rgb, value)
+        return value
 
     def _held(self) -> list[np.ndarray]:
-        """The RGB frames _prev, _newest and _job refer to (under the lock)."""
+        """The RGB frames _prev, _newest, _job and _ref refer to (under the lock)."""
         return [
             r
             for r in (
                 self._prev[0] if self._prev else None,
                 self._newest[0] if self._newest else None,
                 self._job[1] if self._job else None,
+                self._ref[0] if self._ref else None,
             )
             if r is not None
         ]
 
     def _evict_slots(self) -> None:
-        """Drop the cached slots of frames no longer held (under the lock).
+        """Drop the cached slots and greys of frames no longer held (under the lock).
 
         Runs at the end of every watcher round and pass. Within a round the
         frame _prev referred to before stays cached until its compare is done.
         """
         held = {id(r): r for r in self._held()}
-        for key, (rgb, _rects) in list(self._slot_cache.items()):
-            if held.get(key) is not rgb:
-                del self._slot_cache[key]
+        for cache in (self._slot_cache, self._gray_cache):
+            for key, (rgb, _value) in list(cache.items()):
+                if held.get(key) is not rgb:
+                    del cache[key]
 
     def _uncovered(self, frame: StashFrame) -> bool:
         """True when the parts the last pass could not see are in view now."""
@@ -985,7 +1089,7 @@ class StashBadges:
         )
 
     def _run_pass(self, job: tuple[int, np.ndarray, StashFrame]) -> None:
-        """Identify the slots of a still frame and keep its badges unless stale."""
+        """Identify the slots of a still frame and keep its badges on unchanged slots."""
         generation, rgb, frame = job
         start = time.perf_counter()
         try:
@@ -1012,46 +1116,60 @@ class StashBadges:
         )
         with self._lock:
             newest = self._newest
-            marks = list(self._marks)
-        fresh = generation == self._generation and (
-            newest is None
-            or newest[1] is frame
-            or stash_still(
-                rgb,
-                newest[0],
-                [*hidden, *frame_hidden(newest[1]), *marks],
-                self._still,
-                self._slots_of,
-            )
-        )
+            ref = self._ref
+            extra = [*self._lingering(), *self._marks]
+        current = generation == self._generation
+        since = GridChange(big=False)
+        if current and newest is not None and newest[1] is not frame:
+            since = self._changes((rgb, frame), newest, extra)
+        # Slots that changed between the last pass's frame and this one
+        moved = GridChange(big=True)
+        if current and ref is not None and self._still is frames_still:
+            moved = self._changes(ref, (rgb, frame), extra)
         with self._lock:
             self._pass_running = False
-            self._evict_slots()
-            if not fresh or generation != self._generation:
+            if not current or generation != self._generation or since.big:
+                self._evict_slots()
                 if generation == self._generation:
                     self._need_pass = True
                 logger.debug("stash pass dropped reason=stale")
                 return
+            if since.changed:
+                kept = badges_clear_of(badges, since.changed)
+                logger.debug(
+                    "stash pass partial kept=%d dropped=%d",
+                    len(kept),
+                    len(badges) - len(kept),
+                )
+                badges = kept
+                self._need_pass = True
             if self._have_result:
-                # A pass after the card went: new badges only where the last
-                # pass could not see, the last pass's badges elsewhere
-                old_hidden = self._pass_hidden
-                unseen = [
-                    b
-                    for b in badges
-                    if any(rects_intersect(Rect(*b["rect"]), h) for h in old_hidden)
-                ]
-                badges = [*badges_clear_of(self._badges, old_hidden), *unseen]
+                # A later pass: new badges where the last pass could not see
+                # or the slot changed, the last pass's badges elsewhere
+                renew = [*self._pass_hidden, *(() if moved.big else moved.changed)]
+                if moved.big:
+                    old = []
+                else:
+                    old = badges_clear_of(self._badges, renew)
+                    badges = [
+                        b
+                        for b in badges
+                        if any(rects_intersect(Rect(*b["rect"]), h) for h in renew)
+                    ]
+                badges = [*old, *badges]
             self._badges = badges
             self._have_result = True
+            self._ref = (rgb, frame)
             self._pass_hidden = hidden
+            self._changed = since.changed
             self._marks = [m for b in badges for m in badge_marks(b)]
+            self._evict_slots()
 
     def _refresh(self) -> None:
-        """Draw the accepted badges clear of the newest card and windows."""
+        """Draw the accepted badges clear of the newest card, windows and changed slots."""
         with self._lock:
             hidden = frame_hidden(self._newest[1]) if self._newest else []
-            visible = badges_clear_of(self._badges, hidden)
+            visible = badges_clear_of(self._badges, [*hidden, *self._changed])
             if visible == self._shown:
                 return
             generation = self._generation
