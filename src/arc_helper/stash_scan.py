@@ -84,6 +84,7 @@ from .slot_marks import _luminance
 from .slot_marks import _word_box
 from .slot_marks import _words
 from .slot_marks import bar_geometry
+from .slot_marks import is_blueprint_tile
 from .slot_marks import read_stack
 from .slot_marks import read_tier
 from .tooltip_layout import Rect
@@ -97,6 +98,7 @@ MIN_LEAD = 0.04
 # not a stand-in, also when untiered candidates are passed over
 TOP_N = 10
 TIER = re.compile(r"\s+(I|II|III|IV|V)$")
+BLUEPRINT_SUFFIX = " blueprint"  # casefolded, a blueprint's catalog name ends so
 
 # The slot cache: entries kept, least recently used dropped first
 SLOT_CACHE_SIZE = 4096
@@ -389,19 +391,44 @@ def _rank(vectors: np.ndarray, gallery: EmbedGallery) -> list[list[EmbedCandidat
     return ranked
 
 
+def _is_blueprint_name(name: str) -> bool:
+    return name.casefold().endswith(BLUEPRINT_SUFFIX)
+
+
+def _tile_twin(top: str, alike: Sequence[str], *, blueprint: bool | None) -> str | None:
+    """The twin a slot's tile settles, or None when the tile cannot.
+
+    Only a group of one item and its blueprint is settled: a blueprint tile
+    picks the blueprint, a plain tile the item.
+    """
+    if blueprint is None:
+        return None
+    group = (top, *alike)
+    blueprints = [n for n in group if _is_blueprint_name(n)]
+    plain = [n for n in group if not _is_blueprint_name(n)]
+    if len(blueprints) != 1 or len(plain) != 1:
+        return None
+    return blueprints[0] if blueprint else plain[0]
+
+
 def _resolve(
     found: Sequence[EmbedCandidate],
     read: str | None,
     lookup: Callable[[str], Item | None],
     twins: Mapping[str, Sequence[str]],
+    *,
+    blueprint: bool | None = None,
 ) -> tuple[Item | None, str | None, float]:
     """The catalog item, its tier and the lead for one slot's candidates.
 
-    When the top name has twins (items with the same icon), the item is kept
-    only when the read numeral settles it: the top name is tiered, a numeral
-    was read and no twin is tiered (an untiered blueprint or variant cannot
-    show a numeral). For the same reason a settled slot's lead passes over
-    the untiered candidates.
+    When the top name has twins (items with the same icon) and they are an
+    item and its blueprint, the tile decides (blueprint is is_blueprint_tile's
+    answer): a blueprint tile picks the blueprint, a plain tile the item,
+    whose tier, when it has one, is the read numeral (none read leaves it
+    unidentified). Otherwise the item is kept only when the read numeral
+    settles it: the top name is tiered, a numeral was read and no twin is
+    tiered (an untiered blueprint or variant cannot show a numeral). For the
+    same reason a settled slot's lead passes over the untiered candidates.
     """
     top = found[0]
     catalog_tier = name_tier(top.name)
@@ -411,6 +438,17 @@ def _resolve(
     if top.similarity < MIN_SIMILARITY or lead < MIN_LEAD:
         return None, tier, lead
     alike = twins.get(top.name, ())
+    picked = _tile_twin(top.name, alike, blueprint=blueprint) if alike else None
+    if picked is not None and _is_blueprint_name(picked):
+        return lookup(picked), None, lead
+    if picked is not None:
+        # The item, a tiered one still needs the numeral for its tier
+        picked_tier = name_tier(picked)
+        tier = read or picked_tier
+        if picked_tier is not None and read is None:
+            return None, tier, lead
+        name = f"{base_name(picked)} {read}" if picked_tier else picked
+        return lookup(name), tier, lead
     if alike and not (settled and all(name_tier(t) is None for t in alike)):
         return None, tier, lead
     name = f"{base_name(top.name)} {read}" if settled else top.name
@@ -474,7 +512,11 @@ def identify_slots(
             crop = crops[n]
             tier_read = read_tier(crop)
             item, tier, lead = _resolve(
-                found, tier_read.tier if tier_read else None, lookup, twins or {}
+                found,
+                tier_read.tier if tier_read else None,
+                lookup,
+                twins or {},
+                blueprint=is_blueprint_tile(crop),
             )
             stack = read_stack(crop) if read_stacks and item is not None else None
             bar = bars[n]
