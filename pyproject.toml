@@ -159,6 +159,7 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = [".claude/worktrees", ".git", ".venv", "cache"]
 
 # Static metadata so uv never builds the PyGObject sdist at lock time
 # (PyGObject ships sdist-only; building requires Linux system headers).
