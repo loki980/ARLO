@@ -6,6 +6,10 @@ GTK 3, cairo and python-xlib, which only the system Python has, so this
 module finds that Python, starts the helper under it and sends it one JSON
 line per draw or clear.
 
+draw and clear never block their caller: they leave the message for a writer
+thread, started with the helper, which sends only the newest one. A helper
+that stops reading for HANDOFF_STALL_S is killed and badges are turned off.
+
 Every failure is soft: without a suitable Python, or after the helper dies,
 BadgeSurface logs one warning and does nothing, so ARLO never crashes over
 badges. Rects are physical screen pixels as grid.find_slots returns them.
@@ -16,6 +20,7 @@ import json
 import shutil
 import subprocess
 import threading
+import time
 from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +40,7 @@ IMPORT_CHECK = (
 )
 CHECK_TIMEOUT_S = 10
 STOP_TIMEOUT_S = 2
+HANDOFF_STALL_S = 2.0
 
 
 @dataclass(frozen=True)
@@ -140,14 +146,23 @@ class BadgeSurface:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        # Wakes the writer for a new message or a stop, and the watchdog when
+        # a write starts or ends
+        self._wake = threading.Condition(self._lock)
         self._proc: subprocess.Popen | None = None
         self._python: str | None = None
         self._disabled = False
+        self._pending: str | None = None
+        self._write_started: float | None = None
+        self._stopping = False
+        self._writer: threading.Thread | None = None
+        self._watchdog: threading.Thread | None = None
 
     @property
     def available(self) -> bool:
         """True while the helper is running and accepting messages."""
-        return self._proc is not None and self._proc.poll() is None
+        proc = self._proc
+        return proc is not None and proc.poll() is None
 
     def _disable(self, reason: str) -> None:
         if not self._disabled:
@@ -174,7 +189,7 @@ class BadgeSurface:
             if python is None:
                 return False
             try:
-                self._proc = subprocess.Popen(
+                proc = subprocess.Popen(
                     [python, str(HELPER), "--live", *physical_size_args()],
                     stdin=subprocess.PIPE,
                     text=True,
@@ -183,40 +198,131 @@ class BadgeSurface:
             except OSError as e:
                 self._disable(f"the helper did not start ({e})")
                 return False
+            self._proc = proc
+            self._pending = None
+            self._write_started = None
+            self._stopping = False
+            self._writer = threading.Thread(
+                target=self._write_loop,
+                args=(proc,),
+                name="badge-writer",
+                daemon=True,
+            )
+            self._watchdog = threading.Thread(
+                target=self._watch_loop,
+                args=(proc,),
+                name="badge-watchdog",
+                daemon=True,
+            )
+            self._writer.start()
+            self._watchdog.start()
             return True
 
-    def _send(self, line: str) -> None:
-        with self._lock:
-            if self._proc is None:
-                return
-            code = self._proc.poll()
-            if code is not None:
-                self._disable(f"the helper exited with code {code}")
-                self._proc = None
-                return
+    def _lost(self, proc: subprocess.Popen, reason: str) -> None:
+        """Turn badges off after proc failed. The caller holds the lock."""
+        self._disable(reason)
+        if self._proc is proc:
+            self._proc = None
+            self._pending = None
+        self._wake.notify_all()
+
+    def _write_loop(self, proc: subprocess.Popen) -> None:
+        """Send the newest message to proc until stop or a failure."""
+        while True:
+            with self._wake:
+                while self._pending is None and not self._stopping:
+                    if self._proc is not proc:
+                        return
+                    self._wake.wait()
+                if self._stopping or self._proc is not proc:
+                    return
+                line, self._pending = self._pending, None
+                code = proc.poll()
+                if code is not None:
+                    self._lost(proc, f"the helper exited with code {code}")
+                    return
+                self._write_started = time.monotonic()
+                self._wake.notify_all()
             try:
-                self._proc.stdin.write(line)
-                self._proc.stdin.flush()
+                proc.stdin.write(line)
+                proc.stdin.flush()
             except (BrokenPipeError, OSError, ValueError) as e:
-                self._disable(f"the helper stopped ({e})")
-                self._proc = None
+                with self._wake:
+                    self._write_started = None
+                    # stop() kills a stuck helper on purpose, that is no failure
+                    if not self._stopping:
+                        self._lost(proc, f"the helper stopped ({e})")
+                return
+            with self._wake:
+                self._write_started = None
+                self._wake.notify_all()
+
+    def _watch_loop(self, proc: subprocess.Popen) -> None:
+        """Kill proc when one write to it takes longer than HANDOFF_STALL_S."""
+        with self._wake:
+            while not self._stopping and self._proc is proc:
+                started = self._write_started
+                if started is None:
+                    self._wake.wait()
+                    continue
+                left = started + HANDOFF_STALL_S - time.monotonic()
+                if left > 0:
+                    self._wake.wait(left)
+                    continue
+                self._lost(
+                    proc,
+                    f"the helper stalled, a message was not read within "
+                    f"{HANDOFF_STALL_S} s",
+                )
+                break
+            else:
+                return
+        with contextlib.suppress(OSError):
+            proc.kill()
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=STOP_TIMEOUT_S)
+
+    def _send(self, line: str) -> None:
+        with self._wake:
+            if self._proc is None or self._disabled or self._stopping:
+                return
+            # Latest wins: a message the writer has not taken yet is replaced
+            self._pending = line
+            self._wake.notify_all()
 
     def draw(self, badges: list[Badge]) -> None:
-        """Replace the drawn badges with these."""
+        """Replace the drawn badges with these. Returns without waiting."""
         self._send(encode_message("draw", badges))
 
     def clear(self) -> None:
-        """Remove every badge."""
+        """Remove every badge. Returns without waiting."""
         self._send(encode_message("clear"))
 
     def stop(self) -> None:
-        """End the helper: it exits when its stdin closes."""
-        with self._lock:
+        """End the writer and the helper, which exits when its stdin closes.
+
+        A writer stuck on a stalled helper is given STOP_TIMEOUT_S, then the
+        helper is killed to free it.
+        """
+        with self._wake:
             proc, self._proc = self._proc, None
+            writer, self._writer = self._writer, None
+            self._watchdog = None
+            self._pending = None
+            self._stopping = True
+            self._wake.notify_all()
+        if writer is not None:
+            writer.join(STOP_TIMEOUT_S)
+            if writer.is_alive() and proc is not None:
+                with contextlib.suppress(OSError):
+                    proc.kill()
+                writer.join(STOP_TIMEOUT_S)
         if proc is None:
             return
-        with contextlib.suppress(OSError):
-            proc.stdin.close()
+        # Only close stdin once no write to it is underway
+        if writer is None or not writer.is_alive():
+            with contextlib.suppress(OSError, ValueError):
+                proc.stdin.close()
         try:
             proc.wait(timeout=STOP_TIMEOUT_S)
         except subprocess.TimeoutExpired:
