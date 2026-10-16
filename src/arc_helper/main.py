@@ -1667,12 +1667,16 @@ class Scanner:
             self._last_touch = time.monotonic()
 
     def _feed_stash(self, ocr: OCREngine) -> None:
-        """Hand this cycle's capture to the stash badges.
+        """Hand this cycle's capture to the stash badges and the capture run.
 
         Only in inventory mode (not the hotkey) and only for a full-screen
         capture. Only a reference changes hands, so the cycle does not wait.
+        In a capture run the capture is also offered as a grid frame, also
+        with the stash badges off. The first cycle of an ACTIVE stretch (no
+        scan period yet) starts a new stretch of grid frames.
         """
-        if self.stash is None or self._hotkey_override:
+        grid = getattr(ocr, "capture_library", False) is True
+        if (self.stash is None and not grid) or self._hotkey_override:
             return
         capture = getattr(ocr, "_last_capture", None)
         origin = getattr(ocr, "_last_origin", None)
@@ -1685,7 +1689,16 @@ class Scanner:
         if (origin.x, origin.y) != (0, 0):
             return
         card = getattr(ocr, "_last_card", None)
-        self.stash.feed(capture, card, self.overlay_rects.snapshot())
+        overlays = self.overlay_rects.snapshot()
+        if grid:
+            ocr.offer_grid_frame(
+                capture,
+                frame_still_ignore(StashFrame(capture, card, overlays)),
+                lambda a, b, ignore: stash_still(_frame_rgb(a), _frame_rgb(b), ignore),
+                new_stretch=not self._scan_periods,
+            )
+        if self.stash is not None:
+            self.stash.feed(capture, card, overlays)
 
     def _refresh_home(self, ocr: OCREngine) -> None:
         """Send home beneath the second gun when the weapon slots moved.

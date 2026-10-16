@@ -8,6 +8,8 @@ import re
 import string
 import threading
 import time
+from collections.abc import Callable
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -48,6 +50,9 @@ from .tooltip_layout import to_screen
 
 # Captures waiting for the writer thread before new ones are dropped
 CAPTURE_QUEUE_SIZE = 4
+
+# Least time between two saved grid frames in a capture run (seconds)
+GRID_CAPTURE_GAP_S = 0.4
 
 # Margin kept around the located card when it is cropped for OCR
 CARD_CROP_MARGIN = 8
@@ -279,6 +284,9 @@ class OCREngine:
             maxsize=CAPTURE_QUEUE_SIZE
         )
         self._capture_writer: threading.Thread | None = None
+        # The last grid frame saved in this ACTIVE stretch, with its ignore
+        # rects and monotonic save time, None before the first
+        self._grid_saved: tuple[Image.Image, tuple, float] | None = None
 
         # Stroke-count vote on the tier token of the last name read
         self.last_tier_vote: TierVote | None = None
@@ -925,20 +933,65 @@ class OCREngine:
         last = self._capture_saved_at.get(label)
         if last is not None and now - last < 2.0:
             return
+        if not self._queue_capture(image, label):
+            return
+        self._capture_saved_at[label] = now
+
+    def offer_grid_frame(
+        self,
+        image: Image.Image,
+        ignore: Sequence,
+        still: Callable[[Image.Image, Image.Image, list], bool],
+        *,
+        new_stretch: bool = False,
+        now: float | None = None,
+    ) -> bool:
+        """Queue a full-screen capture labelled 'grid' when the grid moved.
+
+        Only in a capture run and below capture_library_limit. The first
+        frame offered in an ACTIVE stretch (new_stretch starts one) is
+        saved. A later one is saved when GRID_CAPTURE_GAP_S passed since the
+        last grid save and still(saved, image, rects) is False, rects being
+        the saved frame's ignore rects and this frame's. Returns True when
+        the frame was queued.
+        """
+        if not self.capture_library:
+            return False
+        if new_stretch:
+            self._grid_saved = None
+        if self._capture_count >= self.capture_library_limit:
+            return False
+        now = time.monotonic() if now is None else now
+        if self._grid_saved is not None:
+            saved, saved_ignore, saved_at = self._grid_saved
+            if now - saved_at < GRID_CAPTURE_GAP_S:
+                return False
+            if still(saved, image, [*saved_ignore, *ignore]):
+                return False
+        if not self._queue_capture(image, "grid"):
+            return False
+        self._grid_saved = (image, tuple(ignore), now)
+        return True
+
+    def _queue_capture(self, image: Image.Image, label: str) -> bool:
+        """Queue one capture for the writer thread, counted toward the limit.
+
+        Returns False when the queue was full and the capture dropped.
+        """
         stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-%f")[:-3]
         self._start_capture_writer()
         try:
             self._capture_queue.put_nowait((image, stamp, label))
         except queue.Full:
             logger.debug(f"Capture writer busy, dropped capture '{label}'")
-            return
-        self._capture_saved_at[label] = now
+            return False
         self._capture_count += 1
         if self._capture_count >= self.capture_library_limit:
             logger.info(
                 f"Capture library limit of {self.capture_library_limit} reached, "
                 "no more captures this run"
             )
+        return True
 
     def _start_capture_writer(self) -> None:
         """Start the capture writer thread on first use."""
