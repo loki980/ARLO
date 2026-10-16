@@ -33,7 +33,7 @@ class FakeScreenBackend:
 
     @staticmethod
     def cursor_position() -> Point:
-        return Point(0, 0)
+        return Point(x=0, y=0)
 
     @staticmethod
     def resolution() -> tuple[int, int]:
