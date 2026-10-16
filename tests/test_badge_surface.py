@@ -1,6 +1,7 @@
 """BadgeSurface messages, its no-op fallback and the helper's PNG mode."""
 
 import logging
+import threading
 
 import pytest
 from PIL import Image
@@ -225,3 +226,189 @@ def test_helper_warns_once_without_a_usable_size(capsys, physical):
 def test_helper_is_quiet_with_a_usable_size(capsys):
     assert checked_physical((3840, 2160)) == (3840, 2160)
     assert not capsys.readouterr().err
+
+
+class _FakeStdin:
+    """A helper's stdin that records lines and can block every write."""
+
+    def __init__(self, blocking):
+        self.lines = []
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.killed = False
+        self.received = threading.Condition()
+        if not blocking:
+            self.release.set()
+
+    def write(self, line):
+        self.entered.set()
+        self.release.wait()
+        if self.killed:
+            message = "killed"
+            raise BrokenPipeError(message)
+        with self.received:
+            self.lines.append(line)
+            self.received.notify_all()
+
+    def flush(self):
+        pass
+
+    def close(self):
+        pass
+
+    def wait_for(self, count):
+        with self.received:
+            return self.received.wait_for(lambda: len(self.lines) >= count, 5)
+
+
+class _FakeProc:
+    def __init__(self, blocking):
+        self.stdin = _FakeStdin(blocking)
+        self.kill_called = threading.Event()
+
+    def poll(self):
+        return -9 if self.kill_called.is_set() else None
+
+    def kill(self):
+        self.stdin.killed = True
+        self.kill_called.set()
+        self.stdin.release.set()
+
+    def wait(self, timeout=None):
+        del timeout
+        return self.poll()
+
+
+def _writers():
+    return {t for t in threading.enumerate() if t.name == "badge-writer"}
+
+
+def _surface_with(monkeypatch, blocking):
+    """A started surface on a fake helper, and the writer thread it started."""
+    proc = _FakeProc(blocking)
+    monkeypatch.setattr(badge_surface, "find_system_python", lambda: "py")
+    monkeypatch.setattr(badge_surface, "get_screen_resolution", lambda: (100, 100))
+    monkeypatch.setattr(badge_surface.subprocess, "Popen", lambda *_a, **_k: proc)
+    surface = BadgeSurface()
+    before = _writers()
+    assert surface.start()
+    (writer,) = _writers() - before
+    return surface, proc, writer
+
+
+def _ended(writer):
+    writer.join(5)
+    return not writer.is_alive()
+
+
+def _off_warnings(caplog):
+    return [r for r in caplog.records if "Badge surface off" in r.getMessage()]
+
+
+DRAW_A = [Border((0, 0, 10, 10))]
+DRAW_B = [Border((0, 0, 20, 20))]
+DRAW_C = [Border((0, 0, 30, 30))]
+DRAW_D = [Border((0, 0, 40, 40))]
+
+
+def test_draw_and_clear_return_while_the_helper_stdin_is_blocked(monkeypatch):
+    surface, proc, _writer = _surface_with(monkeypatch, blocking=True)
+    surface.draw(DRAW_A)
+    assert proc.stdin.entered.wait(5), "the writer is blocked on the first draw"
+    returned = threading.Event()
+
+    def caller():
+        surface.draw(DRAW_B)
+        surface.clear()
+        returned.set()
+
+    threading.Thread(target=caller, daemon=True).start()
+    assert returned.wait(5)
+    # The fake stdin was never released, so nothing waited for it
+    assert not proc.stdin.release.is_set()
+    assert proc.stdin.lines == []
+    proc.stdin.release.set()
+    surface.stop()
+
+
+def test_latest_message_wins_while_a_write_is_blocked(monkeypatch):
+    surface, proc, _writer = _surface_with(monkeypatch, blocking=True)
+    surface.draw(DRAW_A)
+    assert proc.stdin.entered.wait(5)
+    surface.draw(DRAW_B)
+    surface.draw(DRAW_C)
+    surface.draw(DRAW_D)
+    proc.stdin.release.set()
+    assert proc.stdin.wait_for(2)
+    surface.stop()
+    assert proc.stdin.lines == [
+        encode_message("draw", DRAW_A),
+        encode_message("draw", DRAW_D),
+    ]
+
+
+def test_a_stalled_write_disables_badges_with_one_warning(monkeypatch, caplog):
+    monkeypatch.setattr(badge_surface, "HANDOFF_STALL_S", 0.05)
+    surface, proc, writer = _surface_with(monkeypatch, blocking=True)
+    with caplog.at_level(logging.WARNING):
+        surface.draw(DRAW_A)
+        assert proc.kill_called.wait(5), "the stalled helper is killed"
+        assert _ended(writer)
+        proc.stdin.entered.clear()
+        surface.draw(DRAW_B)
+        surface.clear()
+        assert surface.start() is False
+        surface.stop()
+    assert not proc.stdin.entered.is_set(), "later draws send nothing"
+    assert proc.stdin.lines == []
+    assert not surface.available
+    warnings = _off_warnings(caplog)
+    assert len(warnings) == 1
+    assert "stalled" in warnings[0].getMessage()
+
+
+def test_stop_does_not_hang_on_a_stalled_helper(monkeypatch, caplog):
+    monkeypatch.setattr(badge_surface, "HANDOFF_STALL_S", 60)
+    monkeypatch.setattr(badge_surface, "STOP_TIMEOUT_S", 0.05)
+    surface, proc, writer = _surface_with(monkeypatch, blocking=True)
+    surface.draw(DRAW_A)
+    assert proc.stdin.entered.wait(5)
+    stopper = threading.Thread(target=surface.stop, daemon=True)
+    with caplog.at_level(logging.WARNING):
+        stopper.start()
+        stopper.join(5)
+    assert not stopper.is_alive(), "stop returned"
+    assert proc.kill_called.is_set()
+    assert _ended(writer)
+    assert _off_warnings(caplog) == []
+
+
+def test_a_broken_pipe_still_disables_badges_once(monkeypatch, caplog):
+    surface, proc, writer = _surface_with(monkeypatch, blocking=False)
+    # The helper went away: every write fails as on a closed pipe
+    proc.stdin.killed = True
+    with caplog.at_level(logging.WARNING):
+        surface.draw(DRAW_A)
+        assert _ended(writer)
+        surface.draw(DRAW_B)
+        surface.clear()
+        surface.stop()
+    assert proc.stdin.lines == []
+    warnings = _off_warnings(caplog)
+    assert len(warnings) == 1
+    assert "stopped" in warnings[0].getMessage()
+
+
+def test_a_normal_helper_receives_draw_then_clear_in_order(monkeypatch, caplog):
+    surface, proc, _writer = _surface_with(monkeypatch, blocking=False)
+    with caplog.at_level(logging.WARNING):
+        surface.draw(DRAW_A)
+        assert proc.stdin.wait_for(1)
+        surface.clear()
+        assert proc.stdin.wait_for(2)
+        surface.stop()
+    assert proc.stdin.lines == [
+        encode_message("draw", DRAW_A),
+        encode_message("clear"),
+    ]
+    assert _off_warnings(caplog) == []

@@ -157,15 +157,15 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <div class="capacity"><b>2 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 59 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~59%</span></div>
-  <div class="track"><i style="width:59%"></i></div>
-  <small>43 of 61 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 58 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~58%</span></div>
+  <div class="track"><i style="width:58%"></i></div>
+  <small>43 of 62 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
   <div><b>2 / 8</b><span>phases done</span><small>phases 0 and 3 done</small></div>
-  <div><b>43 / 61</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>43 / 62</b><span>steps done</span><small>across all eight phases</small></div>
   <div><b>552</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
@@ -173,7 +173,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span></span><span>Nothing underway, paused for the night. <a href="#phase4">Phase 4, step 11, Badges in about a second</a> is halfway and resumes tomorrow. <a href="#phase5">Phase 5, step 2, Stitch the stash across scrolling</a> waits on your screen recording.</span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 11, Badges in about a second</a><small>Keep badges on slots that did not change, so a popup no longer wipes the grid, and remember items already seen</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 12, Never stall on the badge helper</a><small>Badges handed over in the background, a stuck helper is stopped</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase5">Phase 5, step 3, The ledger, part 1</a><small>Your loadout counted from one frame and checked against the LOADOUT value</small></span></li>
   </ul>
 </section>
 
@@ -299,14 +301,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase4">
-    <div class="slot">4</div>
+    <div class="slot now">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
-      <div class="gauge" aria-label="Phase 4 about 85 percent done">
-        <div class="bar"><i style="width:85%"></i></div>
-        <div class="read">~85%<small>9 of 11 steps</small></div>
+      <div class="gauge" aria-label="Phase 4 about 80 percent done">
+        <div class="bar"><i style="width:80%"></i></div>
+        <div class="read">~80%<small>9 of 12 steps</small></div>
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
@@ -318,7 +320,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <li class="done"><span class="tick">✓</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">done 15 Oct</span></li>
-        <li class="todo"><span class="tick">○</span><span class="what">Step 11, Badges in about a second, next<small>Paused halfway for the night. A pass takes 3 to 6 seconds live and was thrown away whole when anything changed. Items already seen are remembered, badges draw in batches</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 11, Badges in about a second<small>Resumed after a pause for the night. A pass takes 3 to 6 seconds live and was thrown away whole when anything changed. Items already seen are remembered, badges draw in batches</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 12, Never stall on the badge helper<small>Badges go to the helper from a background thread, the newest set wins, a stuck helper is stopped so the popups never freeze</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Your run decides the drawing mode<small>X11 works today. The Wayland-native mode needs one optional package</small></span><span class="when"></span></li>
       </ul>
     </article>
@@ -345,9 +348,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase">
-    <div class="slot">5</div>
+    <div class="slot now">5</div>
     <article class="card" data-tab="Phase 5" id="phase5">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
       <div class="gauge" aria-label="Phase 5 about 15 percent done">
@@ -357,7 +360,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Step 1, Read the headers<small>The stash's used and total slots and its value, the loadout's weight and value</small></span><span class="when recent">done 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 2, Stitch the stash across scrolling<small>Give each visible row its place in the whole stash, whatever filter tab is open. Waits on your screen recording</small></span><span class="when recent">added 15 Oct</span></li>
-        <li class="todo"><span class="tick">○</span><span class="what">Step 3, The ledger<small>Stash, backpack, quick use, safe pocket and equipment in one local store, updated from every still frame</small></span><span class="when recent">added 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 3, The ledger, part 1 underway: your loadout counted and checked against its value. <small>Stash, backpack, quick use, safe pocket and equipment in one local store, updated from every still frame</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 4, Use it<small>Your real totals in the have/need tags and the advice card</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 5, An unsure flag<small>Say so when the tally and the headers disagree, instead of showing wrong numbers</small></span><span class="when recent">added 15 Oct</span></li>
       </ul>
@@ -419,6 +422,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>15 Oct</time><span>Your four reports placed: popups fading and badges missing traced to the inventory trigger dropping on one missed check, badges in raid to the moving world behind the inventory, the advice card stuck in the corner, the frame on wide weapon slots. Blueprints get learn or sell from the game's check mark. Four workers running side by side.</span></li>
   <li><time>15 Oct</time><span>All four merged after review: the trigger waits 2 seconds of misses, badges compare only the slots, the advice card lives under your second gun and comes back, blueprints say Learn it (violet) without the game's check mark, the gold frame fits wide slots. 539 tests. Waiting on your look after a restart.</span></li>
   <li><time>15 Oct</time><span>Known blueprints now change the weapon advice and the card says why, garbled reads resolve to the item or show nothing. A whole-roadmap gauge added at your ask. 552 tests. The grid speed and keep work is paused halfway for the night.</span></li>
+  <li><time>15 Oct</time><span>Back at it in the evening: the two grid workers resumed from where they paused, plus a background hand-off for badges and the first part of your loadout tally. Four workers side by side.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
