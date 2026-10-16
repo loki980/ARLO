@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from arc_helper.cell_border import HOVER_GOLD
+from arc_helper.cell_border import frame_bars
 from arc_helper.grid import AUGMENTED
 from arc_helper.grid import BACKPACK
 from arc_helper.grid import EQUIPMENT
@@ -94,3 +96,58 @@ def test_frames_still_ignores_small_noise() -> None:
 def test_frames_still_false_on_size_change() -> None:
     frame = _load(BACKPACK_CARD_FIXTURE)
     assert not frames_still(frame, frame[:-8])
+
+
+# A synthetic 4K grid: 4 by 4 slots of 192 px with a 4 px light outline and
+# a 16 px gap, in the stash column below the panel headings. A light line
+# along the top row's top edge joins its outlines into one component too wide
+# to be a slot, so that row is found as neighbours of the row below.
+SYNTH_SIZE = (3840, 2160)
+SYNTH_ORIGIN = (400, 640)
+SYNTH_SIDE = 192
+SYNTH_PITCH = 208
+SYNTH_OUTLINE = 4
+SYNTH_GOLD_WIDTH = 6
+
+
+def _synthetic_grid() -> np.ndarray:
+    width, height = SYNTH_SIZE
+    frame = np.full((height, width, 3), (27, 27, 35), np.uint8)
+    for row in range(4):
+        for col in range(4):
+            left = SYNTH_ORIGIN[0] + col * SYNTH_PITCH
+            top = SYNTH_ORIGIN[1] + row * SYNTH_PITCH
+            frame[top : top + SYNTH_SIDE, left : left + SYNTH_SIDE] = (160, 160, 165)
+            inner = slice(top + SYNTH_OUTLINE, top + SYNTH_SIDE - SYNTH_OUTLINE)
+            across = slice(left + SYNTH_OUTLINE, left + SYNTH_SIDE - SYNTH_OUTLINE)
+            frame[inner, across] = (35, 38, 52)
+    top = SYNTH_ORIGIN[1]
+    frame[top : top + SYNTH_OUTLINE, SYNTH_ORIGIN[0] - 100 : 1400] = (160, 160, 165)
+    return frame
+
+
+def _rgb(colour: str) -> tuple[int, int, int]:
+    return tuple(int(colour[i : i + 2], 16) for i in (1, 3, 5))
+
+
+def _gold_frame(frame: np.ndarray, rect) -> np.ndarray:
+    """frame with the hovered gold frame drawn outside rect, as CellBorder does."""
+    out = frame.copy()
+    for bar in frame_bars(rect, SYNTH_GOLD_WIDTH):
+        out[bar.top : bar.bottom, bar.left : bar.right] = _rgb(HOVER_GOLD)
+    return out
+
+
+def test_synthetic_grid_slots() -> None:
+    rects = [slot.rect for slot in find_slots(_synthetic_grid())]
+    assert len(rects) == 16
+    assert all(abs(rect.width - SYNTH_SIDE) <= 2 for rect in rects)
+
+
+def test_gold_frame_keeps_slot_rects() -> None:
+    # The top row's rects lie 2 px inside its outlines (they are found as
+    # neighbours), so a gold frame there would cover the outline itself
+    frame = _synthetic_grid()
+    clean = [slot.rect for slot in find_slots(frame)]
+    for rect in (clean[4], clean[5], clean[11], clean[15]):
+        assert [slot.rect for slot in find_slots(_gold_frame(frame, rect))] == clean

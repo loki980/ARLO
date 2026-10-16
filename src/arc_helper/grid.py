@@ -86,8 +86,9 @@ FILL_INSET = 0.15
 FILL_BRIGHT = 80
 FILL_COLOURFUL = 70
 FILL_FRACTION = 0.02
-# ARLO's gold frame colour (cell_border.HOVER_GOLD, #f2b134) as RGB
-ARLO_GOLD = (242, 177, 52)
+# ARLO's gold frame colours as RGB: cell_border.HOVER_GOLD (#ffc83d) and the
+# earlier #f2b134 that older captures show
+ARLO_GOLDS = ((255, 200, 61), (242, 177, 52))
 GOLD_TOLERANCE = 14
 GOLD_FILL = 7
 RIM_RED_OVER_BLUE = 40
@@ -157,9 +158,9 @@ def _hide_gold(work: np.ndarray, high: np.ndarray) -> None:
     blended the gold with its neighbour, when that pixel is still warm. The
     outline beside a bar is not warm and stays.
     """
-    low = tuple(max(0, c - GOLD_TOLERANCE) for c in ARLO_GOLD)
-    high_bound = tuple(min(255, c + GOLD_TOLERANCE) for c in ARLO_GOLD)
-    gold = cv2.inRange(work, low, high_bound)
+    gold = np.zeros(high.shape, np.uint8)
+    for colour in ARLO_GOLDS:
+        gold |= _in_colour(work, colour, GOLD_TOLERANCE)
     if not gold.any():
         return
     red, green, blue = cv2.split(work)
@@ -170,6 +171,12 @@ def _hide_gold(work: np.ndarray, high: np.ndarray) -> None:
     hidden = (gold > 0) | (rim & warm)
     background = cv2.erode(high, np.ones((GOLD_FILL, GOLD_FILL), np.uint8))
     high[hidden] = background[hidden]
+
+
+def _in_colour(work: np.ndarray, colour: tuple[int, ...], tolerance: int) -> np.ndarray:
+    low = tuple(max(0, c - tolerance) for c in colour)
+    high_bound = tuple(min(255, c + tolerance) for c in colour)
+    return cv2.inRange(work, low, high_bound)
 
 
 def _ridge_mask(high: np.ndarray) -> np.ndarray:
