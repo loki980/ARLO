@@ -222,7 +222,9 @@ def badged_passes(frames, identify, clock: Clock, out: list[str]) -> None:
         "enough": Verdict("keep", "", 1, (("need", 1),)),
         "no needs": Verdict("sell", ""),
     }
-    passes = slots = 0
+    from arc_helper.slot_marks import bar_geometry
+
+    passes = slots = keys = same_keys = 0
     problems: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
         png = Path(tmp) / "badges.png"
@@ -237,19 +239,37 @@ def badged_passes(frames, identify, clock: Clock, out: list[str]) -> None:
                     base = PILImage.fromarray(rgb).convert("RGBA")
                     drawn = PILImage.alpha_composite(base, layer.convert("RGBA"))
                 badged = np.asarray(drawn.convert("RGB"))
+                for slot in clean:
+                    r = slot.rect
+                    before = rgb[r.top : r.bottom, r.left : r.right]
+                    after = badged[r.top : r.bottom, r.left : r.right]
+                    bar = None if stash_scan.is_wide(r) else bar_geometry(before)
+                    box = bar.bar_rect if bar is not None else None
+                    keys += 1
+                    same_keys += stash_scan.slot_signature(
+                        before, box
+                    ) == stash_scan.slot_signature(after, box)
                 _, result = run(identify, badged, clock, cache=cache)
                 passes += 1
                 slots += len(result)
                 reads = clock.calls["tier"] + clock.calls["stack"]
                 if clock.embedded or reads or not same(result, clean):
+                    rects = {tuple(x.rect) for x in clean}
+                    moved = [
+                        tuple(x.rect) for x in result if tuple(x.rect) not in rects
+                    ]
                     problems.append(
                         f"  {name[:33]} {label}: {clock.embedded} embedded,"
                         f" {reads} tier or stack reads,"
-                        f" slots {'same' if same(result, clean) else 'differ'}"
+                        f" find_slots rects not in the clean pass {moved}"
                     )
     out.extend(
         [
             "\nbadged passes on the cache of the clean pass",
+            (
+                f"slot_signature at the clean pass's rect and bar box: {same_keys}"
+                f" of {keys} slots unchanged with the badges drawn"
+            ),
             (
                 f"{passes} passes, {slots} slots, "
                 f"{passes - len(problems)} with no embed, no tier or stack read"
