@@ -53,6 +53,8 @@ OUTLINE_WIDTH = 2
 PATCH_TEXT_SHARE = 0.8
 PATCH_TEXT_MIN_SHARE = 0.57
 PATCH_TEXT_STEP = 0.9
+# The game's own count ink, measured on 44 counts in real 4K captures
+PATCH_TEXT_RGB = (0xF9 / 255, 0xEE / 255, 0xDF / 255)
 PATCH_PAD = 8
 # The digits' baseline sits this share of the bar height above the bar bottom,
 # where the game's count sits (9.5 px on the 44 px bar)
@@ -340,7 +342,7 @@ def _draw_patch(cr, badge: dict, family: str) -> None:
     )
     cr.set_source_rgba(*parse_rgb(badge["colour"]))
     cr.fill()
-    cr.set_source_rgba(1, 1, 1, 1)
+    cr.set_source_rgba(*PATCH_TEXT_RGB, 1)
     baseline = bottom - PATCH_BASELINE_SHARE * (bottom - top)
     text.draw_on_baseline(left + PATCH_PAD, baseline)
 
