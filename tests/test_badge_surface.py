@@ -1,11 +1,13 @@
 """BadgeSurface messages, its no-op fallback and the helper's PNG mode."""
 
+import inspect
 import logging
 import threading
 
 import pytest
 from PIL import Image
 
+from arc_helper import badge_helper
 from arc_helper import badge_surface
 from arc_helper.badge_helper import checked_physical
 from arc_helper.badge_helper import draw_scale
@@ -153,6 +155,58 @@ def test_patch_that_cannot_fit_its_text_draws_nothing(tmp_path):
     patch = Patch(BAR, icon_right=40, patch_right=30, colour=BAR_COLOUR, text="1.3k")
     image = _render(tmp_path, [patch])
     assert image.getbbox() is None
+
+
+def _text_rows(image):
+    """First and last row (last exclusive) of the bright text pixels on the bar."""
+    rows = [
+        y
+        for y in range(152, 190)
+        for x in range(200)
+        if (p := image.getpixel((x, y)))[3] == 255 and min(p[:3]) > 128
+    ]
+    return min(rows), max(rows) + 1
+
+
+def _patch_text_height(tmp_path, text, patch_right):
+    patch = Patch(
+        BAR, icon_right=40, patch_right=patch_right, colour=BAR_COLOUR, text=text
+    )
+    first, last = _text_rows(_render(tmp_path, [patch]))
+    return first, last, last - first
+
+
+def test_patch_uses_semibold_and_tags_keep_bold():
+    assert badge_helper.PATCH_FONT_FAMILY == "Barlow Semi Condensed"
+    assert badge_helper.PATCH_FONT_WEIGHT == "Semi-Bold"
+    assert badge_helper.PATCH_FONT_FILE.is_file()
+    # A tag, which never passes a weight, is drawn in Bold
+    assert badge_helper.TAG_FONT_WEIGHT == "Bold"
+    weight = inspect.signature(badge_helper._Text).parameters["weight"]  # noqa: SLF001
+    assert weight.default == "Bold"
+
+
+def test_patch_digits_are_the_game_counts_size_on_its_baseline(tmp_path):
+    # 0.8 of a 38 px bar is a 30.4 px font, Barlow's digits are 0.7 of it
+    _first, last, height = _patch_text_height(tmp_path, "88", 120)
+    assert abs(height - 0.8 * 38 * 0.7) <= 1.5
+    # The digits' bottom is 0.216 of the bar height (8.2 px) above the bar bottom
+    assert abs((190 - last) - 0.216 * 38) <= 1.5
+
+
+def test_long_patch_value_fits_only_after_shrinking(tmp_path):
+    _, normal_last, normal = _patch_text_height(tmp_path, "88", 120)
+    # '88888' is too wide for 85 px at the normal size but fits at a smaller one
+    _, last, height = _patch_text_height(tmp_path, "88888", 85)
+    assert 0.57 * 38 * 0.7 - 1.5 <= height < normal - 2
+    assert last == normal_last or abs(last - normal_last) <= 1.5
+
+
+def test_patch_value_too_wide_at_the_minimum_size_draws_nothing(tmp_path):
+    patch = Patch(
+        BAR, icon_right=40, patch_right=60, colour=BAR_COLOUR, text="88888888"
+    )
+    assert _render(tmp_path, [patch]).getbbox() is None
 
 
 def test_check_tag_draws_green_check_pixels(tmp_path):
