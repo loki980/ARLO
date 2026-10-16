@@ -399,3 +399,190 @@ def test_a_wide_slot_with_a_need_tag_moves_its_worth_tag_to_the_top_right():
     badges = badges_for([wide], lambda _s: Verdict("keep", "x", 1, (("Quest", 1),)))
     corners = {b["text"]: b["corner"] for b in badges if b["kind"] == "tag"}
     assert corners == {"1/1": "tl", "Φ 810": "tr"}
+
+
+def _looks(slots: list[Slot], looks: list[int]) -> np.ndarray:
+    """A frame whose slots show a block of the given value in the middle."""
+    rgb = np.zeros((200, 1000, 3), dtype=np.uint8)
+    for slot, look in zip(slots, looks, strict=True):
+        top, left = slot.rect.top, slot.rect.left
+        rgb[top + 40 : top + 50, left + 40 : left + 50] = look
+    return rgb
+
+
+@pytest.fixture
+def no_bars(monkeypatch):
+    monkeypatch.setattr(stash_scan, "bar_geometry", lambda _crop: None)
+
+
+METAL, RUBBER, ANVIL = [0, 0, 0, 1, 0], [0, 0, 0, 0, 1], [1, 0, 0, 0, 0]
+
+
+@pytest.mark.usefixtures("no_bars")
+def test_a_second_pass_on_the_same_or_moved_slots_never_embeds(stubs):
+    _, stack_reads = stubs
+    slots = _slots(3)
+    cache = stash_scan.SlotCache()
+    first = identify_slots(
+        _looks(slots, [60, 120, 180]),
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder([METAL, RUBBER, ANVIL]),
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    reads = len(stack_reads)
+    again = QueueEmbedder([])
+    same = identify_slots(
+        _looks(slots, [60, 120, 180]),
+        _gallery(),
+        _catalog,
+        embedder=again,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    # The looks moved one slot left, as after a scroll
+    moved = identify_slots(
+        _looks(slots, [120, 180, 60]),
+        _gallery(),
+        _catalog,
+        embedder=again,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    assert again.calls == 0
+    assert len(stack_reads) == reads
+    assert same == first
+    assert [s.guess for s in moved] == ["Rubber Parts", "Anvil I", "Metal Parts"]
+    assert [s.rect for s in moved] == [s.rect for s in slots]
+
+
+@pytest.mark.usefixtures("no_bars")
+def test_a_changed_stack_count_reads_only_that_slot(stubs):
+    _, stack_reads = stubs
+    slots = _slots(3)
+    cache = stash_scan.SlotCache()
+    rgb = _looks(slots, [60, 120, 180])
+    identify_slots(
+        rgb,
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder([METAL, ANVIL, RUBBER]),
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    reads = len(stack_reads)
+    # A digit pixel in the second slot's bar changes
+    rgb[70, slots[1].rect.left + 70] = 220
+    once = QueueEmbedder([ANVIL])
+    found = identify_slots(
+        rgb,
+        _gallery(),
+        _catalog,
+        embedder=once,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    assert once.calls == 1
+    assert len(stack_reads) == reads + 1
+    assert [s.guess for s in found] == ["Metal Parts", "Anvil I", "Rubber Parts"]
+
+
+def test_the_slot_cache_drops_the_least_recently_used_entry():
+    cache = stash_scan.SlotCache(size=2)
+    entry = object()
+    cache.put("a", entry)
+    cache.put("b", entry)
+    assert cache.get("a") is entry
+    cache.put("c", entry)
+    assert len(cache) == 2
+    assert "b" not in cache
+    assert "a" in cache
+    assert "c" in cache
+
+
+# A 194 by 192 tile with art above a dark bar, a type icon at its left and a
+# one digit count at its right (patch boundary 150 - 5 = 145)
+BOX = Rect(11, 145, 181, 191)
+
+
+def _tile() -> np.ndarray:
+    crop = np.random.default_rng(0).integers(0, 256, (194, 192, 3), dtype=np.uint8)
+    crop[145:191, 11:181] = 15
+    crop[155:180, 15:40] = 220  # type icon
+    crop[155:180, 150:160] = 220  # count
+    return crop
+
+
+def _badged(crop: np.ndarray) -> np.ndarray:
+    """The tile with a red outline, a have/need pill and a price patch."""
+    out = crop.copy()
+    edge = stash_scan.BORDER_WIDTH
+    out[:edge] = out[-edge:] = (255, 92, 77)
+    out[:, :edge] = out[:, -edge:] = (255, 92, 77)
+    # A have/need pill top left: 33 px text, inset 10, pill about 44 tall
+    out[9:56, 9:120] = (20, 20, 20)
+    # The patch in the bar's colour up to 145, its price text in white
+    out[145:191, 11:145] = 15
+    out[158:178, 20:90] = 230
+    return out
+
+
+def test_the_signature_ignores_the_tag_outline_and_patch_but_not_the_count():
+    crop = _tile()
+    clean = stash_scan.slot_signature(crop, BOX)
+    assert stash_scan.patch_boundary(crop, BOX) == 145
+    assert stash_scan.slot_signature(_badged(crop), BOX) == clean
+    assert stash_scan.look_signature(_badged(crop)) == stash_scan.look_signature(crop)
+    # 5 becomes 15: a leading digit left of the old count
+    counted = crop.copy()
+    counted[155:180, 137:147] = 220
+    assert stash_scan.slot_signature(counted, BOX) != clean
+    assert stash_scan.slot_signature(_badged(counted), BOX) != clean
+
+
+def test_a_slot_whose_bar_is_lost_under_its_patch_still_hits(stubs, monkeypatch):
+    _, stack_reads = stubs
+    bar = BarGeometry(
+        BOX, (15, 15, 15), Rect(15, 155, 40, 180), Rect(150, 155, 160, 180)
+    )
+    # As on the rendered frames: no bar is found once the patch is drawn
+    monkeypatch.setattr(
+        stash_scan,
+        "bar_geometry",
+        lambda crop: bar if crop[160, 16, 0] == 220 else None,
+    )
+    slots = [Slot(Rect(0, 0, 192, 194), "stash", filled=True)]
+    rgb = np.zeros((200, 200, 3), dtype=np.uint8)
+    rgb[:194, :192] = _tile()
+    cache = stash_scan.SlotCache()
+    clean = identify_slots(
+        rgb,
+        _gallery(),
+        _catalog,
+        embedder=QueueEmbedder([METAL]),
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    badged = rgb.copy()
+    badged[:194, :192] = _badged(_tile())
+    never = QueueEmbedder([])
+    found = identify_slots(
+        badged,
+        _gallery(),
+        _catalog,
+        embedder=never,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    assert never.calls == 0
+    assert len(stack_reads) == 1
+    assert found == clean
+    assert found[0].bar is bar

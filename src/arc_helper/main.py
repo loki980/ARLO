@@ -82,6 +82,7 @@ from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 from arc_helper.screen import get_backend
 from arc_helper.slot_marks import learned_check
+from arc_helper.stash_scan import SlotCache
 from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
 from arc_helper.stash_scan import distinct_gallery
@@ -742,19 +743,44 @@ def load_stash_gallery(
 
 
 def stash_identifier(
-    db: Database, cache_dir: Path
+    db: Database, cache_dir: Path, *, warm: bool = False
 ) -> Callable[[np.ndarray], list[SlotItem]]:
-    """identify_slots on the catalog gallery, which loads on the first call."""
-    loaded: list = []
+    """identify_slots on the catalog gallery, with a slot cache as long lived.
 
-    def identify(rgb: np.ndarray) -> list[SlotItem]:
-        if not loaded:
-            loaded.extend(load_stash_gallery(cache_dir))
-        gallery, twins = loaded
-        return identify_slots(
-            rgb, gallery, db.lookup, twins=twins, read_stacks=True
+    The gallery loads on the first call, or with warm on a background
+    thread started here that also runs one blank embed, so the first pass
+    does not wait for the model. A call made while that thread runs waits
+    for it. The SlotCache is made with the gallery and kept with it.
+    """
+    loaded: list = []
+    lock = threading.Lock()
+
+    def load() -> tuple:
+        with lock:
+            if not loaded:
+                loaded.extend((*load_stash_gallery(cache_dir), SlotCache()))
+            return tuple(loaded)
+
+    def warm_up() -> None:
+        start = time.perf_counter()
+        try:
+            load()
+            default_embedder().warm()
+        except Exception:  # noqa: BLE001 - the first pass loads and reports it
+            logger.warning("stash model warm-up failed", exc_info=True)
+            return
+        logger.info(
+            "stash model warmed in %.0f ms", (time.perf_counter() - start) * 1000
         )
 
+    def identify(rgb: np.ndarray) -> list[SlotItem]:
+        gallery, twins, cache = load()
+        return identify_slots(
+            rgb, gallery, db.lookup, twins=twins, read_stacks=True, cache=cache
+        )
+
+    if warm:
+        Thread(target=warm_up, name="stash-warm", daemon=True).start()
     return identify
 
 
@@ -2138,7 +2164,7 @@ class Application:
         if not overlay.stash_badges:
             return None
         return StashBadges(
-            stash_identifier(self.db, self.settings.icon_cache_dir),
+            stash_identifier(self.db, self.settings.icon_cache_dir, warm=True),
             stash_badge_maker(self.db, lambda: get_settings().show_ended_projects),
             BadgeSurface(),
             keep_border=overlay.stash_badge_keep_border,
