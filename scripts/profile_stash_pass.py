@@ -26,7 +26,15 @@ Modes, each a median over --repeats passes:
   next frame at the same place. Most slots are then cached.
 
 Results are checked against the no cache pass of the same frame: every slot
-must keep its rect, item, tier, stack, guess, confidence, lead and bar.
+must keep its rect, item, tier, stack, guess and bar exactly, and its
+confidence and lead within SCORE_TOLERANCE. onnxruntime gives slightly
+different vectors for a picture in a different batch, so a cached slot's
+scores can differ from a fresh pass in the fourth decimal.
+
+Last, the badges of each frame (stash_scan.badges_for with every verdict
+short, enough and without needs) are drawn with badge_helper.render_png and
+laid over the frame, and each identified slot's slot_signature is compared
+with the clean frame's, each with its own bar_geometry.
 """
 
 import argparse
@@ -64,6 +72,7 @@ WRAPPED = {
     "sig": "slot_signature",
 }
 ROW_TOLERANCE = 6
+SCORE_TOLERANCE = 0.001
 
 
 class Clock:
@@ -170,9 +179,73 @@ def key(slot) -> tuple:
         slot.tier,
         slot.stack,
         slot.guess,
-        slot.confidence,
-        slot.lead,
         slot.bar,
+    )
+
+
+def same(found: list, reference: list) -> bool:
+    """Whether two passes agree, scores within SCORE_TOLERANCE."""
+    return len(found) == len(reference) and all(
+        key(a) == key(b)
+        and abs(a.confidence - b.confidence) <= SCORE_TOLERANCE
+        and abs(a.lead - b.lead) <= SCORE_TOLERANCE
+        for a, b in zip(found, reference, strict=True)
+    )
+
+
+def badged_signatures(frames, identify, out: list[str]) -> None:
+    """Compare each slot's signature with badges drawn over it and without."""
+    import tempfile
+
+    from PIL import Image as PILImage
+
+    from arc_helper.badge_helper import render_png
+    from arc_helper.slot_marks import bar_geometry
+    from arc_helper.verdict import Verdict
+
+    verdicts = {
+        "short": Verdict("keep", "", 9999, (("need", 9999),)),
+        "enough": Verdict("keep", "", 1, (("need", 1),)),
+        "no needs": Verdict("sell", ""),
+    }
+    total = unchanged = 0
+    changed: list[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        png = Path(tmp) / "badges.png"
+        for name, rgb in frames:
+            items = [s for s in identify(rgb) if s.item is not None]
+            height, width = rgb.shape[:2]
+            for label, verdict in verdicts.items():
+                badges = stash_scan.badges_for(items, lambda _s, v=verdict: v)
+                render_png(badges, width, height, png)
+                with PILImage.open(png) as layer:
+                    base = PILImage.fromarray(rgb).convert("RGBA")
+                    drawn = PILImage.alpha_composite(base, layer.convert("RGBA"))
+                badged = np.asarray(drawn.convert("RGB"))
+                for slot in items:
+                    r = slot.rect
+                    clean = rgb[r.top : r.bottom, r.left : r.right]
+                    over = badged[r.top : r.bottom, r.left : r.right]
+                    wide = stash_scan.is_wide(r)
+                    bar_clean = None if wide else bar_geometry(clean)
+                    bar_over = None if wide else bar_geometry(over)
+                    total += 1
+                    if stash_scan.slot_signature(
+                        clean, bar_clean
+                    ) == stash_scan.slot_signature(over, bar_over):
+                        unchanged += 1
+                    else:
+                        lost = bar_clean is not None and bar_over is None
+                        changed.append(
+                            f"  {name[:33]} {label} {tuple(r)}"
+                            + (" bar not found under the patch" if lost else "")
+                        )
+    out.extend(
+        [
+            "\nsignatures with badges drawn over the slot",
+            f"{unchanged} of {total} identified slots keep their signature",
+            *changed,
+        ]
     )
 
 
@@ -273,16 +346,16 @@ def main() -> int:
             cache = stash_scan.SlotCache()
             stages, result = run(identify, rgb, clock, cache=cache)
             cold.append(stages)
-            if [key(s) for s in result] != [key(s) for s in reference]:
+            if not same(result, reference):
                 mismatches.append(f"{name} cold differs from no cache")
             if scroll is not None:
                 stages, result = run(identify, scroll, clock, cache=cache)
                 after.append(stages)
-                if [key(s) for s in result] != [key(s) for s in scroll_reference]:
+                if not same(result, scroll_reference):
                     mismatches.append(f"{name} scroll differs from no cache")
             stages, result = run(identify, rgb, clock, cache=cache)
             repeat.append(stages)
-            if [key(s) for s in result] != [key(s) for s in reference]:
+            if not same(result, reference):
                 mismatches.append(f"{name} repeat differs from no cache")
         modes["cold"].append((name, {**median_row(cold), "slots": slots}))
         modes["repeat"].append((name, {**median_row(repeat), "slots": slots}))
@@ -306,10 +379,12 @@ def main() -> int:
     if cached:
         out.append("\nresults against the no cache pass")
         unchanged = (
-            "every slot unchanged (rect, item, tier, stack, guess,"
-            " confidence, lead, bar) in cold, repeat and scroll"
+            "every slot unchanged (rect, item, tier, stack, guess, bar, and"
+            f" confidence and lead within {SCORE_TOLERANCE}) in cold, repeat"
+            " and scroll"
         )
         out.extend(mismatches or [unchanged])
+        badged_signatures(frames, identify, out)
     text = "\n".join(out) + "\n"
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8")
