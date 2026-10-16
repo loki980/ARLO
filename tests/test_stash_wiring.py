@@ -6,9 +6,13 @@ import time
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from arc_helper import main
+from arc_helper import stash_scan
 from arc_helper.grid import STILL_MEAN
+from arc_helper.grid import Slot
+from arc_helper.icon_embed import EmbedGallery
 from arc_helper.main import StashBadges
 from arc_helper.main import stash_still
 from arc_helper.stash_scan import SlotItem
@@ -516,3 +520,150 @@ def test_a_retry_restores_badges_a_partial_pass_dropped(monkeypatch):
         stash.step()
     assert len(passes) == 2
     assert len(surface.draws()[-1]) == 80
+
+
+def test_a_stale_pass_does_not_hold_the_next_back_by_the_gap():
+    # The scroll lands while the first pass runs, 0.1 s after its start
+    surface, clock = _Surface(), _Clock()
+    calls = []
+    stash = None
+
+    def identify(rgb):
+        calls.append(rgb)
+        if len(calls) == 1:
+            stash.feed(_frame(120), None, ())
+            stash._watch_once()  # noqa: SLF001
+        return [_slot(SLOT_A)]
+
+    stash = StashBadges(identify, _badges, surface, threaded=False, clock=clock)
+    assert main.STASH_PASS_GAP_S == 0.25
+    stash.feed(_frame(0), None, ())
+    stash.step()
+    clock.now += 0.1
+    stash.feed(_frame(0), None, ())
+    stash.step()
+    assert len(calls) == 1
+    assert surface.draws() == []
+    clock.now += 0.1
+    stash.feed(_frame(120), None, ())
+    stash.step()
+    assert len(calls) == 2
+    assert surface.draws() == [[tuple(SLOT_A)] * 2]
+
+
+def _known_stash(clock, pass_s=0.0, known=(SLOT_A,), found=(SLOT_A, SLOT_B)):
+    """A stash whose identify knows the known slots already (identify.peek).
+
+    Each pass finds found and moves clock on by pass_s.
+    """
+    order = []
+
+    def identify(_rgb):
+        order.append("pass")
+        clock.now += pass_s
+        return [_slot(r) for r in found]
+
+    def peek(_rgb):
+        order.append("peek")
+        return [_slot(r) for r in known]
+
+    identify.peek = peek
+    surface = _Surface()
+    stash = StashBadges(identify, _badges, surface, threaded=False, clock=clock)
+    return stash, surface, order
+
+
+def _feed_at(stash, clock, shades, start=100.0, apart=0.15) -> None:
+    """Feed frames of these shades apart seconds on the clock, one step each."""
+    for n, shade in enumerate(shades):
+        clock.now = max(clock.now, round(start + n * apart, 6))
+        stash.feed(_frame(shade), None, ())
+        stash.step()
+
+
+def test_known_slots_are_drawn_before_the_pass_and_replaced_by_it():
+    clock = _Clock()
+    stash, surface, order = _known_stash(clock, found=(SLOT_B,))
+    _feed_at(stash, clock, (0, 0, 120))
+    assert order == ["pass"]
+    assert surface.calls[-1] == ("clear",)
+    order.clear()
+    before = len(surface.draws())
+    _feed_at(stash, clock, (120,), start=clock.now + 0.15)
+    assert order == ["peek", "pass"]
+    # SLOT_A's known badges first, then the pass's own, which have no SLOT_A
+    assert surface.draws()[before:] == [[tuple(SLOT_A)] * 2, [tuple(SLOT_B)] * 2]
+
+
+def test_a_peek_that_finds_nothing_draws_nothing():
+    clock = _Clock()
+    stash, surface, order = _known_stash(clock, known=(), found=(SLOT_B,))
+    _feed_at(stash, clock, (0, 0, 120))
+    before = len(surface.draws())
+    _feed_at(stash, clock, (120,), start=clock.now + 0.15)
+    assert order == ["pass", "peek", "pass"]
+    assert surface.draws()[before:] == [[tuple(SLOT_B)] * 2]
+
+
+@pytest.mark.parametrize(
+    ("known", "line"),
+    [
+        (
+            (SLOT_A,),
+            "stash latency moved_to_still=150 pass=50 still_to_drawn=0 total=150 ms",
+        ),
+        ((), "stash latency moved_to_still=150 pass=50 still_to_drawn=50 total=200 ms"),
+    ],
+)
+def test_the_latency_line_after_a_scroll(caplog, known, line):
+    # Frames 150 ms apart: two still ones, the moved one, then still again.
+    # Each pass takes 50 ms on the clock, known slots are drawn at once
+    clock = _Clock()
+    stash, _surface, _order = _known_stash(clock, 0.05, known)
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        _feed_at(stash, clock, (0, 0, 120, 120, 120))
+    lines = [r.getMessage() for r in caplog.records if "latency" in r.getMessage()]
+    assert lines == [line]
+
+
+def test_peek_leaves_the_slot_cache_unchanged(monkeypatch):
+    monkeypatch.setattr(stash_scan, "bar_geometry", lambda _crop: None)
+    monkeypatch.setattr(stash_scan, "read_tier", lambda _crop: None)
+    monkeypatch.setattr(stash_scan, "read_stack", lambda _crop: None)
+    slots = [
+        Slot(Rect(100 * n, 0, 100 * n + 90, 90), "stash", filled=True) for n in range(3)
+    ]
+
+    def looks(shades) -> np.ndarray:
+        rgb = np.zeros((90, 300, 3), np.uint8)
+        for slot, shade in zip(slots, shades, strict=True):
+            r = slot.rect
+            rgb[r.top : r.bottom, r.left : r.right] = shade
+            rgb[r.top + 40 : r.top + 50, r.left + 40 : r.left + 50] = 255 - shade
+        return rgb
+
+    embedder = SimpleNamespace(
+        embed=lambda squares: np.eye(3, dtype=np.float32)[: len(squares)]
+    )
+    gallery = EmbedGallery(
+        ("a", "b", "c"), ("A", "B", "C"), np.eye(3, dtype=np.float32)
+    )
+    cache = stash_scan.SlotCache()
+    stash_scan.identify_slots(
+        looks([60, 120, 180]),
+        gallery,
+        lambda _name: None,
+        embedder=embedder,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    keys, bars = list(cache._entries), list(cache._bars)  # noqa: SLF001
+    # The oldest look first, then a look the cache has never seen
+    found = stash_scan.peek_slots(
+        looks([60, 250, 120]), cache, read_stacks=True, slots=slots
+    )
+    assert [s.guess for s in found] == ["A", "B"]
+    assert [s.rect for s in found] == [slots[0].rect, slots[2].rect]
+    assert list(cache._entries) == keys  # noqa: SLF001
+    assert list(cache._bars) == bars  # noqa: SLF001

@@ -3,6 +3,7 @@
 
     uv run --extra icons python scripts/replay_stash_badges.py <captures> <out folder>
     uv run --extra icons python scripts/replay_stash_badges.py --keep <capture> <out file>
+    uv run --extra icons python scripts/replay_stash_badges.py --latency --out <folder> <capture>
 
 The 3840x2160 captures are fed in name order to main.StashBadges, the same
 object the scan thread feeds, built with the same identifier and badge
@@ -24,6 +25,20 @@ frame again, 3 backpack slots' interiors brightened (a hover) and the frame
 shifted up by one slot row (a scroll). The out file gets, for each step,
 how many badges are drawn, the badge rects drawn before and hidden now and the stash
 log lines.
+
+With --latency one capture is fed as a scroll on a clock the script moves,
+frames LATENCY_FRAME_S apart: the slot cache is warmed by identifying the
+capture first, then the capture twice, the capture shifted up by one slot
+row (the scroll) and the shifted frame LATENCY_STILL_FRAMES times. Each
+identify, peek and badge-making call moves the clock on by the time it
+really took, so a pass costs its real time. The app's default pass gap is
+used. The script measures, on that clock, the time from the scroll frame to
+the first still frame (moved_to_still), the pass time (pass), from the
+first still frame to the first draw after the scroll (still_to_drawn) and
+in all (total), and counts the badges drawn before the pass finished.
+real-data.txt in the out folder gets those, every draw, the stash log lines
+and, when latency-before.txt is in the folder (a run on the code before),
+that file first.
 """
 
 import logging
@@ -46,6 +61,8 @@ from arc_helper.main import stash_identifier
 from arc_helper.tooltip_layout import Rect
 
 FULL_SIZE = (3840, 2160)
+LATENCY_FRAME_S = 0.15
+LATENCY_STILL_FRAMES = 10
 PNG_NAME = "stash_badges_replay.png"
 LOG_NAME = "stash_badges_replay.txt"
 
@@ -175,9 +192,144 @@ def keep_main(capture: Path, out: Path) -> int:
     return 0
 
 
+class _TimedSurface(RecordingSurface):
+    """A recording surface that also logs each draw's clock time and size."""
+
+    def __init__(self, clock: _Clock, passes: list) -> None:
+        super().__init__()
+        self.clock = clock
+        self.passes = passes
+        self.draws: list[tuple[float, int, int]] = []
+
+    def draw(self, badges: list) -> None:
+        super().draw(badges)
+        self.draws.append((self.clock.now, len(badges), len(self.passes)))
+
+
+def _timed(clock: _Clock, call, record: list | None = None):
+    """call, moving the clock on by the time each call really takes."""
+
+    def run(*args):
+        start = time.perf_counter()
+        try:
+            return call(*args)
+        finally:
+            spent = time.perf_counter() - start
+            clock.now += spent
+            if record is not None:
+                record.append((clock.now, spent))
+
+    return run
+
+
+def _shifted(rgb: np.ndarray) -> np.ndarray:
+    """The frame scrolled up by one backpack slot row, the last row repeated."""
+    backpack = [s.rect for s in find_slots(rgb) if s.panel == "backpack"]
+    pitch = backpack[4].top - backpack[0].top
+    return np.vstack([rgb[pitch:], rgb[-pitch:]])
+
+
+def latency_main(capture: Path, out: Path) -> int:
+    """Replay a scroll on a warm cache and write how long the badges take back."""
+    lines = _Lines()
+    logger.addHandler(lines)
+    logger.setLevel(logging.DEBUG)
+    settings = get_settings()
+    db = Database()
+    clock = _Clock()
+    identify = stash_identifier(db, settings.icon_cache_dir)
+    with Image.open(capture) as image:
+        rgb = np.asarray(image.convert("RGB"))
+    warm_start = time.perf_counter()
+    identify(rgb)
+    identify(rgb)
+    warm_ms = (time.perf_counter() - warm_start) * 1000
+    scrolled = _shifted(rgb)
+    passes: list = []
+    peeks: list = []
+    timed = _timed(clock, identify, passes)
+    if hasattr(identify, "peek"):
+        timed.peek = _timed(clock, identify.peek, peeks)
+    make = stash_badge_maker(db, lambda: settings.show_ended_projects)
+    makes: list = []
+    surface = _TimedSurface(clock, passes)
+    stash = StashBadges(
+        timed,
+        _timed(clock, make, makes),
+        surface,
+        keep_border=settings.overlay.stash_badge_keep_border,
+        threaded=False,
+        clock=clock,
+    )
+    frames = [("capture", rgb), ("capture", rgb), ("scroll", scrolled)]
+    frames += [("still", scrolled)] * LATENCY_STILL_FRAMES
+    start = clock.now
+    fed: list[tuple[str, float]] = []
+    report = [f"capture: {capture.name}", f"cache warmed in {warm_ms:.0f} ms", ""]
+    for n, (label, frame) in enumerate(frames):
+        clock.now = max(clock.now, start + n * LATENCY_FRAME_S)
+        fed.append((label, clock.now))
+        first = len(lines.lines)
+        stash.feed(frame, None, ())
+        stash.step()
+        report.append(f"t={(fed[-1][1] - start) * 1000:6.0f} ms fed {label}")
+        report += [f"  log: {line}" for line in lines.lines[first:]]
+    moved = next(t for label, t in fed if label == "scroll")
+    still = next(t for label, t in fed if label == "still")
+    after = [d for d in surface.draws if d[0] >= still]
+    scroll_pass = [p for p in passes if p[0] >= moved]
+    report.append("")
+    report += [
+        f"draw at t={(t - start) * 1000:.0f} ms: {count} badges, passes so far {done}"
+        for t, count, done in surface.draws
+    ]
+    if not after or not scroll_pass:
+        report.append("no draw or no pass after the scroll")
+    else:
+        drawn, _count, _done = after[0]
+        identified, spent = scroll_pass[0]
+        spent += next((s for t, s in makes if t > identified), 0.0)
+        before_pass = [d for d in after if d[2] == passes.index(scroll_pass[0])]
+        report += [
+            "",
+            "measured by the script:",
+            (
+                f"stash latency moved_to_still={(still - moved) * 1000:.0f} "
+                f"pass={spent * 1000:.0f} "
+                f"still_to_drawn={(drawn - still) * 1000:.0f} "
+                f"total={(drawn - moved) * 1000:.0f} ms"
+            ),
+            (
+                "known-slot badges drawn before the pass: "
+                f"{before_pass[0][1] if before_pass else 0}"
+            ),
+            f"peek calls: {len(peeks)}, "
+            + ", ".join(f"{p * 1000:.0f} ms" for _t, p in peeks),
+        ]
+    report += ["", "the app's own latency line:"]
+    report += [line for line in lines.lines if line.startswith("stash latency")] or [
+        "none"
+    ]
+    out.mkdir(parents=True, exist_ok=True)
+    before = out / "latency-before.txt"
+    text = "\n".join(report) + "\n"
+    if before.exists():
+        text = (
+            "=== before (latency-before.txt) ===\n"
+            + before.read_text(encoding="utf-8")
+            + "\n=== after ===\n"
+            + text
+        )
+    (out / "real-data.txt").write_text(text, encoding="utf-8")
+    print(text)
+    return 0
+
+
 def main() -> int:
     if len(sys.argv) == 4 and sys.argv[1] == "--keep":
         return keep_main(Path(sys.argv[2]), Path(sys.argv[3]))
+    if len(sys.argv) == 5 and sys.argv[1] == "--latency" and sys.argv[2] == "--out":
+        return latency_main(Path(sys.argv[4]), Path(sys.argv[3]))
     if len(sys.argv) != 3:
         print(__doc__)
         return 2
