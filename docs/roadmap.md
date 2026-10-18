@@ -474,7 +474,7 @@ Jeffrey's words, 11 Oct, after the weapon rule said "more until you own the
 blueprint": "We should build in some kind of blueprint tracker assist, too.
 The blank boxes should be greyed out images of the actual blueprint. On hover
 it shows the name and best places to find it based on public data." His
-Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
+Collections screen shows FOUND: 20/91 on a grid of 17 columns (first noted as 18 by 6, corrected 18 Oct). Decided 11 Oct.
 
 Done:
 
@@ -609,6 +609,10 @@ Will contain:
 
 ## Known follow-ups
 
+- docs/ITEMS.md line 110 says KEEP SOME needs a stash count that nothing
+  supplies yet. Phase 5 step 4 supplies it, update the line when it merges.
+  Added 18 Oct.
+
 - Add `TOOLTIP_CHIPS=true`, `CAPTURE_LIBRARY_DIR=debug/captures`,
   `OCR_ENGINE`, `ADVICE_CARD`, `STASH_BADGES` and `SHOW_STATUS_WINDOW` to
   `.env.example` (blocked for agents by permission settings). Changed 14 Oct:
@@ -620,10 +624,7 @@ Will contain:
 - The capture library should record the cursor position with each image
   (sidecar or file name) so the evaluation script picks the same card the
   live scanner did now that captures are full screen. Added 12 Oct.
-- The README is stale (18 Oct): it says to right-click the status box to quit,
-  but that window is off by default now, and it advertises the sell price on
-  the overlay.
-- `docs/CONFIGURATION.md` and the `TOOLTIP_CHIPS` description in `config.py`
-  still say price chips (18 Oct).
-- The blueprint findings promised for the design spec when Phase 4b step 2
-  started are not in it (18 Oct).
+- Done 18 Oct: the README, `docs/CONFIGURATION.md` and the `TOOLTIP_CHIPS`
+  description describe the current overlay (no price chip, status window
+  off by default, how to quit, how to fill the stash map), and the design
+  spec has a Blueprint data section.
