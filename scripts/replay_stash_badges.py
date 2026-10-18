@@ -55,6 +55,18 @@ real-data.txt in the out folder gets those, every draw, the stash log lines
 and, when latency-before.txt is in the folder (a run on the code before),
 that file first.
 
+--latency then feeds three open and close cases on the same clock and warm
+cache, each to its own StashBadges: close (the capture CLOSE_GRID_FRAMES
+times, then CLOSE_GONE_FRAMES black frames with no grid, the inventory
+closed), reopen (after those, the clear the scanner makes on leaving ACTIVE,
+then the capture CLOSE_GRID_FRAMES times) and lone (the capture, then two
+frames on which find_slots loses LONE_SLOTS filled slots of a still grid,
+then the capture again). real-data.txt gets, per case, every frame fed with
+the badges drawn, the stash log lines, and the time from the first black
+frame to the clear (close), from the first frame of the reopened grid to
+the first draw and whether a pass had run by then (reopen) and the clears
+(lone).
+
 With --latency --scroll-steps N the backpack viewport of one capture is
 scrolled up by one slot row in N equal steps, frames SCROLL_FRAME_S apart,
 on the same clock and warm cache, then held still. The rows leaving the top
@@ -76,6 +88,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+import arc_helper.main as main_module
 from arc_helper.badge_helper import translate_badges
 from arc_helper.badge_surface import render_png
 from arc_helper.config import get_settings
@@ -93,6 +106,9 @@ FULL_SIZE = (3840, 2160)
 LATENCY_FRAME_S = 0.15
 LATENCY_STILL_FRAMES = 10
 SCROLL_FRAME_S = 0.1
+CLOSE_GRID_FRAMES = 4
+CLOSE_GONE_FRAMES = 3
+LONE_SLOTS = 4
 PNG_NAME = "stash_badges_replay.png"
 LOG_NAME = "stash_badges_replay.txt"
 
@@ -559,6 +575,7 @@ def latency_main(capture: Path, out: Path) -> int:
     report += [line for line in lines.lines if line.startswith("stash latency")] or [
         "none"
     ]
+    report += _open_close_cases(rgb, identify, make, settings, clock, lines)
     out.mkdir(parents=True, exist_ok=True)
     before = out / "latency-before.txt"
     text = "\n".join(report) + "\n"
@@ -572,6 +589,125 @@ def latency_main(capture: Path, out: Path) -> int:
     (out / "real-data.txt").write_text(text, encoding="utf-8")
     print(text)
     return 0
+
+
+class _ClearSurface(_TimedSurface):
+    """A timed surface that also logs each clear's clock time."""
+
+    def __init__(self, clock: _Clock, passes: list) -> None:
+        super().__init__(clock, passes)
+        self.clears: list[float] = []
+
+    def clear(self) -> None:
+        super().clear()
+        self.clears.append(self.clock.now)
+
+
+def _open_close_cases(rgb, identify, make, settings, clock, lines) -> list[str]:
+    """The close, reopen and lone cases of --latency, as report lines."""
+    real_find = main_module.find_slots
+    lone = rgb.copy()
+    dropped = [s for s in real_find(rgb) if s.filled][:LONE_SLOTS]
+
+    def find(frame):
+        found = real_find(frame)
+        return [s for s in found if s not in dropped] if frame is lone else found
+
+    main_module.find_slots = find
+    try:
+        cases = [
+            (
+                "close and reopen",
+                [("capture", rgb)] * CLOSE_GRID_FRAMES
+                + [("closed", np.zeros_like(rgb))] * CLOSE_GONE_FRAMES
+                + [("left ACTIVE", None)]
+                + [("reopened", rgb)] * CLOSE_GRID_FRAMES,
+            ),
+            (
+                f"lone ({LONE_SLOTS} filled slots lost by find_slots)",
+                [("capture", rgb)] * CLOSE_GRID_FRAMES
+                + [("lone", lone)] * 2
+                + [("capture", rgb)] * 2,
+            ),
+        ]
+        report: list[str] = []
+        for name, frames in cases:
+            report += _case_run(name, frames, identify, make, settings, clock, lines)
+    finally:
+        main_module.find_slots = real_find
+    return report
+
+
+def _case_run(name, frames, identify, make, settings, clock, lines) -> list[str]:
+    """Feed one case LATENCY_FRAME_S apart and report its draws and clears."""
+    passes: list = []
+    timed = _timed(clock, identify, passes)
+    if hasattr(identify, "peek"):
+        timed.peek = _timed(clock, identify.peek)
+    surface = _ClearSurface(clock, passes)
+    stash = StashBadges(
+        timed,
+        _timed(clock, make),
+        surface,
+        keep_border=settings.overlay.stash_badge_keep_border,
+        threaded=False,
+        clock=clock,
+    )
+    report = ["", f"=== case: {name} ==="]
+    start = clock.now = clock.now + 10.0
+    fed: list[tuple[str, float]] = []
+    n = 0
+    for label, frame in frames:
+        if frame is None:
+            # The scanner leaves ACTIVE and stops feeding
+            first = len(lines.lines)
+            stash.clear("inventory_closed")
+            report.append(f"t={(clock.now - start) * 1000:6.0f} ms {label}")
+            report += [f"  log: {line}" for line in lines.lines[first:]]
+            continue
+        clock.now = max(clock.now, start + n * LATENCY_FRAME_S)
+        n += 1
+        fed.append((label, clock.now))
+        first, drawn = len(lines.lines), len(surface.draws)
+        stash.feed(frame, None, ())
+        stash.step()
+        shown = surface.drawn
+        report.append(
+            f"t={(fed[-1][1] - start) * 1000:6.0f} ms fed {label}: "
+            f"{len(shown) if shown else 0} badges on screen"
+            + (", drawn" if len(surface.draws) > drawn else "")
+        )
+        report += [f"  log: {line}" for line in lines.lines[first:]]
+    report.append("")
+    report.append(f"clears at: {[round((t - start) * 1000) for t in surface.clears]}")
+
+    def first_at(label: str) -> float | None:
+        return next((t for got, t in fed if got == label), None)
+
+    closed, reopened = first_at("closed"), first_at("reopened")
+    if closed is not None:
+        after = [t for t in surface.clears if t >= closed]
+        report.append(
+            "first closed frame to the clear: "
+            + (f"{(after[0] - closed) * 1000:.0f} ms" if after else "no clear")
+        )
+    if reopened is not None:
+        after = [d for d in surface.draws if d[0] >= reopened]
+        if after:
+            t, count, done = after[0]
+            before = sum(1 for p in passes if p[0] < reopened)
+            report.append(
+                f"first reopened frame to the first draw: "
+                f"{(t - reopened) * 1000:.0f} ms, {count} badges, "
+                f"{'before' if done == before else 'after'} its pass"
+            )
+        else:
+            report.append("first reopened frame to the first draw: no draw")
+    lone_at = first_at("lone")
+    if lone_at is not None:
+        cleared = [t for t in surface.clears if t >= lone_at]
+        report.append(f"clears after the lone frames: {len(cleared)}")
+    return report
 
 
 class _ScrollSurface(_TimedSurface):
