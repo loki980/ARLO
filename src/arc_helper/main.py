@@ -75,6 +75,7 @@ from arc_helper.icon_embed import default_embedder
 from arc_helper.inventory_header import read_loadout_header
 from arc_helper.inventory_header import read_stash_header
 from arc_helper.inventory_ledger import loadout_tally
+from arc_helper.inventory_ledger import Owned
 from arc_helper.inventory_ledger import owned_counts
 from arc_helper.ocr import CardSignature
 from arc_helper.ocr import OCREngine
@@ -906,17 +907,20 @@ def stash_identifier(
 def stash_badge_maker(
     db: Database,
     show_ended: Callable[[], bool],
-    owned: Callable[[], dict[str, int] | None] | None = None,
+    owned: Callable[[], Owned | None] | None = None,
 ) -> Callable[[list[SlotItem]], list[dict]]:
     """badges_for with the verdicts of the moment, as the popup decides them.
 
-    owned gives the owned totals of the moment (StashLedger.owned), None to
-    count the slots on screen.
+    owned gives the owned totals of the moment and whether they are sure
+    (StashLedger.owned), None to count the slots on screen.
     """
 
     def make(slot_items: list[SlotItem]) -> list[dict]:
         verdicts = verdicts_for(db, show_ended=show_ended())
-        return badges_for(slot_items, verdicts, owned() if owned else None)
+        totals = owned() if owned else None
+        if totals is None:
+            return badges_for(slot_items, verdicts)
+        return badges_for(slot_items, verdicts, totals.counts, sure=totals.sure)
 
     return make
 
@@ -931,9 +935,9 @@ class StashLedger:
     db.save_loadout at once when its counts changed, else at most once per
     LOADOUT_SAVE_S on clock. An error is logged and never raised.
 
-    owned is the stored map's counts plus the latest loadout's
-    (inventory_ledger.owned_counts), None while the map is missing or not
-    sure. The map and the loadout saved before are used from the start.
+    owned is the stored map's counts plus the latest loadout's, with whether
+    the map is sure (inventory_ledger.owned_counts), None while the map is
+    missing. The map and the loadout saved before are used from the start.
     """
 
     def __init__(
@@ -956,8 +960,8 @@ class StashLedger:
         self._saved: tuple[dict[str, int], float] | None = None
         self._totals = self._combined()
 
-    def owned(self) -> dict[str, int] | None:
-        """The combined owned totals, None to fall back to the slots on screen."""
+    def owned(self) -> Owned | None:
+        """The combined owned totals and their sureness, None to fall back to the slots on screen."""
         with self._lock:
             return self._totals
 
@@ -980,7 +984,7 @@ class StashLedger:
         with self._lock:
             self._totals = totals
 
-    def _combined(self) -> dict[str, int] | None:
+    def _combined(self) -> Owned | None:
         try:
             sure = self._store.status().sure
             return owned_counts(self._store.map, self._loadout, sure=sure)

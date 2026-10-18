@@ -372,6 +372,33 @@ def test_need_tag_is_red_while_short_and_green_when_enough():
     assert all(b["kind"] == "tag" for b in enough)
 
 
+def test_need_tag_is_a_lower_bound_while_the_map_is_not_sure():
+    slot = _square(Item(name="Metal Parts", action="Keep"), 0, stack=2)
+    verdict = lambda _s: Verdict("keep", "x", 10, (("Quest", 10),))  # noqa: E731
+    (short,) = badges_for([slot], verdict, {"Metal Parts": 6}, sure=False)
+    assert (short["text"], short["fg"], short["check"]) == ("6+/10", "#ff5c4d", False)
+    (enough,) = badges_for([slot], verdict, {"Metal Parts": 12}, sure=False)
+    assert (enough["text"], enough["fg"], enough["check"]) == (
+        "12+/10",
+        "#4fd36b",
+        True,
+    )
+    (sure,) = badges_for([slot], verdict, {"Metal Parts": 6}, sure=True)
+    assert sure["text"] == "6/10"
+    (plain,) = badges_for([slot], verdict)
+    assert plain["text"] == "2/10"
+
+
+def test_unsure_tag_never_shows_less_than_the_slots_on_screen():
+    # Metal Parts is on screen (stack 4) but missing from the partial map
+    slot = _square(Item(name="Metal Parts", action="Keep"), 0, stack=4)
+    verdict = lambda _s: Verdict("keep", "x", 10, (("Quest", 10),))  # noqa: E731
+    (tag,) = badges_for([slot], verdict, {"Other": 9}, sure=False)
+    assert tag["text"] == "4+/10"
+    (tag,) = badges_for([slot], verdict, {"Other": 9}, sure=True)
+    assert tag["text"] == "0/10"
+
+
 def test_a_verdict_without_sources_gives_no_tag_and_no_outline():
     weapon = _square(Item(name="Weapon", action="Keep"), 0)
     badges = badges_for(

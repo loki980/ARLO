@@ -15,6 +15,7 @@ from arc_helper.grid import STILL_MEAN
 from arc_helper.grid import Slot
 from arc_helper.icon_embed import EmbedGallery
 from arc_helper.inventory_header import LoadoutHeader
+from arc_helper.inventory_ledger import Owned
 from arc_helper.main import StashBadges
 from arc_helper.main import stash_still
 from arc_helper.stash_scan import SlotItem
@@ -1297,15 +1298,28 @@ def test_a_saved_sure_map_gives_combined_tags_on_the_first_pass(monkeypatch):
     assert _tag_texts(made) == ["10/12"]
 
 
-@pytest.mark.parametrize(
-    "store",
-    [_Store({"Metal Parts": 7}, sure=False), _Store(None)],
-    ids=["unsure", "missing"],
-)
-def test_tags_fall_back_to_the_slots_on_screen(monkeypatch, store):
+def test_a_saved_unsure_map_gives_lower_bound_tags(monkeypatch):
+    store = _Store({"Metal Parts": 7}, sure=False)
     db = _LedgerDb({"Metal Parts": 3})
     _, _, made = _ledger_stash(monkeypatch, store, db, lambda _rgb: [_parts(SLOT_A)])
+    assert _tag_texts(made) == ["10+/12"]
+
+
+def test_tags_count_the_slots_on_screen_without_a_map(monkeypatch):
+    db = _LedgerDb({"Metal Parts": 3})
+    _, _, made = _ledger_stash(
+        monkeypatch, _Store(None), db, lambda _rgb: [_parts(SLOT_A)]
+    )
     assert _tag_texts(made) == ["2/12"]
+
+
+@pytest.mark.parametrize("sure", [True, False])
+def test_the_ledger_passes_sure_through(sure):
+    ledger = main.StashLedger(
+        _LedgerDb({"Metal Parts": 3}), store=_Store({"Metal Parts": 7}, sure=sure)
+    )
+    assert ledger.owned() == Owned({"Metal Parts": 10}, sure)
+    assert main.StashLedger(_LedgerDb(), store=_Store(None)).owned() is None
 
 
 def test_a_failing_observe_does_not_fail_the_pass(monkeypatch, caplog):

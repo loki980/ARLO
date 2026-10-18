@@ -125,18 +125,27 @@ def stash_map_counts(stored: StoredMap) -> dict[str, int]:
     return counts
 
 
+class Owned(NamedTuple):
+    """Owned counts by item name and whether the stash map behind them is sure."""
+
+    counts: dict[str, int]
+    sure: bool
+
+
 def owned_counts(
     stored: StoredMap | None, loadout: Mapping[str, int], *, sure: bool
-) -> dict[str, int] | None:
+) -> Owned | None:
     """The stored stash map's counts plus the loadout counts, by item name.
 
-    None when there is no stored map or it is not sure (its filled count is
-    not the header's used count), so the caller falls back to the slots on
-    screen (stash_scan.owned_totals).
+    None only when there is no stored map, so the caller falls back to the
+    slots on screen (stash_scan.owned_totals). A map that is not sure (its
+    filled count is not the header's used count) is used all the same, and
+    the result says so: its counts are a lower bound until every row of the
+    stash has been seen.
     """
-    if stored is None or not sure:
+    if stored is None:
         return None
     totals = stash_map_counts(stored)
     for name, count in loadout.items():
         totals[name] = totals.get(name, 0) + count
-    return totals
+    return Owned(totals, sure)
