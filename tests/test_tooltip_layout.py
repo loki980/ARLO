@@ -12,11 +12,10 @@ from arc_helper.ocr import CARD_CROP_MARGIN
 from arc_helper.ocr import OCREngine
 from arc_helper.ocr import crop_card
 from arc_helper.ocr import search_window_bbox
+from arc_helper.title_reader import TextLine
 from arc_helper.tooltip_layout import FOUND_IN
-from arc_helper.tooltip_layout import PRICE_CHIP
 from arc_helper.tooltip_layout import RECYCLE_CHIP
 from arc_helper.tooltip_layout import RECYCLES_INTO
-from arc_helper.tooltip_layout import VERDICT_CHIP
 from arc_helper.tooltip_layout import CreamRegion
 from arc_helper.tooltip_layout import Edges
 from arc_helper.tooltip_layout import Point
@@ -25,6 +24,7 @@ from arc_helper.tooltip_layout import Size
 from arc_helper.tooltip_layout import Word
 from arc_helper.tooltip_layout import find_cream_rect
 from arc_helper.tooltip_layout import find_label_rows
+from arc_helper.tooltip_layout import find_recycle_icons
 from arc_helper.tooltip_layout import find_tooltip_card
 from arc_helper.tooltip_layout import place_chips
 from arc_helper.tooltip_layout import to_screen
@@ -180,137 +180,131 @@ def test_to_screen_adds_origin():
     )
 
 
-def test_place_chips_beside_labels():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {
-        FOUND_IN: Rect(1040, 800, 1300, 840),
-        RECYCLES_INTO: Rect(1040, 1100, 1260, 1140),
-    }
-    sizes = {PRICE_CHIP: Size(200, 60), RECYCLE_CHIP: Size(250, 40)}
-    positions = place_chips(tooltip, labels, sizes, Size(3840, 2160), pad=10)
-    assert positions == {
-        PRICE_CHIP: Point(1600 - 10 - 200, 800),
-        RECYCLE_CHIP: Point(1000 + 270, 1140 + 10),
-    }
-
-
-def test_price_chip_clamped_at_right_screen_edge():
-    tooltip = Rect(3500, 500, 4100, 1500)  # right edge past the screen
-    labels = {FOUND_IN: Rect(3540, 800, 3800, 840)}
-    positions = place_chips(
-        tooltip, labels, {PRICE_CHIP: Size(400, 60)}, Size(3840, 2160), pad=10
-    )
-    assert positions[PRICE_CHIP] == Point(3840 - 400, 800)
-
-
-def test_wide_price_chip_never_covers_the_label():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
-    # Right-aligned, a 450 px chip would start at 1140, over the label
-    positions = place_chips(
-        tooltip, labels, {PRICE_CHIP: Size(450, 60)}, Size(3840, 2160), pad=10
-    )
-    assert positions[PRICE_CHIP] == Point(1300 + 10, 800)
-
-
-def test_clipped_tooltip_anchors_price_chip_after_label():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
-    positions = place_chips(
-        tooltip,
-        labels,
-        {PRICE_CHIP: Size(200, 60)},
-        Size(3840, 2160),
-        pad=10,
-        clipped=Edges(right=True),
-    )
-    assert positions[PRICE_CHIP] == Point(1300 + 10, 800)
-
-
-def test_missing_label_yields_no_chip():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
-    sizes = {PRICE_CHIP: Size(200, 60), RECYCLE_CHIP: Size(250, 40)}
-    positions = place_chips(tooltip, labels, sizes, Size(3840, 2160), pad=10)
-    assert set(positions) == {PRICE_CHIP}
-
-
-VERDICT = Size(180, 70)
 SCREEN = Size(3840, 2160)
+TOOLTIP = Rect(1000, 500, 1600, 1500)
+RECYCLES_LABEL = Rect(1040, 1100, 1260, 1140)
+# Two icons of 60 px from x=1040 to 1170, 10 px below the label
+ICONS = Rect(1040, 1150, 1170, 1210)
+HOME_ONLY = Size(250, 40)
 
 
-def test_verdict_chip_right_aligned_on_the_recycles_into_row():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {
-        FOUND_IN: Rect(1040, 800, 1300, 840),
-        RECYCLES_INTO: Rect(1040, 1100, 1260, 1140),
-    }
-    sizes = {VERDICT_CHIP: VERDICT, PRICE_CHIP: Size(200, 60)}
-    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
-    assert positions[VERDICT_CHIP] == Point(1600 - 10 - 180, 1100)
+def test_no_price_or_verdict_chip_is_placed():
+    labels = {FOUND_IN: Rect(1040, 800, 1300, 840), RECYCLES_INTO: RECYCLES_LABEL}
+    sizes = {"price": Size(200, 60), "verdict": Size(180, 70), RECYCLE_CHIP: HOME_ONLY}
+    positions = place_chips(TOOLTIP, labels, sizes, SCREEN, 10, ICONS)
+    assert set(positions) == {RECYCLE_CHIP}
 
 
-def test_verdict_chip_clears_a_long_recycle_chip():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {RECYCLES_INTO: Rect(1040, 1100, 1260, 1140)}
-    sizes = {VERDICT_CHIP: VERDICT, RECYCLE_CHIP: Size(520, 60)}
-    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
-    recycle = positions[RECYCLE_CHIP]
-    verdict = positions[VERDICT_CHIP]
-    assert verdict == Point(1600 - 10 - 180, recycle.y - 10 - 70)
-    assert verdict.y + VERDICT.height < recycle.y
-
-
-def test_clamping_at_the_screen_top_keeps_the_chips_apart():
-    tooltip = Rect(1000, 0, 1600, 900)
-    labels = {RECYCLES_INTO: Rect(1040, 0, 1260, 20)}
-    sizes = {VERDICT_CHIP: VERDICT, RECYCLE_CHIP: Size(300, 60)}
-    # Recycle chip at y=30, verdict wants y=-50 and clamps to 0
-    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
-    assert positions[VERDICT_CHIP].y == 0
-    assert positions[VERDICT_CHIP].y + VERDICT.height + 10 <= positions[RECYCLE_CHIP].y
-
-
-def test_verdict_chip_never_left_of_the_label_and_clipped_anchors_after_it():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {RECYCLES_INTO: Rect(1040, 1100, 1260, 1140)}
-    wide = {VERDICT_CHIP: Size(450, 70)}
-    assert place_chips(tooltip, labels, wide, SCREEN, pad=10)[VERDICT_CHIP] == Point(
-        1260 + 10, 1100
+def test_recycle_chip_centred_right_of_the_icons():
+    labels = {RECYCLES_INTO: RECYCLES_LABEL}
+    positions = place_chips(
+        TOOLTIP, labels, {RECYCLE_CHIP: HOME_ONLY}, SCREEN, 10, ICONS
     )
-    clipped = place_chips(
-        tooltip, labels, {VERDICT_CHIP: VERDICT}, SCREEN, 10, Edges(right=True)
+    # Centre of the row is y=1180, so a 40 px chip starts at 1160
+    assert positions == {RECYCLE_CHIP: Point(1170 + 10, 1160)}
+
+
+def test_recycle_chip_right_aligned_when_it_would_leave_the_card():
+    labels = {RECYCLES_INTO: RECYCLES_LABEL}
+    # Right of the icons a 450 px chip would end at 1630, past 1600 - 10
+    wide = Size(450, 40)
+    positions = place_chips(TOOLTIP, labels, {RECYCLE_CHIP: wide}, SCREEN, 10, ICONS)
+    assert positions == {RECYCLE_CHIP: Point(1600 - 10 - 450, 1160)}
+
+
+def test_recycle_chip_wider_than_the_card_is_not_placed():
+    labels = {RECYCLES_INTO: RECYCLES_LABEL}
+    # The card is 600 px, less two pads leaves 580
+    too_wide = Size(581, 40)
+    positions = place_chips(
+        TOOLTIP, labels, {RECYCLE_CHIP: too_wide}, SCREEN, 10, ICONS
     )
-    assert clipped[VERDICT_CHIP] == Point(1260 + 10, 1100)
-
-
-def test_verdict_chip_sits_above_the_price_chip_without_recycles_into():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
-    sizes = {VERDICT_CHIP: VERDICT, PRICE_CHIP: Size(200, 60)}
-    positions = place_chips(tooltip, labels, sizes, SCREEN, pad=10)
-    assert positions[PRICE_CHIP] == Point(1390, 800)
-    assert positions[VERDICT_CHIP] == Point(1600 - 10 - 180, 800 - 10 - 70)
-
-
-def test_verdict_chip_on_the_found_in_row_without_a_price_chip():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
-    positions = place_chips(tooltip, labels, {VERDICT_CHIP: VERDICT}, SCREEN, 10)
-    assert positions == {VERDICT_CHIP: Point(1600 - 10 - 180, 800)}
-
-
-def test_no_verdict_chip_without_either_label():
-    tooltip = Rect(1000, 500, 1600, 1500)
-    positions = place_chips(tooltip, {}, {VERDICT_CHIP: VERDICT}, SCREEN, 10)
     assert positions == {}
 
 
-def test_verdict_chip_clamped_at_the_screen_edge():
+def test_recycle_chip_falls_back_without_icons():
+    labels = {RECYCLES_INTO: RECYCLES_LABEL}
+    positions = place_chips(TOOLTIP, labels, {RECYCLE_CHIP: HOME_ONLY}, SCREEN, 10)
+    assert positions == {RECYCLE_CHIP: Point(1000 + 270, 1140 + 10)}
+
+
+def test_missing_label_yields_no_chip():
+    labels = {FOUND_IN: Rect(1040, 800, 1300, 840)}
+    positions = place_chips(TOOLTIP, labels, {RECYCLE_CHIP: HOME_ONLY}, SCREEN, 10)
+    assert positions == {}
+
+
+def test_recycle_chip_clamped_at_the_screen_edge():
     tooltip = Rect(3500, 500, 4100, 1500)
     labels = {RECYCLES_INTO: Rect(3540, 3000, 3700, 3040)}
-    positions = place_chips(tooltip, labels, {VERDICT_CHIP: VERDICT}, SCREEN, 10)
-    assert positions[VERDICT_CHIP] == Point(3840 - 180, 2160 - 70)
+    positions = place_chips(tooltip, labels, {RECYCLE_CHIP: HOME_ONLY}, SCREEN, 10)
+    assert positions[RECYCLE_CHIP] == Point(3840 - 250, 2160 - 40)
+
+
+# Synthetic card: cream background, a dark label bar and two dark icons of
+# 0.06 of the card height, 0.01 of it apart, just under the label
+CARD_W, CARD_H = 760, 900
+ICON_SIDE = round(0.06 * CARD_H)  # 54 px, 0.071 of the card width
+ICON_GAP = round(0.01 * CARD_H)
+CARD_LABEL = Rect(50, 600, 300, 625)
+
+
+def _synthetic_card() -> np.ndarray:
+    card = np.full((CARD_H, CARD_W, 3), (240, 232, 216), dtype=np.uint8)
+    card[CARD_LABEL.top : CARD_LABEL.bottom, CARD_LABEL.left : CARD_LABEL.right] = (
+        30,
+        34,
+        40,
+    )
+    top = CARD_LABEL.bottom + 12
+    for i in range(2):
+        left = 50 + i * (ICON_SIDE + ICON_GAP)
+        card[top : top + ICON_SIDE, left : left + ICON_SIDE] = (30, 34, 40)
+    return card
+
+
+def test_find_recycle_icons_on_a_synthetic_card():
+    icons = find_recycle_icons(_synthetic_card(), CARD_LABEL)
+    top = CARD_LABEL.bottom + 12
+    assert icons == Rect(50, top, 50 + 2 * ICON_SIDE + ICON_GAP, top + ICON_SIDE)
+
+
+def test_find_recycle_icons_none_without_icons():
+    card = np.full((CARD_H, CARD_W, 3), (240, 232, 216), dtype=np.uint8)
+    assert find_recycle_icons(card, CARD_LABEL) is None
+
+
+def test_layout_carries_the_icon_row_in_screen_pixels():
+    capture = Image.new("RGB", (CARD_W + 100, CARD_H + 100), (20, 20, 30))
+    capture.paste(Image.fromarray(_synthetic_card()), (40, 30))
+    engine = OCREngine()
+    engine._last_capture = capture  # noqa: SLF001 - test seam
+    engine._last_origin = Point(2000, 500)  # noqa: SLF001 - test seam
+    engine._last_card = Rect(40, 30, 40 + CARD_W, 30 + CARD_H)  # noqa: SLF001
+    box = (CARD_LABEL.left, CARD_LABEL.top, CARD_LABEL.right, CARD_LABEL.bottom)
+    engine._last_lines = [TextLine("RECYCLES INTO", box)]  # noqa: SLF001
+
+    layout = engine.layout_from_last_capture()
+
+    assert layout is not None
+    top = 500 + 30 + CARD_LABEL.bottom + 12
+    left = 2000 + 40 + 50
+    assert layout.recycle_icons == Rect(
+        left, top, left + 2 * ICON_SIDE + ICON_GAP, top + ICON_SIDE
+    )
+    chip = place_chips(
+        layout.tooltip,
+        layout.labels,
+        {RECYCLE_CHIP: HOME_ONLY},
+        SCREEN,
+        10,
+        layout.recycle_icons,
+    )[RECYCLE_CHIP]
+    assert chip.x == layout.recycle_icons.right + 10
+    assert (
+        chip.y + HOME_ONLY.height / 2
+        == (layout.recycle_icons.top + layout.recycle_icons.bottom) / 2
+    )
 
 
 @pytest.mark.skipif(shutil.which("tesseract") is None, reason="needs tesseract")
