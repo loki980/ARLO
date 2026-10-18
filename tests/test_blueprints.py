@@ -155,6 +155,30 @@ def test_icon_downloads_once_and_is_cached(monkeypatch, tmp_path):
     assert kwargs["timeout"] > 0
 
 
+def _no_network(monkeypatch):
+    def fail(*args, **kwargs):
+        pytest.fail("the cache-only lookup reached the network")
+
+    monkeypatch.setattr(icons.requests, "get", fail)
+
+
+@pytest.mark.parametrize("item_id", ["anvil_blueprint", None, "../anvil"])
+def test_cached_icon_is_none_on_a_miss_without_the_network(
+    monkeypatch, tmp_path, item_id
+):
+    _no_network(monkeypatch)
+    assert icons.cached_blueprint_icon(item_id, tmp_path) is None
+
+
+def test_cached_icon_finds_a_cached_file(monkeypatch, tmp_path):
+    _no_network(monkeypatch)
+    (tmp_path / "anvil_blueprint.png").write_bytes(PNG)
+    assert (
+        icons.cached_blueprint_icon("anvil_blueprint", tmp_path)
+        == tmp_path / "anvil_blueprint.png"
+    )
+
+
 def test_icon_cache_dir_defaults_to_settings(monkeypatch, tmp_path):
     _fake_icon_get(monkeypatch, _IconResponse())
     settings = icons.get_settings()
