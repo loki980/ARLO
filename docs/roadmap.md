@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 80 percent of the whole roadmap, weighted by effort: 64 of 70 steps
-done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+About 82 percent of the whole roadmap, weighted by effort: 65 of 70 steps
+done, 5 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
 Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
@@ -468,7 +468,7 @@ Done:
     captures). The gold is a deep gold (#ad7500), kept apart from ARLO's
     hover frame gold, closest in look to the orange at about 500.
 
-## Phase 4b. Blueprint tracker. Started 11 Oct, 75 percent, 3 of 4 steps. Added 11 Oct
+## Phase 4b. Blueprint tracker. Done 18 Oct. Added 11 Oct
 
 Jeffrey's words, 11 Oct, after the weapon rule said "more until you own the
 blueprint": "We should build in some kind of blueprint tracker assist, too.
@@ -512,7 +512,8 @@ Ahead, in order:
    container types, whether it is scavengable and a quest or trials reward,
    and says plainly when a slot is unnamed in the public data.
 4. Greyed icons in the empty cells. Drawn on the overlay surface (phase 4).
-   Underway 18 Oct.
+   Done 18 Oct, reviewed: 63 of the 66 empty cells on Jeffrey's screenshot
+   show their blueprint in grey, the other 3 are the unnamed slots.
 
 ## Phase 5. ARLO knows what you own. Started 15 Oct, 85 percent, 5 of 6 steps. Moved up 15 Oct
 
@@ -620,6 +621,10 @@ Will contain:
   updater.
 
 ## Known follow-ups
+
+- The greyed Collections icons have no setting of their own (they draw with
+  STASH_BADGES off), can draw over a game tooltip for up to one 2 s look,
+  and a narrow race can leave them up after pause. Added 18 Oct.
 
 - Done 18 Oct: docs/ITEMS.md says where KEEP SOME's owned count comes from.
 
