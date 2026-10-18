@@ -89,12 +89,14 @@ from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 from arc_helper.screen import get_backend
 from arc_helper.slot_marks import learned_check
-from arc_helper.stash_scan import SlotCache
+from arc_helper.stash_scan import SlotCacheSaver
 from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
 from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import identify_slots
+from arc_helper.stash_scan import load_slot_cache
 from arc_helper.stash_scan import peek_slots
+from arc_helper.stash_scan import slot_cache_fingerprint
 from arc_helper.stash_scan import verdicts_for
 from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
@@ -814,12 +816,17 @@ def stash_identifier(
     The gallery loads on the first call, or with warm on a background
     thread started here that also runs one blank embed, so the first pass
     does not wait for the model. A call made while that thread runs waits
-    for it. The SlotCache is made with the gallery and kept with it.
+    for it. The SlotCache is loaded with the gallery from db's user database
+    (stash_scan.load_slot_cache), for the fingerprint of this gallery, its
+    embedding file and the catalog, and kept with it. After a pass that kept
+    new entries a stash_scan.SlotCacheSaver saves it in the background, at
+    once the first time, then at most every SLOT_CACHE_SAVE_S.
 
     The callable has a peek(rgb) attribute: the SlotItems of the slots whose
     look is in the cache already (stash_scan.peek_slots), misses left out.
     peek never embeds, reads tiers or stacks or changes the cache, and finds
-    nothing before the gallery has loaded.
+    nothing before the gallery has loaded. Its flush() attribute saves what
+    is unsaved and waits a bounded time for the save (StashBadges.stop).
     """
     loaded: list = []
     lock = threading.Lock()
@@ -827,7 +834,18 @@ def stash_identifier(
     def load() -> tuple:
         with lock:
             if not loaded:
-                loaded.extend((*load_stash_gallery(cache_dir), SlotCache()))
+                gallery, twins = load_stash_gallery(cache_dir)
+                try:
+                    size = (cache_dir / STASH_GALLERY_FILE).stat().st_size
+                except OSError:
+                    size = 0
+                fingerprint = slot_cache_fingerprint(gallery.names, size, db.count())
+                cache = load_slot_cache(db, fingerprint)
+                logger.info("slot cache: loaded %d entries", len(cache))
+                saver = SlotCacheSaver(
+                    lambda rows: db.save_slot_cache(fingerprint, rows)
+                )
+                loaded.extend((gallery, twins, cache, saver))
             return tuple(loaded)
 
     def warm_up() -> None:
@@ -843,17 +861,25 @@ def stash_identifier(
         )
 
     def identify(rgb: np.ndarray) -> list[SlotItem]:
-        gallery, twins, cache = load()
-        return identify_slots(
+        gallery, twins, cache, saver = load()
+        found = identify_slots(
             rgb, gallery, db.lookup, twins=twins, read_stacks=True, cache=cache
         )
+        saver.after_pass(cache)
+        return found
 
     def peek(rgb: np.ndarray) -> list[SlotItem]:
-        if len(loaded) < 3:
+        if len(loaded) < 4:
             return []
         return peek_slots(rgb, loaded[2], read_stacks=True)
 
+    def flush() -> bool:
+        if len(loaded) < 4:
+            return True
+        return loaded[3].flush()
+
     identify.peek = peek
+    identify.flush = flush
     if warm:
         Thread(target=warm_up, name="stash-warm", daemon=True).start()
     return identify
@@ -1072,13 +1098,20 @@ class StashBadges:
             logger.debug("stash badges cleared reason=%s%s", reason, detail)
 
     def stop(self) -> None:
-        """Clear, end both threads and stop the badge surface."""
+        """Clear, end both threads, save the slot cache and stop the surface.
+
+        The save is identify's flush(), when it has one, which waits a
+        bounded time for the last queued save.
+        """
         self.clear("stopped")
         self._stopping = True
         self._wake.set()
         self._job_ready.set()
         for thread in self._threads:
             thread.join(timeout=STASH_PASS_GAP_S)
+        flush = getattr(self._identify, "flush", None)
+        if flush is not None:
+            flush()
         self._surface.stop()
 
     def step(self) -> None:

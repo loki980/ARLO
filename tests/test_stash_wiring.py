@@ -1044,3 +1044,27 @@ def test_a_tab_switch_still_clears_every_badge(monkeypatch, caplog):
     assert surface.calls[-1] == ("clear",)
     assert not [c for c in surface.calls if c[0] == "translate"]
     assert "stash badges cleared reason=grid_moved" in caplog.text
+
+
+def test_stop_saves_the_slot_cache_the_throttle_held_back():
+    now = [0.0]
+    saves: list[list] = []
+    saver = stash_scan.SlotCacheSaver(saves.append, clock=lambda: now[0])
+    cache = stash_scan.SlotCache()
+    entry = stash_scan._Cached(None, None, None, 0.5, 0.01, "A", None)  # noqa: SLF001
+
+    def identify(_rgb):
+        cache.put((True, 16, 16, bytes([len(cache)]) * 16), entry)
+        saver.after_pass(cache)
+        return []
+
+    identify.flush = saver.flush
+    surface = _Surface()
+    stash = StashBadges(identify, _badges, surface, threaded=False)
+    identify(_frame(0))
+    assert saver.flush()
+    now[0] = 5.0
+    identify(_frame(0))
+    stash.stop()
+    assert [len(rows) for rows in saves] == [1, 2]
+    assert surface.calls[-1] == ("stop",)
