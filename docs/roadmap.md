@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 72 percent of the whole roadmap, weighted by effort: 60 of 69 steps
-done, 3 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+About 76 percent of the whole roadmap, weighted by effort: 62 of 69 steps
+done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
 Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
@@ -332,7 +332,7 @@ Done:
    52 of 53. With the icon model, weapons identified exactly 39 of 44 (11
    before). Measured on the crops the reader was tuned on.
 
-## Phase 4. Badges on every cell. Started 11 Oct, 95 percent, 21 of 22 steps
+## Phase 4. Badges on every cell. Done 18 Oct
 
 Decided 11 Oct. The Wayland risk sat here and is settled: the X11 layer works
 over the game. Delivered: prices on every icon (steps 4 to 6), the gold frame
@@ -463,7 +463,10 @@ Done:
     to gold?" Red for the cheapest stacks, through yellow and green, gold
     from 5,000 up. Green and gold are also rarity colours, Jeffrey's call.
     The gold stays apart from ARLO's hover frame gold so the grid reader
-    never confuses them. Underway 18 Oct. Added 18 Oct.
+    never confuses them. Added 18 Oct. Done 18 Oct, reviewed: ARLO reads
+    its own coloured patches as well as the greys (0 item changes on 12
+    captures). The gold is a deep gold (#ad7500), kept apart from ARLO's
+    hover frame gold, closest in look to the orange at about 500.
 
 ## Phase 4b. Blueprint tracker. Started 11 Oct, 50 percent, 2 of 4 steps. Added 11 Oct
 
@@ -507,7 +510,7 @@ Ahead, in order:
    the blueprint's name and the best places to find it.
 4. Greyed icons in the empty cells. Drawn on the overlay surface (phase 4).
 
-## Phase 5. ARLO knows what you own. Started 15 Oct, 60 percent, 3 of 5 steps. Moved up 15 Oct
+## Phase 5. ARLO knows what you own. Started 15 Oct, 80 percent, 4 of 5 steps. Moved up 15 Oct
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start
 watching and updating a local database of my inventory?" Decided 11 Oct.
@@ -564,7 +567,7 @@ Ahead, in order:
    into account the items in my stash". His map had 51 cells against 281
    used, so the tags fell back to the loadout alone. Now a partial map still
    counts, and the tag shows "52+/73" until a full scroll makes it sure.
-   Underway 18 Oct.
+   Done 18 Oct, reviewed: a tag never shows less than the slots on screen.
 
 ## Phase 6. It reads your progress too. Planned, after phases 2 and 5
 

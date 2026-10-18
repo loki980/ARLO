@@ -156,28 +156,25 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <h1>ARLO Overlay Roadmap</h1>
     <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 18 October 2026.</p>
   </div>
-  <div class="capacity"><b>3 / 8</b>phases done</div>
+  <div class="capacity"><b>4 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 72 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~72%</span></div>
-  <div class="track"><i style="width:72%"></i></div>
-  <small>60 of 69 steps done, 3 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 76 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~76%</span></div>
+  <div class="track"><i style="width:76%"></i></div>
+  <small>62 of 69 steps done, 4 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>3 / 8</b><span>phases done</span><small>phases 0, 1 and 3 done</small></div>
-  <div><b>60 / 69</b><span>steps done</span><small>across all eight phases</small></div>
-  <div><b>728</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>4 / 8</b><span>phases done</span><small>phases 0, 1, 3 and 4 done</small></div>
+  <div><b>62 / 69</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>738</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 56 of 56 after the reader bake-off (14 Oct)</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
-  <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 22, Worth in colour</a><small>Price patches from red for the cheapest through yellow and green to gold from 5,000 up</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase5">Phase 5, step 5, An unsure flag</a><small>The tags count the part of your stash ARLO has seen, shown as "52+/73" until one full scroll</small></span></li>
-  </ul>
+  <p>Nothing is underway right now.</p>
 </section>
 
 <ol class="course">
@@ -286,55 +283,38 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase4">
-    <div class="slot now">4</div>
+    <div class="slot done">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
+      <div class="tags"><span class="tag done">Done</span><span class="dates"><time datetime="2026-10-11" data-rel>11 Oct</time> to <time datetime="2026-10-18" data-rel>18 Oct</time></span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot shows its stack's worth on a patch over the type icon, and a have/need tag (red when short, a green check when enough) on items a quest, project or bench wants. A gold frame goes on the hovered slot, and badges move with the scroll.</p>
-      <div class="gauge" aria-label="Phase 4 about 95 percent done">
-        <div class="bar"><i style="width:95%"></i></div>
-        <div class="read">~95%<small>21 of 22 steps</small></div>
-      </div>
-      <div class="nowsteps">
-        <h3>Working on now</h3>
+      <details>
+        <summary><span class="chev">▸</span><span class="show">Show the 22 steps</span><span class="hide">Hide the 22 steps</span></summary>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 22, Worth in colour<small>Red for the cheapest stacks, through yellow and green, gold from 5,000 up. You asked for colours after seeing the greys</small></span><span class="when recent">added <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 1, Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 2, Your run decides the drawing mode<small>X11 mode chosen, live with the game. The Wayland-native mode is only needed if X11 ever fails</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 3, The badge layer<small>One transparent click-through layer over the whole screen, drawn by a small helper</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 4, The stash pass<small>Every visible slot identified from one frame and turned into badges</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 5, Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 6, Tiles like ARC Tracker<small>The stack's worth on a solid patch over the type icon, a red have/need tag when you are short, a green check when you have enough, gold only on the hovered slot</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time> &middot; changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 7, A bolder gold frame<small>Twice as thick and brighter. The red outline it also thickened was dropped 18 Oct</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 11, Badges in about a second<small>A fading card hides nothing, only changed slots lose their badges, items seen before come back in about 55 ms</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 12, Never stall on the badge helper<small>Badges go to the helper from a background thread, the newest set wins, a stuck helper is stopped after 2 seconds</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 13, Badges right after a scroll<small>A one-row scroll draws in about 200 ms after the grid stops (was about 950), known items drawn first</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 14, Badges that move with the scroll<small>All badges stay on their items through a scroll, only new rows are read</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 15, Price text in the game's own font<small>Same size, weight, baseline and cream colour as the game's stack count</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 16, Price patches that hold still<small>The bar is found under ARLO's own patch, lost bars 19 to 1 in 1011 passes</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 17, Slot boxes that hold still<small>No box moves under the red outline, every slot hits the cache</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 18, Badges that never blink<small>Hovering never hides a tile, a fading card no longer counts as the grid moving, a pass never drops drawn badges</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 19, Tell a blueprint tile from its item<small>The blue grid background settles 19 items that share a blueprint's icon, 283 right instead of 269, still 7 wrong</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 20, The overlay keeps up with the inventory<small>Badges clear on the first frame without the grid, known items show on the first frame after opening</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 21, Worth at a glance<small>Price patches darker the cheaper the stack, near black under 250, white with black text from 5,000 up</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 22, Worth in colour<small>Red for the cheapest stacks, through yellow and green, a deep gold from 5,000 up</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
         </ul>
-      </div>
-      <div class="split">
-        <div>
-          <h3>Done</h3>
-          <ul class="steps">
-            <li class="done"><span class="tick">✓</span><span class="what">Step 1, Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 2, Your run decides the drawing mode<small>X11 mode chosen, live with the game. The Wayland-native mode is only needed if X11 ever fails</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 3, The badge layer<small>One transparent click-through layer over the whole screen, drawn by a small helper</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 4, The stash pass<small>Every visible slot identified from one frame and turned into badges</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 5, Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 6, Tiles like ARC Tracker<small>The stack's worth on a solid patch over the type icon, a red have/need tag when you are short, a green check when you have enough, gold only on the hovered slot</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time> &middot; changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 7, A bolder gold frame<small>Twice as thick and brighter. The red outline it also thickened was dropped 18 Oct</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 11, Badges in about a second<small>A fading card hides nothing, only changed slots lose their badges, items seen before come back in about 55 ms</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 12, Never stall on the badge helper<small>Badges go to the helper from a background thread, the newest set wins, a stuck helper is stopped after 2 seconds</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 13, Badges right after a scroll<small>A one-row scroll draws in about 200 ms after the grid stops (was about 950), known items drawn first</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 14, Badges that move with the scroll<small>All badges stay on their items through a scroll, only new rows are read</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 15, Price text in the game's own font<small>Same size, weight, baseline and cream colour as the game's stack count</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 16, Price patches that hold still<small>The bar is found under ARLO's own patch, lost bars 19 to 1 in 1011 passes</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 17, Slot boxes that hold still<small>No box moves under the red outline, every slot hits the cache</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 18, Badges that never blink<small>Hovering never hides a tile, a fading card no longer counts as the grid moving, a pass never drops drawn badges</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 19, Tell a blueprint tile from its item<small>The blue grid background settles 19 items that share a blueprint's icon, 283 right instead of 269, still 7 wrong</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 20, The overlay keeps up with the inventory<small>Badges clear on the first frame without the grid, known items show on the first frame after opening</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 21, Worth at a glance<small>Price patches darker the cheaper the stack, near black under 250, white with black text from 5,000 up</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-          </ul>
-        </div>
-        <div>
-          <h3>Ahead, in order</h3>
-          <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">Nothing left ahead<small>Step 22 finishes the phase</small></span><span class="when"></span></li>
-          </ul>
-        </div>
-      </div>
+      </details>
     
     </article>
   </li>
@@ -369,20 +349,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase">
-    <div class="slot now">5</div>
+    <div class="slot">5</div>
     <article class="card" data-tab="Phase 5" id="phase5">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from <time datetime="2026-10-15" data-rel>15 Oct</time></span><span class="when recent">moved up <time datetime="2026-10-15" data-rel>15 Oct</time></span></div>
+      <div class="tags"><span class="tag started">Started</span><span class="dates">from <time datetime="2026-10-15" data-rel>15 Oct</time></span><span class="when recent">moved up <time datetime="2026-10-15" data-rel>15 Oct</time></span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
-      <div class="gauge" aria-label="Phase 5 about 60 percent done">
-        <div class="bar"><i style="width:60%"></i></div>
-        <div class="read">~60%<small>3 of 5 steps</small></div>
-      </div>
-      <div class="nowsteps">
-        <h3>Working on now</h3>
-        <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 5, An unsure flag<small>A partial stash map still counts in the tags, shown as a lower bound ("52+/73") until one full scroll makes it sure</small></span><span class="when recent">changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-        </ul>
+      <div class="gauge" aria-label="Phase 5 about 80 percent done">
+        <div class="bar"><i style="width:80%"></i></div>
+        <div class="read">~80%<small>4 of 5 steps</small></div>
       </div>
       <div class="split">
         <div>
@@ -391,6 +365,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="done"><span class="tick">✓</span><span class="what">Step 1, Read the headers<small>The stash's used and total slots and its value, the loadout's weight and value</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 2, Stitch the stash across scrolling<small>Your 67 frames stitched into one map, now saved between sessions and updated whenever rows are seen. A restart's first pass takes 78 ms instead of 845</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 3, The ledger<small>Your saved stash map and loadout counted together in the have/need tags. Durable Cloth went from 3/6 to 54/6</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 5, An unsure flag<small>A partial stash map still counts in the tags, shown as "52+/73" until one full scroll makes it sure</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
           </ul>
         </div>
         <div>
@@ -475,6 +450,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Every phase's steps renumbered to match the plan and listed in the order they were done. The red outline on tiles you are short of is gone, the have/need tag says it.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>The roadmap was checked against the code and outdated steps were dropped: the chip checks in phase 1 are gone and phase 1 is finished. Worth at a glance was merged, which finishes phase 4. Nothing is underway right now.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: worth at a glance (greys, white from 5,000). Started: worth in colour, red to yellow to green to gold, at your ask. The roadmap was checked against the code and outdated steps dropped. 728 tests.</span></li>
+  <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: worth in colour (red to yellow to green, deep gold from 5,000) and the unsure flag (a partial stash map counts, shown as "52+/73"). Phase 4 is done. 738 tests.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
