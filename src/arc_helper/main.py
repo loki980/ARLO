@@ -74,8 +74,8 @@ from arc_helper.icon_embed import build_gallery
 from arc_helper.icon_embed import default_embedder
 from arc_helper.inventory_header import read_loadout_header
 from arc_helper.inventory_header import read_stash_header
-from arc_helper.inventory_ledger import loadout_tally
 from arc_helper.inventory_ledger import Owned
+from arc_helper.inventory_ledger import loadout_tally
 from arc_helper.inventory_ledger import owned_counts
 from arc_helper.ocr import CardSignature
 from arc_helper.ocr import OCREngine
