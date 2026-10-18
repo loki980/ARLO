@@ -254,13 +254,13 @@ def test_find_slots_runs_once_per_held_frame(monkeypatch):
     stash = _stash(lambda _rgb: [_slot(SLOT_A)], _Surface())
     # Four still frames, then two of a moved grid, each a new array
     frames = [_frame(0) for _ in range(4)] + [_frame(120), _frame(120)]
-    for i, rgb in enumerate(frames):
+    for rgb in frames:
         stash.feed(rgb, None, ())
         stash.step()
-        # Cached exactly the frames _prev, _newest and _job refer to, once
-        # the first compare has run (the first frame alone is not looked at)
+        # Cached exactly the frames _prev, _newest and _job refer to (the
+        # first frame alone too, for its grid)
         held = {id(r) for r in stash._held()}  # noqa: SLF001
-        assert set(stash._slot_cache) == (held if i else set())  # noqa: SLF001
+        assert set(stash._slot_cache) == held  # noqa: SLF001
     # Each frame once: the first as the frame before, the rest as the newest
     assert sorted(calls) == sorted(id(f) for f in frames)
     stash.clear("test")
@@ -532,6 +532,9 @@ def test_a_changed_slot_is_redrawn_from_the_slot_cache_before_the_pass(
         return [_slot(GRID_SLOTS[5])]
 
     stash, _calls = _grid_stash(monkeypatch, surface, identify=identify, peek=peek)
+    # The first frame with a grid drew the known slots
+    assert peeks == [1]
+    peeks.clear()
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
         for shade in (40, 60):
             stash.feed(_grid([5], shade), None, ())
@@ -1049,6 +1052,81 @@ def test_a_tab_switch_still_clears_every_badge(monkeypatch, caplog):
     assert surface.calls[-1] == ("clear",)
     assert not [c for c in surface.calls if c[0] == "translate"]
     assert "stash badges cleared reason=grid_moved" in caplog.text
+
+
+def _peeking(identify):
+    """identify with a peek that knows every slot of GRID_SLOTS, and its calls."""
+    peeks = []
+
+    def peek(_rgb):
+        peeks.append(1)
+        return [_slot(r) for r in GRID_SLOTS]
+
+    identify.peek = peek
+    return identify, peeks
+
+
+def test_the_grid_gone_clears_at_once_and_comes_back_from_peek(monkeypatch, caplog):
+    # The inventory closes: a frame with no slots clears on that frame, the
+    # frames after it start no pass, and the grid back draws the known slots
+    # on its first frame, before a pass
+    gone = _grid()
+    passes = []
+
+    def identify(rgb):
+        passes.append(rgb)
+        return [_slot(r) for r in GRID_SLOTS]
+
+    identify, peeks = _peeking(identify)
+    surface = _Surface()
+    stash, _calls = _grid_stash(
+        monkeypatch,
+        surface,
+        identify=identify,
+        slots=lambda rgb: [] if rgb is gone else GRID_SLOTS,
+    )
+    assert len(passes) == 1
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(gone, None, ())
+        stash.step()
+        assert surface.calls[-1] == ("clear",)
+        for _ in range(3):
+            stash.feed(gone, None, ())
+            stash.step()
+        assert len(passes) == 1
+        assert surface.calls.count(("clear",)) == 1
+        peeks.clear()
+        stash.feed(_grid(), None, ())
+        stash.step()
+        assert peeks == [1]
+        assert len(passes) == 1
+        assert len(surface.draws()[-1]) == 80
+        # The next still frame's pass confirms them
+        stash.feed(_grid(), None, ())
+        stash.step()
+    assert len(passes) == 2
+    assert "stash badges cleared reason=grid_gone slots=0 last=40" in caplog.text
+    assert "grid_moved" not in caplog.text
+
+
+def test_known_slots_are_drawn_on_the_first_frame_after_opening(monkeypatch):
+    # At the start and after the inventory closed (a clear from the scanner)
+    # the first frame with a grid draws the known slots, no still pair needed
+    monkeypatch.setattr(
+        main, "find_slots", lambda _rgb: [SimpleNamespace(rect=r) for r in GRID_SLOTS]
+    )
+    passes = []
+    identify, peeks = _peeking(lambda rgb: passes.append(rgb) or [])
+    surface = _Surface()
+    stash = _stash(identify, surface)
+    for _ in range(2):
+        stash.feed(_grid(), None, ())
+        stash.step()
+        assert peeks == [1]
+        assert len(surface.draws()[-1]) == 80
+        assert not passes
+        stash.clear("inventory_closed")
+        peeks.clear()
 
 
 # 59 slots, the stash and loadout of the 17 Oct log, on an 8 by 8 grid
