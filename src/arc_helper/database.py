@@ -642,6 +642,37 @@ class Database:
                     PRIMARY KEY (kind, key)
                 )
             """)
+            # The stored stash map (stash_map.StashMapStore): one row of the
+            # view it was built on, its geometry in shares of the frame
+            # height and the STASH header last read, and one row per slot
+            # with its content, look fingerprint and when that was seen
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stash_map_view (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    tab INTEGER,
+                    side INTEGER NOT NULL,
+                    grid_left INTEGER NOT NULL,
+                    pitch REAL NOT NULL,
+                    column_left REAL NOT NULL,
+                    header_used INTEGER,
+                    header_capacity INTEGER,
+                    header_seen_at TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stash_map_cells (
+                    row INTEGER NOT NULL,
+                    col INTEGER NOT NULL,
+                    filled INTEGER NOT NULL,
+                    name TEXT,
+                    tier TEXT,
+                    stack INTEGER,
+                    confidence REAL,
+                    look BLOB,
+                    last_seen TEXT NOT NULL,
+                    PRIMARY KEY (row, col)
+                )
+            """)
             conn.commit()
             self._user_db_ready = True
         return conn
@@ -859,6 +890,41 @@ class Database:
                 (fingerprint,),
             ).fetchall()
         return [(row[0], row[1], row[2]) for row in rows]
+
+    def load_stash_map(self) -> tuple[sqlite3.Row | None, list[sqlite3.Row]]:
+        """The stored stash map's view row and its cell rows.
+
+        (None, []) without creating the user database when it does not exist.
+        """
+        if not self.user_db_path.exists():
+            return None, []
+        with self._get_user_connection() as conn:
+            view = conn.execute("SELECT * FROM stash_map_view WHERE id = 1").fetchone()
+            cells = conn.execute(
+                "SELECT * FROM stash_map_cells ORDER BY row, col"
+            ).fetchall()
+        return view, cells
+
+    def save_stash_map(self, view: dict, cells: list[dict]) -> None:
+        """Write the stash map's view row and upsert these cells, in one transaction.
+
+        view has the stash_map_view columns but id, each cell the
+        stash_map_cells columns. Cells not given are left as stored.
+        """
+        with self._get_user_connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO stash_map_view (id, tab, side, grid_left, "
+                "pitch, column_left, header_used, header_capacity, header_seen_at) "
+                "VALUES (1, :tab, :side, :grid_left, :pitch, :column_left, "
+                ":header_used, :header_capacity, :header_seen_at)",
+                view,
+            )
+            conn.executemany(
+                "INSERT OR REPLACE INTO stash_map_cells (row, col, filled, name, "
+                "tier, stack, confidence, look, last_seen) VALUES (:row, :col, "
+                ":filled, :name, :tier, :stack, :confidence, :look, :last_seen)",
+                cells,
+            )
 
     def sync_from_csvs(self) -> None:
         """Load the recycle, needs, blueprint and progress CSVs that exist."""

@@ -11,7 +11,7 @@ the slot looks (an offset that lands slots on clearly different looks is
 dropped). When that gives nothing, the offset comes from matching the slot
 looks of the two frames alone (look_offset). The looks are taken at every
 grid place in the viewport, also where find_slots missed a slot under
-ARLO's badges (_probes), and compared without the part a stale badge covers
+ARLO's badges (grid_probes), and compared without the part a stale badge covers
 (look_distance). A frame that neither places
 starts a new segment. After the last frame, segments are joined where a
 frame of one matches a frame of another by looks. A segment that matches
@@ -240,7 +240,7 @@ class StashMap(NamedTuple):
         return self.maps[0].cells if self.maps else {}
 
 
-def _scale(rgb: np.ndarray) -> float:
+def frame_scale(rgb: np.ndarray) -> float:
     return rgb.shape[0] / REFERENCE_HEIGHT
 
 
@@ -286,7 +286,7 @@ def tab_index(rgb: np.ndarray, grid_left: int) -> int | None:
     whose TAB_HALF_WIDTH strip is lit on average (the disc's own dark glyph
     splits its run, so it is not counted). None without a white disc.
     """
-    scale = _scale(rgb)
+    scale = frame_scale(rgb)
     x = grid_left - round(TAB_DX * scale)
     half = max(1, round(TAB_HALF_WIDTH * scale))
     disc = max(1, round(TAB_HALF_DISC * scale))
@@ -305,27 +305,44 @@ def tab_index(rgb: np.ndarray, grid_left: int) -> int | None:
     return sum((a + b) / 2 < top for a, b in icons)
 
 
-def _whole(slots: list[Slot]) -> list[Slot]:
+def slot_observations(
+    index: int, rgb: np.ndarray, slots: Sequence[Slot], items: dict[Rect, SlotItem]
+) -> tuple[Observation, ...]:
+    """An Observation of every slot of frame index, with its look and its
+    SlotItem from items (keyed by rect) when there is one."""
+    return tuple(
+        Observation(
+            index,
+            s.rect,
+            s.filled,
+            slot_look(rgb[s.rect.top : s.rect.bottom, s.rect.left : s.rect.right]),
+            items.get(s.rect),
+        )
+        for s in slots
+    )
+
+
+def whole_slots(slots: list[Slot]) -> list[Slot]:
     if not slots:
         return []
     tallest = max(s.rect.height for s in slots)
     return [s for s in slots if s.rect.height >= (1 - WHOLE_SHARE) * tallest]
 
 
-def _view(rgb: np.ndarray, slots: list[Slot]) -> View:
+def frame_view(rgb: np.ndarray, slots: list[Slot]) -> View:
     unit = VIEW_ROUND * rgb.shape[0]
     left = min(s.rect.left for s in slots)
     side = float(np.median([s.rect.width for s in slots]))
     return View(tab_index(rgb, left), round(side / unit), round(left / unit))
 
 
-class _Shift(NamedTuple):
+class Shift(NamedTuple):
     offset: int
     support: int
     contra: int
 
 
-def _pairs(
+def look_pairs(
     a: Sequence[Observation], b: Sequence[Observation], pitch: float
 ) -> tuple[np.ndarray, np.ndarray]:
     """Top differences (b less a) and look differences of same-column textured pairs."""
@@ -347,7 +364,7 @@ def _pairs(
     return tops, diff
 
 
-def _judge(tops: np.ndarray, diff: np.ndarray, offset: int, tol: float) -> _Shift:
+def judge_offset(tops: np.ndarray, diff: np.ndarray, offset: int, tol: float) -> Shift:
     """Support and contradictions of one offset over the pairs."""
     near = np.abs(tops - offset) <= tol
     matched = near & (diff < LOOK_SAME)
@@ -356,36 +373,36 @@ def _judge(tops: np.ndarray, diff: np.ndarray, offset: int, tol: float) -> _Shif
     contra = int((clash.any(axis=1) & ~matched.any(axis=1)).sum())
     found = tops[matched]
     middle = int(np.median(found)) if found.size else offset
-    return _Shift(middle, support, contra)
+    return Shift(middle, support, contra)
 
 
-def _wrong(shift: _Shift) -> bool:
+def shift_wrong(shift: Shift) -> bool:
     return shift.contra >= CONTRA_MIN and shift.contra > CONTRA_SHARE * shift.support
 
 
 def look_offset(
     a: Sequence[Observation], b: Sequence[Observation], pitch: float, scale: float
-) -> _Shift | None:
+) -> Shift | None:
     """The offset (content moved down, a to b, px) the slot looks agree on.
 
     Every same-column pair of textured looks within LOOK_SAME proposes the
     difference of their tops. The proposal with the most supporting slots
     less contradicting ones wins when it has LOOK_VOTES supporters, is not
-    _wrong, and beats every proposal a half pitch or more away. None
+    shift_wrong, and beats every proposal a half pitch or more away. None
     otherwise.
     """
-    tops, diff = _pairs(a, b, pitch)
+    tops, diff = look_pairs(a, b, pitch)
     if tops.size == 0:
         return None
     tol = LOOK_TOLERANCE * scale
     proposals = sorted({int(t) for t in tops[diff < LOOK_SAME]})
     if not proposals:
         return None
-    judged = [_judge(tops, diff, p, tol) for p in proposals]
+    judged = [judge_offset(tops, diff, p, tol) for p in proposals]
     score = [j.support - j.contra for j in judged]
     best = int(np.argmax(score))
     win = judged[best]
-    if win.support < LOOK_VOTES or _wrong(win):
+    if win.support < LOOK_VOTES or shift_wrong(win):
         return None
     for j, s in zip(judged, score, strict=True):
         if abs(j.offset - win.offset) >= pitch / 2 and s >= score[best]:
@@ -393,17 +410,17 @@ def look_offset(
     return win
 
 
-def _checked(
+def offset_checked(
     a: Sequence[Observation],
     b: Sequence[Observation],
     offset: int,
     pitch: float,
     scale: float,
 ) -> bool:
-    tops, diff = _pairs(a, b, pitch)
+    tops, diff = look_pairs(a, b, pitch)
     if tops.size == 0:
         return True
-    return not _wrong(_judge(tops, diff, offset, LOOK_TOLERANCE * scale))
+    return not shift_wrong(judge_offset(tops, diff, offset, LOOK_TOLERANCE * scale))
 
 
 class _Frame(NamedTuple):
@@ -434,7 +451,7 @@ class _Track:
         self.bottom = 0
 
 
-def _pitch_of(observations: Sequence[Observation]) -> list[float]:
+def row_pitches(observations: Sequence[Observation]) -> list[float]:
     """Adjacent same-column top differences of whole slots, one row apart."""
     if not observations:
         return []
@@ -462,7 +479,7 @@ def _columns(observations: Sequence[Observation]) -> list[list[Observation]]:
     return columns
 
 
-def _probes(
+def grid_probes(
     rgb: np.ndarray,
     observations: tuple[Observation, ...],
     top: int,
@@ -503,7 +520,7 @@ def _probes(
     return tuple(out)
 
 
-def _band(slots_a: list[Slot], slots_b: list[Slot]) -> Rect:
+def scroll_band(slots_a: list[Slot], slots_b: list[Slot]) -> Rect:
     rects = [s.rect for s in (*slots_a, *slots_b)]
     return Rect(
         min(r.left for r in rects),
@@ -530,7 +547,7 @@ def stitch(
     previous: dict[View, tuple[np.ndarray, list[Slot], tuple[Observation, ...]]] = {}
     header_slots: list[Slot] | None = None
     for index, rgb in enumerate(frames):
-        scale = _scale(rgb)
+        scale = frame_scale(rgb)
         stash = [s for s in find_slots(rgb) if s.panel == STASH]
         if not stash:
             notes.append((_Frame(index, None, None, 0, (), ()), None))
@@ -540,32 +557,23 @@ def stitch(
             header_slots = stash
         elif header_slots is not None:
             header = read_stash_header(rgb, header_slots)
-        whole = _whole(stash)
+        whole = whole_slots(stash)
         filled = [s for s in whole if s.filled]
         items = {}
         if identify is not None:
             for s in identify(index, rgb, filled):
                 items[s.rect] = s
-        observations = tuple(
-            Observation(
-                index,
-                s.rect,
-                s.filled,
-                slot_look(rgb[s.rect.top : s.rect.bottom, s.rect.left : s.rect.right]),
-                items.get(s.rect),
-            )
-            for s in whole
-        )
-        view = _view(rgb, whole)
+        observations = slot_observations(index, rgb, whole, items)
+        view = frame_view(rgb, whole)
         track = tracks.get(view)
         if track is None:
             track = tracks[view] = _Track(view, scale)
             order.append(view)
-        track.pitches.extend(_pitch_of(observations))
+        track.pitches.extend(row_pitches(observations))
         pitch = float(np.median(track.pitches)) if track.pitches else 0.0
         track.top = min(track.top, *(s.rect.top for s in stash))
         track.bottom = max(track.bottom, *(s.rect.bottom for s in stash))
-        probes = _probes(rgb, observations, track.top, track.bottom, pitch, scale)
+        probes = grid_probes(rgb, observations, track.top, track.bottom, pitch, scale)
         frame = _Frame(index, view, header, len(stash), observations, probes)
         notes.append((frame, view))
         track.frames.append(frame)
@@ -579,11 +587,11 @@ def stitch(
             measured = scroll_offset(
                 prgb,
                 rgb,
-                _band(pslots, stash),
+                scroll_band(pslots, stash),
                 [s.rect for s in pslots if s.filled],
                 [s.rect for s in stash if s.filled],
             )
-            if measured is not None and _checked(
+            if measured is not None and offset_checked(
                 pprobes, probes, measured, pitch, scale
             ):
                 offset, how = measured, SCROLL
