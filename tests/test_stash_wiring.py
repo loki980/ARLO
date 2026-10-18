@@ -1316,7 +1316,7 @@ def test_a_failing_observe_does_not_fail_the_pass(monkeypatch, caplog):
         )
     assert store.calls
     assert "stash map observe failed" in caplog.text
-    assert surface.draws() == [[tuple(SLOT_A)] * 2]
+    assert surface.draws() == [[tuple(SLOT_A)]]
     assert _tag_texts(made) == ["7/12"]
 
 

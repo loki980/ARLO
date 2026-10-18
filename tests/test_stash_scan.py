@@ -250,7 +250,7 @@ def test_patch_text_is_the_stacks_worth():
     assert patch["text"] == "Φ 2.4k"
 
 
-def test_need_tag_is_red_with_an_outline_while_short_and_green_when_enough():
+def test_need_tag_is_red_while_short_and_green_when_enough():
     sources = (("Expedition 5 phase 2", 6), ("Gunsmith II", 4))
     first = _square(Item(name="Metal Parts", action="Keep"), 0, stack=2)
     second = _square(Item(name="Metal Parts", action="Keep"), 100, stack=4)
@@ -261,11 +261,8 @@ def test_need_tag_is_red_with_an_outline_while_short_and_green_when_enough():
     ] * 2
     assert tags[0]["outline"] == [255, 92, 77]
     assert tags[0]["corner"] == "tl"
-    borders = [b for b in short if b["kind"] == "border"]
-    assert [(b["rect"][0], b["color"]) for b in borders] == [
-        (0, "#ff5c4d"),
-        (100, "#ff5c4d"),
-    ]
+    # The tag says it, no tile outline is drawn
+    assert [b for b in short if b["kind"] == "border"] == []
     enough = badges_for(
         [first, second], lambda _s: Verdict("keep", "x", 5, (("Quest", 5),))
     )

@@ -134,6 +134,8 @@ SIG_SHIFT = 2
 # cell's frame (cell_border.HOVER_GOLD), never a stash outline
 SHORT_RED = "#ff5c4d"
 ENOUGH_GREEN = "#4fd36b"
+# The short-stock tile outline, no longer drawn (17 Oct) but on older
+# captures, which grid.py still reads past
 BORDER_WIDTH = 5
 BORDER_RADIUS = 4
 PRICE_PREFIX = "Φ "
@@ -1049,8 +1051,8 @@ def badges_for(
     top left, have from owned (item name to count, for example the stored
     stash map plus the loadout) when given, else from owned_totals of these
     slots, and need the sum of the sources. Short
-    stock is red with a red tile outline, enough is green with a check mark
-    and no outline. Unidentified slots get no badge. verdict_of gives a
+    stock is red, enough is green with a check mark. No tile outline: Jeffrey
+    found the tag enough (17 Oct). Unidentified slots get no badge. verdict_of gives a
     slot's verdict, for example verdicts_for(db).
     """
     slots = list(slot_items)
@@ -1079,16 +1081,6 @@ def badges_for(
                     "kind": "tag",
                 }
             )
-            if short:
-                badges.append(
-                    {
-                        "rect": rect,
-                        "color": colour,
-                        "width": BORDER_WIDTH,
-                        "radius": BORDER_RADIUS,
-                        "kind": "border",
-                    }
-                )
         if not item.sell_price:
             continue
         worth = item.sell_price * (slot.stack if slot.stack is not None else 1)
