@@ -1,7 +1,7 @@
 # ruff: noqa: INP001, SLF001
 """Show the Collections hover assist on screenshots, with a fake cursor.
 
-Usage: uv run python scripts/collections_assist_demo.py --out DIR SHOT.png...
+Usage: uv run python scripts/collections_assist_demo.py [--icons] --out DIR SHOT.png...
 
 For each screenshot of the Collections screen (BLUEPRINTS tab) the real
 Scanner reads the screen and its hover check runs with a fake cursor over a
@@ -13,6 +13,14 @@ hovered cell outlined and the card drawn in the home box where ARLO puts it
 card texts and the timings: the per-round hover check, the screen read, and
 the time from the cursor arriving on a cell to the card being queued while
 the scan loop runs (trigger OCR stubbed out).
+
+With --icons the hover part is skipped. Instead the real Scanner's screen
+read sends the greyed icons of the empty cells to a recording badge
+surface, and the badge helper's PNG mode draws them. Writes to
+DIR/demo/<shot>/ the screenshot with the icons composited over it
+(icons_on_screen.png) and a 2x crop of the first two rows
+(icons_rows_1_2_x2.png), and prints every empty cell with its blueprint and
+whether it got an icon.
 
 Only the item database is read. The user database is a temporary one, so
 the ownership the screen read records never reaches the real one.
@@ -32,6 +40,7 @@ from PIL import ImageDraw
 
 import arc_helper.main as main_module
 from arc_helper.advice_window import render_in_box
+from arc_helper.badge_surface import render_png
 from arc_helper.collections_screen import read_collections
 from arc_helper.database import Database
 from arc_helper.layout_home import fixed_home
@@ -169,6 +178,107 @@ def _on_screen(shot: Image.Image, cell, card) -> Image.Image:
     return image.convert("RGB")
 
 
+class _Surface:
+    """A badge surface that keeps what the scanner draws."""
+
+    def __init__(self):
+        self.messages = []
+
+    def start(self):  # noqa: PLR6301
+        return True
+
+    def draw(self, badges):
+        self.messages.append(("draw", badges))
+
+    def clear(self):
+        self.messages.append(("clear",))
+
+
+def icons_demo(shot_path: Path, out: Path, db: Database) -> None:
+    """Composite the greyed icons the scanner sends for one screenshot."""
+    shot = Image.open(shot_path).convert("RGB")
+    frame = np.asarray(shot)
+    print(f"== {shot_path} ({shot.size[0]}x{shot.size[1]})")
+    surface = _Surface()
+    scanner = Scanner(
+        root=None,
+        overlay=None,
+        status=None,
+        db=db,
+        hotkey=_Hotkey(),
+        badge_surface=surface,
+    )
+    scanner._grab_full_screen = lambda: frame
+    scanner._check_collections(0.0)
+    read = read_collections(frame)
+    if read is None:
+        print("  not the Collections screen")
+        return
+    print(
+        f"  read found={read.found_count}/{read.total} cells={len(read.cells)}"
+        f" consistent={read.consistent}"
+    )
+    print(f"  messages sent: {[m[0] for m in surface.messages]}")
+    icons = surface.messages[-1][1] if surface.messages else []
+    by_rect = {tuple(icon.rect): icon for icon in icons}
+    catalog = {row.name.casefold(): row for row in db.blueprint_catalog()}
+    empty = [cell for cell in read.cells if not cell.found]
+    print("  empty cells, their blueprint and icon:")
+    for cell in empty:
+        rect = cell.rect
+        icon = by_rect.get((rect.left, rect.top, rect.right, rect.bottom))
+        name = db.blueprint_at(cell.grid_index)
+        info = catalog.get(name.casefold()) if name else None
+        if icon is not None:
+            what = f"icon {Path(icon.path).name}"
+        elif name is None:
+            what = "no icon (unnamed slot)"
+        elif info is None or not info.item_id:
+            what = "no icon (no item id)"
+        else:
+            what = f"no icon (not cached: {info.item_id}.png)"
+        print(f"    slot {cell.grid_index:2d} {name or '(unnamed)'}: {what}")
+    found_with = sum(
+        1
+        for cell in read.cells
+        if cell.found
+        and (cell.rect.left, cell.rect.top, cell.rect.right, cell.rect.bottom)
+        in by_rect
+    )
+    print(
+        f"  icons drawn: {len(icons)} of {len(empty)} empty cells,"
+        f" on found cells: {found_with}"
+    )
+    if icons:
+        print(f"  alpha {icons[0].alpha}, inset {icons[0].inset}")
+
+    folder = out / "demo" / shot_path.stem
+    folder.mkdir(parents=True, exist_ok=True)
+    layer_path = folder / "icons_layer.png"
+    if not render_png(icons, shot.size, layer_path):
+        print("  the badge helper's PNG mode failed")
+        return
+    layer = Image.open(layer_path).convert("RGBA")
+    composite = shot.convert("RGBA")
+    composite.alpha_composite(layer)
+    composite = composite.convert("RGB")
+    composite.save(folder / "icons_on_screen.png")
+    tops = sorted({cell.rect.top for cell in read.cells})[:2]
+    rows = [cell for cell in read.cells if cell.rect.top in tops]
+    margin = 12
+    box = (
+        min(c.rect.left for c in rows) - margin,
+        min(c.rect.top for c in rows) - margin,
+        max(c.rect.right for c in rows) + margin,
+        max(c.rect.bottom for c in rows) + margin,
+    )
+    crop = composite.crop(box)
+    crop.resize((crop.width * 2, crop.height * 2), Image.NEAREST).save(
+        folder / "icons_rows_1_2_x2.png"
+    )
+    print(f"  pictures in {folder}")
+
+
 def demo(shot_path: Path, out: Path, db: Database, monkeypatch_backend) -> None:
     shot = Image.open(shot_path).convert("RGB")
     frame = np.asarray(shot)
@@ -267,6 +377,9 @@ def demo(shot_path: Path, out: Path, db: Database, monkeypatch_backend) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--icons", action="store_true", help="composite the greyed icons instead"
+    )
     parser.add_argument("shots", type=Path, nargs="+")
     args = parser.parse_args()
     main_module.get_ocr_engine = _NoTrigger
@@ -277,7 +390,10 @@ def main() -> None:
             main_module.get_backend = lambda: cursor
 
         for shot in args.shots:
-            demo(shot, args.out, db, backend)
+            if args.icons:
+                icons_demo(shot, args.out, db)
+            else:
+                demo(shot, args.out, db, backend)
 
 
 if __name__ == "__main__":
