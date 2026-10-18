@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 77 percent of the whole roadmap, weighted by effort: 63 of 70 steps
+About 80 percent of the whole roadmap, weighted by effort: 64 of 70 steps
 done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
@@ -514,7 +514,7 @@ Ahead, in order:
 4. Greyed icons in the empty cells. Drawn on the overlay surface (phase 4).
    Underway 18 Oct.
 
-## Phase 5. ARLO knows what you own. Started 15 Oct, 65 percent, 4 of 6 steps. Moved up 15 Oct
+## Phase 5. ARLO knows what you own. Started 15 Oct, 85 percent, 5 of 6 steps. Moved up 15 Oct
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start
 watching and updating a local database of my inventory?" Decided 11 Oct.
@@ -563,7 +563,10 @@ Ahead, in order:
 4. Use it. Use it on the advice card: You have N and keep N more, from the
    same totals the tags use. Added 15 Oct. Changed 18 Oct: the have and need
    tags already use the totals (step 3), the advice card is what is left.
-   Underway 18 Oct.
+   Done 18 Oct, reviewed: the card shows "You have 51" and "6 of 6, then
+   sell 45" when the map is sure, "N+" while it is partial, "Not in your
+   saved stash yet" for an item it has not seen, and weapons keep their
+   "Keep 1".
 5. An unsure flag. When the ledger disagrees with the headers, say so
    instead of showing wrong numbers. The stored map already falls back to
    on-screen counts when it disagrees with the header, what is left is
@@ -618,9 +621,7 @@ Will contain:
 
 ## Known follow-ups
 
-- docs/ITEMS.md line 110 says KEEP SOME needs a stash count that nothing
-  supplies yet. Phase 5 step 4 supplies it, update the line when it merges.
-  Added 18 Oct.
+- Done 18 Oct: docs/ITEMS.md says where KEEP SOME's owned count comes from.
 
 - Add `TOOLTIP_CHIPS=true`, `CAPTURE_LIBRARY_DIR=debug/captures`,
   `OCR_ENGINE`, `ADVICE_CARD`, `STASH_BADGES` and `SHOW_STATUS_WINDOW` to
