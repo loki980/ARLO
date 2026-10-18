@@ -235,7 +235,7 @@ class OverlaySettings(BaseSettings):
     tooltip_chips: bool = Field(
         default=True,
         validation_alias="TOOLTIP_CHIPS",
-        description="Show price and recycle chips beside the game tooltip",
+        description="Show the HOME ONLY recycle chip beside the game tooltip",
     )
     # Read from ADVICE_CARD. False brings back the text popup
     advice_card: bool = Field(
@@ -367,7 +367,8 @@ class Settings(BaseSettings):
     )
     # The small scanning, inventory and hotkey status window in the corner
     show_status_window: bool = Field(
-        default=False, description="Show the scanner status window"
+        default=False,
+        description="Show the small Scanning / ARLO Status window (a debug aid)",
     )
 
     # Capture library: save raw tooltip captures for offline OCR evaluation.

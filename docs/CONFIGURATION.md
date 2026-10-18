@@ -46,7 +46,10 @@ OVERLAY_X=100                    # Overlay X position on screen
 OVERLAY_Y=100                    # Overlay Y position on screen
 OVERLAY_DISPLAY_TIME=4.0         # How long the overlay stays visible (seconds)
 OVERLAY_COOLDOWN=2.0             # Minimum time between showing same item (seconds)
-TOOLTIP_CHIPS=true               # Show sell price and home recycle chips beside the game tooltip
+TOOLTIP_CHIPS=true               # Show the HOME ONLY chip (extra parts from the Speranza recycler) beside the game tooltip
+ADVICE_CARD=true                 # Show the advice card in the LOADOUT panel box (false = the older text popup)
+STASH_BADGES=true                # Draw the worth patch and have/need tag on every recognized stash slot
+STASH_BADGE_KEEP_BORDER=true     # Draw the gold frame badges (false keeps the patches and tags, drops the frames)
 SHOW_ENDED_PROJECTS=false        # Count needs from projects whose end date has passed
 
 # =============================================================================
@@ -68,8 +71,28 @@ OCR_ENGINE=tesseract_title       # tesseract_title, paddle or tesseract
 
 DEBUG_MODE=false                 # Enable to save debug images and logs
 SHOW_CAPTURE_AREA=false          # Show red rectangle around capture area
+SHOW_STATUS_WINDOW=false         # Show the small "Scanning..." / "ARLO Status" window (right-click it to quit)
 CAPTURE_LIBRARY_DIR=debug/captures  # Folder for the capture library
+ICON_CACHE_DIR=cache/icons/blueprints  # Folder for downloaded blueprint icons (never committed)
+
+# =============================================================================
+# PLATFORM SETTINGS
+# =============================================================================
+
+SCREEN_BACKEND=auto              # auto, x11 or wayland (Linux only)
+HOTKEY_KEY=KEY_RIGHTCTRL         # evdev key name for hold-to-scan (Wayland/Linux only)
+TESSERACT_PATH=                  # Path to tesseract, found automatically when unset
 ```
+
+Settings the file does not list use the defaults shown above.
+
+### Tooltip chip, advice card and stash badges
+
+- `TOOLTIP_CHIPS` controls one chip beside the game tooltip: **HOME ONLY**, shown when part of an item's recycle output comes only from the Speranza recycler. It is lined up with the game's own Recycles into icons. The sell price chip and the verdict chip were removed on 17 Oct, because the game shows the price and the advice card gives the advice.
+- `ADVICE_CARD` draws the advice card. Set it to `false` for the older text popup in the corner, which uses `OVERLAY_X`, `OVERLAY_Y` and `OVERLAY_DISPLAY_TIME`.
+- `STASH_BADGES` draws a patch on each recognized stash slot with the worth of its stack, coloured from red (cheap) through yellow and green to a deep gold from 5,000. Items a quest, project or bench wants also get a have/need tag, red when short and a green check when enough. While the saved stash map is partial the tag reads `N+/M`.
+- The saved stash map lives in `arlo_user.db` and fills from one stepwise scroll of the stash from the top. It is kept between sessions.
+- `SHOW_STATUS_WINDOW` is a debug aid and is off by default. Without it, quit with Ctrl+C in the terminal or `pkill -f arc-helper`.
 
 `CAPTURE_LIBRARY` is no longer read. The capture library saves raw tooltip captures for offline OCR evaluation only for a run started with `uv run arc-helper --capture` (at most 300 images, or N with `--capture N`). A leftover `CAPTURE_LIBRARY` line in `.env` is ignored with a warning in the log. `CAPTURE_LIBRARY_DIR` still sets the folder.
 

@@ -2,7 +2,7 @@
 
 > **A big thanks to [Pabosik](https://github.com/Pabosik) for creating the original [PabsArcTooltip](https://github.com/Pabosik/PabsArcTooltip) that this project is built on. The core idea - an OCR-based screen overlay that reads item tooltips and tells you what to do with them - is entirely his. ARLO just builds on that foundation with some extra features.**
 
-A screen overlay tool for [Arc Raiders](https://store.steampowered.com/app/2073750/ARC_Raiders/) that detects items in your inventory and displays recommended actions (**keep**, **recycle**, **sell**) along with sell prices, stack sizes, and crafting details. The item database auto-syncs from the [MetaForge API](https://metaforge.app/arc-raiders) on every launch.
+A screen overlay tool for [Arc Raiders](https://store.steampowered.com/app/2073750/ARC_Raiders/) that detects items in your inventory and displays recommended actions (**keep**, **recycle**, **sell**) on an advice card, with what each item is needed for and what it recycles into. It also marks your stash slots with the worth of each stack and what you still need. The item database auto-syncs from the [MetaForge API](https://metaforge.app/arc-raiders) on every launch.
 
 [![Example 1](https://github.com/Soygen/ARLO/raw/master/static/ARLO_01.png)](/Soygen/ARLO/blob/master/static/ARLO_01.png) [![Example 2](https://github.com/Soygen/ARLO/raw/master/static/ARLO_02.png)](/Soygen/ARLO/blob/master/static/ARLO_02.png) [![Example 3](https://github.com/Soygen/ARLO/raw/master/static/ARLO_03.png)](/Soygen/ARLO/blob/master/static/ARLO_03.png)
 
@@ -11,7 +11,11 @@ A screen overlay tool for [Arc Raiders](https://store.steampowered.com/app/20737
 ## Features
 
 - **Auto-sync on launch** - The item database updates from the MetaForge API every time you start the app (throttled to once per 24 hours). No manual steps needed.
-- **Sell price & stack size on the overlay** - See at a glance what an item sells for and how high it stacks
+- **Advice card** - A game-style card beside the item tooltip with the verdict and every quest, project or workshop level that still needs the item
+- **Tooltip chip** - A HOME ONLY chip when part of an item's recycle output comes only from the Speranza recycler, lined up with the game's own Recycles into icons
+- **Stash badges** - Every recognized stash slot shows the worth of its stack on a patch coloured from red (cheap) through yellow and green to a deep gold from 5,000, and a have/need tag on items a quest, project or bench wants
+- **Saved stash map** - The whole stash is remembered between sessions, so the have/need tags count what is off screen too
+- **Collections reader** - Opening the BLUEPRINTS tab of the Collections screen records which blueprints you have found
 - **440+ items** - Full item coverage including keys, mods, augments, shields, ammo, consumables, and recycle components
 - **Quest-aware recommendations** - Items needed for quests are flagged to keep, with quest names shown
 - **Smart action generation** - Items are auto-categorized (keep materials, sell trinkets, recycle junk) based on API data
@@ -28,21 +32,15 @@ The tool runs two detection phases while you play:
 1. **Trigger Detection** (every 500ms) - Scans for the word "INVENTORY" on screen to know when your inventory is open
 2. **Tooltip Detection** (every 300ms) - When inventory is open, captures the area around your cursor, reads the item name via OCR, looks it up in the database, and shows an overlay
 
-The overlay popup displays:
+While you play, ARLO draws these on top of the game:
 
-```
-+--------------------------------------+
-|  ARC Alloy                           |
-|  -> Keep                             |
-|  Sell: 200   Stack: 15               |
-|  For: Workshop Explosives Station 1  |
-+--------------------------------------+
-```
+- **Advice card** - The item name, the verdict (keep, keep some, sell, recycle, learn it, use) colour coded, and below it what the item is needed for (quest, project and workshop names with how many) or what it recycles into. Set `ADVICE_CARD=false` in `.env` to get the older text popup in the corner instead
+- **Tooltip chip** - ARLO shows only the **HOME ONLY** chip, with the extra parts you get from the Speranza recycler, lined up with the game's Recycles into icons. The game already shows the sell price, so ARLO no longer repeats it, and the verdict chip was replaced by the advice card (both removed on 17 Oct)
+- **Stash badges** - While the stash is still, each recognized slot gets a patch with the worth of its stack (unit price times count). The colour runs from red (cheap) through yellow and green to a deep gold from 5,000. An item a quest, project or workshop bench wants also gets a have/need tag, red when you are short and a green check when you have enough. While the saved stash map is partial the tag reads like `3+/6`, meaning at least 3 of the 6 needed. The slot under your cursor gets a gold frame. Set `STASH_BADGES=false` to turn all of it off
+- **Saved stash map** - ARLO remembers every stash slot it has seen in `arlo_user.db` and updates it whenever part of the stash is on screen. To fill it, open the stash at the top and scroll down in small steps until you reach the bottom, once. The map is kept between sessions, so after that the have/need tags count the whole stash
+- **Collections reader** - Open the Collections screen on its BLUEPRINTS tab and ARLO reads the FOUND count and which blueprint cells are filled, once per visit, and stores it in `arlo_user.db`
 
-- **Item name** at the top
-- **Action** color-coded (green = keep, gold = sell, turquoise = recycle, pink = use)
-- **Sell price** and **stack size** on the info line
-- **Details** - what it recycles into, or why you're keeping it
+---
 
 ---
 
@@ -244,11 +242,13 @@ uv run arc-calibrate
 
 ## Configuration
 
-All settings live in the `.env` file. See [docs/CONFIGURATION.md](https://github.com/Soygen/ARLO/blob/master/docs/CONFIGURATION.md) for details on scan regions, overlay position, display time, and debug mode.
+All settings live in the `.env` file. See [docs/CONFIGURATION.md](https://github.com/Soygen/ARLO/blob/master/docs/CONFIGURATION.md) for details on scan regions, overlay position, display time, the advice card, stash badges, and debug mode.
 
 **Debugging:** In `.env` set `DEBUG_MODE=true` for verbose logs and `SHOW_CAPTURE_AREA=true` to show the trigger and tooltip regions on screen. Restart ARLO after changing `.env`.
 
-**Quitting:** If you started ARLO from a terminal, press **Ctrl+C**. You can also **right-click the status box** (the "Scanning…" / "ARLO Status" window) to quit, or run `pkill -f arc-helper` in a terminal.
+**Quitting:** If you started ARLO from a terminal, press **Ctrl+C**. Otherwise run `pkill -f arc-helper` in a terminal. The small "Scanning…" / "ARLO Status" window is off by default, so there is nothing to click. If you set `SHOW_STATUS_WINDOW=true` in `.env` you can also right-click that window to quit.
+
+**Capture runs:** `uv run arc-helper --capture` (or `--capture N`) saves raw item card captures for that run only, for offline OCR checks. See [docs/CONFIGURATION.md](https://github.com/Soygen/ARLO/blob/master/docs/CONFIGURATION.md).
 
 ---
 
@@ -270,7 +270,7 @@ ARLO/
 │   ├── config.py                   # Settings & logging
 │   ├── database.py                 # SQLite + CSV import + fuzzy matching
 │   ├── ocr.py                      # Screen capture & Tesseract OCR
-│   ├── overlay.py                  # Tkinter overlay (action + price + stack)
+│   ├── overlay.py                  # Tkinter overlay (chips, status window)
 │   ├── calibrate.py                # GUI calibration tool
 │   ├── resolution_profiles.py      # Resolution presets
 │   ├── resolutions.json            # Pre-configured resolution profiles
