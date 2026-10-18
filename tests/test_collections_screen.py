@@ -8,9 +8,11 @@ from PIL import Image
 
 from arc_helper.collections_screen import CollectionsCell
 from arc_helper.collections_screen import CollectionsRead
+from arc_helper.collections_screen import cell_at
 from arc_helper.collections_screen import read_collections
 from arc_helper.collections_screen import record_collections
 from arc_helper.database import Database
+from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -103,3 +105,46 @@ def test_record_skips_inconsistent_read(tmp_path):
 
     assert unknown == []
     assert db.owned_blueprints() == {"Banjo Blueprint"}
+
+
+# Two cells 100 px wide with an 8 px gap, as the lattice lays them out
+CELLS = [
+    CollectionsCell(1, Rect(50, 300, 150, 400), found=False),
+    CollectionsCell(2, Rect(158, 300, 258, 400), found=True),
+]
+
+
+@pytest.mark.parametrize(
+    ("point", "expected"),
+    [
+        # Inside each cell
+        (Point(100, 350), 1),
+        (Point(200, 350), 2),
+        # On the drawn border: the left and top edges, the last pixel before
+        # the exclusive right and bottom edges
+        (Point(50, 300), 1),
+        (Point(149, 399), 1),
+        (Point(158, 350), 2),
+        # The exclusive right edge and the gap between the cells
+        (Point(150, 350), None),
+        (Point(154, 350), None),
+        # Off the grid: above, left of, below and right of it
+        (Point(100, 299), None),
+        (Point(49, 350), None),
+        (Point(100, 400), None),
+        (Point(300, 350), None),
+    ],
+)
+def test_cell_at(point, expected):
+    cell = cell_at(CELLS, point)
+    assert (cell.grid_index if cell else None) == expected
+
+
+def test_cell_at_on_the_fixture():
+    cells = read_collections(_frame(COLLECTIONS)).cells
+    # The middle of cell 18 (row 2, column 1), a found tile
+    rect = cells[17].rect
+    cell = cell_at(cells, Point((rect.left + rect.right) // 2, rect.bottom - 1))
+    assert cell.grid_index == 18
+    assert cell.found
+    assert cell_at(cells, Point(rect.right + 2, rect.top + 10)) is None
