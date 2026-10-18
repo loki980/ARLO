@@ -3,7 +3,8 @@ Tooltip geometry for ARLO.
 
 Pure functions that locate the game's cream tooltip inside a cursor capture,
 find its "CAN BE FOUND IN" and "RECYCLES INTO" label rows from Tesseract word
-boxes, and place the overlay chips beside them. No Tk, Tesseract or screen
+boxes, find the recycle icon row under "RECYCLES INTO", and place the overlay
+chip beside it. No Tk, Tesseract or screen
 backend access happens here, so everything is unit-testable with synthetic
 arrays and fake word boxes.
 """
@@ -39,13 +40,23 @@ LABEL_TEXT: dict[str, str] = {
 }
 LABEL_MATCH_RATIO = 0.8
 
-# Chip keys used by place_chips
-PRICE_CHIP = "price"
+# Chip key used by place_chips
 RECYCLE_CHIP = "recycle"
-VERDICT_CHIP = "verdict"
 
-# The recycle chip starts this far across the tooltip, right of the icons
+# Without a found icon row the recycle chip starts this far across the
+# tooltip, right of the icons
 RECYCLE_CHIP_X_FRACTION = 0.45
+
+# A recycle icon is a dark square on the cream card: median luminance under
+# ICON_MAX_MEDIAN, side between these fractions of the card width (77 px on
+# a 760 px card at 3840x2160, about 0.10). Pixels under ICON_DARK_MAX count
+# as dark when splitting the area under the label into squares.
+ICON_MAX_MEDIAN = 60
+ICON_DARK_MAX = 100
+ICON_MIN_SIDE_FRACTION = 0.06
+ICON_MAX_SIDE_FRACTION = 0.14
+# Width and height of one icon may differ by this share of the longer side
+ICON_SQUARE_TOLERANCE = 0.2
 
 
 class Point(NamedTuple):
@@ -115,6 +126,8 @@ class TooltipLayout(NamedTuple):
     tooltip: Rect
     labels: dict[str, Rect]
     clipped: Edges = NOT_CLIPPED
+    # Union of the recycle icons under RECYCLES INTO, None when not found
+    recycle_icons: Rect | None = None
 
 
 def find_cream_rect(rgb: np.ndarray) -> CreamRegion | None:
@@ -254,18 +267,61 @@ def to_screen(rect: Rect, origin: Point) -> Rect:
     )
 
 
+def find_recycle_icons(rgb: np.ndarray, label: Rect) -> Rect | None:
+    """Find the recycle icon row under the RECYCLES INTO label, or None.
+
+    rgb is the card crop and label the label row, both in card coordinates.
+    The search band starts at the label's bottom and reaches the label's
+    height plus two of the largest icon sides below it. Dark pixels in the
+    band split into connected components, and a component counts as an icon
+    when it is square, its side is between ICON_MIN_SIDE_FRACTION and
+    ICON_MAX_SIDE_FRACTION of the card width and its median luminance is
+    under ICON_MAX_MEDIAN. The leftmost icon fixes the row, and icons whose
+    centre lies within half its side vertically join it. Returns the union
+    of the row's icons in card coordinates.
+    """
+    if rgb.ndim != 3 or rgb.shape[0] == 0 or rgb.shape[1] == 0:
+        return None
+    card_w = rgb.shape[1]
+    min_side = ICON_MIN_SIDE_FRACTION * card_w
+    max_side = ICON_MAX_SIDE_FRACTION * card_w
+    top = max(0, label.bottom)
+    bottom = min(rgb.shape[0], label.bottom + label.height + round(2 * max_side))
+    if bottom <= top:
+        return None
+
+    band = np.ascontiguousarray(rgb[top:bottom, :, :3], dtype=np.uint8)
+    luminance = cv2.cvtColor(band, cv2.COLOR_RGB2GRAY)
+    dark = (luminance < ICON_DARK_MAX).astype(np.uint8)
+    count, _, stats, _ = cv2.connectedComponentsWithStats(dark)
+
+    icons: list[Rect] = []
+    for component in range(1, count):  # 0 is the background
+        left, y, width, height = (int(v) for v in stats[component][:4])
+        if not min_side <= width <= max_side or not min_side <= height <= max_side:
+            continue
+        if abs(width - height) > ICON_SQUARE_TOLERANCE * max(width, height):
+            continue
+        if np.median(luminance[y : y + height, left : left + width]) >= ICON_MAX_MEDIAN:
+            continue
+        icons.append(Rect(left, top + y, left + width, top + y + height))
+    if not icons:
+        return None
+
+    icons.sort(key=lambda r: r.left)
+    first = icons[0]
+    centre = (first.top + first.bottom) / 2
+    row = [r for r in icons if abs((r.top + r.bottom) / 2 - centre) <= first.height / 2]
+    return Rect(
+        min(r.left for r in row),
+        min(r.top for r in row),
+        max(r.right for r in row),
+        max(r.bottom for r in row),
+    )
+
+
 def _clamp(value: int, size: int, limit: int) -> int:
     return max(0, min(value, limit - size))
-
-
-def _right_aligned_x(
-    tooltip: Rect, label: Rect, width: int, pad: int, clipped: Edges
-) -> int:
-    """Left edge of a chip right-aligned in the card and clear of the label."""
-    after_label = label.right + pad
-    if clipped.right:
-        return after_label
-    return max(tooltip.right - pad - width, after_label)
 
 
 def place_chips(
@@ -274,70 +330,37 @@ def place_chips(
     chip_sizes: dict[str, Size],
     screen: Size,
     pad: int,
-    clipped: Edges = NOT_CLIPPED,
+    recycle_icons: Rect | None = None,
 ) -> dict[str, Point]:
     """Top-left screen positions for the chips, keyed like chip_sizes.
 
-    The price chip is right-aligned inside the tooltip on the found-in row,
-    but never starts left of the label's right edge plus pad. When the
-    tooltip's right edge is clipped by the capture, that edge is not the
-    real one, so the price chip anchors just right of the label instead.
-    The recycle chip sits on the icon row under the recycles-into label,
-    45 percent across the tooltip. The verdict chip follows the same
-    right-aligned and clipped-right rules. When the recycle chip is placed
-    its bottom edge sits pad above the recycle chip's top, so the two never
-    overlap. With the label but no recycle chip it sits at the label's top.
-    Without that label it sits directly above the price
-    chip with pad between, or on the found-in row itself when there is no
-    price chip. Without either label it gets no entry. All are clamped to
-    the screen last, so the screen edge wins over the label rule. A chip
-    without its label, or without a size, gets no entry.
+    The recycle chip is the only chip. With recycle_icons it sits pad right
+    of the icon row, its vertical centre on the row's centre. When that runs
+    past the tooltip it is right-aligned pad inside the tooltip instead, so
+    staying on the card wins over clearing the icons, and a chip wider than
+    the tooltip less two pads is not placed. Without recycle_icons it starts
+    45 percent across the tooltip, pad below the recycles-into label. The
+    screen edge wins last. A chip without its label or size gets no entry.
     """
     positions: dict[str, Point] = {}
 
-    found_in = labels.get(FOUND_IN)
-    price = chip_sizes.get(PRICE_CHIP)
-    if found_in is not None and price is not None:
-        x = _right_aligned_x(tooltip, found_in, price.width, pad, clipped)
-        y = found_in.top
-        positions[PRICE_CHIP] = Point(
-            _clamp(x, price.width, screen.width),
-            _clamp(y, price.height, screen.height),
-        )
-
     recycles_into = labels.get(RECYCLES_INTO)
     recycle = chip_sizes.get(RECYCLE_CHIP)
-    if recycles_into is not None and recycle is not None:
+    if recycles_into is None or recycle is None:
+        return positions
+
+    if recycle_icons is not None:
+        if recycle.width > tooltip.width - 2 * pad:
+            return positions
+        x = recycle_icons.right + pad
+        if x + recycle.width > tooltip.right - pad:
+            x = tooltip.right - pad - recycle.width
+        y = recycle_icons.top + round((recycle_icons.height - recycle.height) / 2)
+    else:
         x = tooltip.left + round(RECYCLE_CHIP_X_FRACTION * tooltip.width)
         y = recycles_into.bottom + pad
-        positions[RECYCLE_CHIP] = Point(
-            _clamp(x, recycle.width, screen.width),
-            _clamp(y, recycle.height, screen.height),
-        )
-
-    verdict = chip_sizes.get(VERDICT_CHIP)
-    if verdict is not None:
-        anchor = recycles_into or found_in
-        if anchor is not None:
-            x = _right_aligned_x(tooltip, anchor, verdict.width, pad, clipped)
-            y = anchor.top
-            if RECYCLE_CHIP in positions:
-                # Bottom edge pad above the recycle chip, never overlapping it
-                y = positions[RECYCLE_CHIP].y - pad - verdict.height
-            elif recycles_into is None and PRICE_CHIP in positions:
-                y = positions[PRICE_CHIP].y - pad - verdict.height
-            positions[VERDICT_CHIP] = Point(
-                _clamp(x, verdict.width, screen.width),
-                _clamp(y, verdict.height, screen.height),
-            )
-            if recycle is not None and RECYCLE_CHIP in positions:
-                # Clamping can push the verdict down onto the recycle chip,
-                # so move the recycle chip below it
-                lowest = positions[VERDICT_CHIP].y + verdict.height + pad
-                at = positions[RECYCLE_CHIP]
-                if at.y < lowest:
-                    positions[RECYCLE_CHIP] = Point(
-                        at.x, _clamp(lowest, recycle.height, screen.height)
-                    )
-
+    positions[RECYCLE_CHIP] = Point(
+        _clamp(x, recycle.width, screen.width),
+        _clamp(y, recycle.height, screen.height),
+    )
     return positions

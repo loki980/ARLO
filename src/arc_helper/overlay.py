@@ -23,9 +23,7 @@ from .textrender import TextStyle
 from .textrender import find_font_file
 from .textrender import has_scalable_fonts
 from .textrender import render_photo
-from .tooltip_layout import PRICE_CHIP
 from .tooltip_layout import RECYCLE_CHIP
-from .tooltip_layout import VERDICT_CHIP
 from .tooltip_layout import Rect
 from .tooltip_layout import Size
 from .tooltip_layout import TooltipLayout
@@ -46,9 +44,9 @@ ACTION_COLORS: dict[str, str] = {
     "UNKNOWN": "#888888",
 }
 
-# Verdict chip: dark slate panel and the word size in points
+# Dark slate panel of the former verdict chip, still listed among ARLO's
+# colours in hovered_cell.py
 VERDICT_BG = "#23272e"
-VERDICT_SIZE = 32
 
 # Background palette
 BG_DARK = "#12121f"
@@ -495,12 +493,12 @@ class OverlayWindow:
 
 
 class TooltipChips:
-    """Three small click-through chips placed on the game's own tooltip.
+    """The small click-through recycle chip placed on the game's own tooltip.
 
-    The price chip sits on the "Can be found in" row, the recycle chip on
-    the icon row under "Recycles into", and the verdict chip above the
-    recycle chip. Positions come from place_chips in
-    physical pixels and are converted with phys_to_tk.
+    It sits beside the icon row under "Recycles into". The game card already
+    shows the sell price and the advice card the verdict, so there are no
+    price or verdict chips. Positions come from place_chips in physical
+    pixels and are converted with phys_to_tk.
     """
 
     # Gap between chip and tooltip edge or label, in tk units
@@ -516,13 +514,6 @@ class TooltipChips:
         self.dpi_scale = get_dpi_scale()
 
         self.info_size = max(8, self._scale(13))
-        self.detail_size = max(8, self._scale(12))
-
-        self.price_window, price_body = self._make_chip(ACTION_COLORS["SELL"])
-        self.price_label = self._label(price_body, "white", bold=True)
-        self.price_label.pack(anchor="w")
-        self.stack_label = self._label(price_body, TEXT_DIM, size=self.detail_size)
-        # Only packed when there is stack text (see show())
 
         self.recycle_accent = ACTION_COLORS["RECYCLE"]
         self.recycle_window, recycle_body = self._make_chip(self.recycle_accent)
@@ -531,26 +522,7 @@ class TooltipChips:
         self.recycle_text = self._label(recycle_body, "white")
         self.recycle_text.pack(side="left", padx=(self._scale(10), 0))
 
-        self.verdict_window, self.verdict_stripe, verdict_body = (
-            self._make_verdict_chip()
-        )
-        self.verdict_label = _make_label(
-            self.root,
-            verdict_body,
-            VERDICT_SIZE,
-            bold=True,
-            condensed=True,
-            fg="white",
-            bg=VERDICT_BG,
-            anchor="w",
-        )
-        self.verdict_label.pack(anchor="w")
-
-        self.windows = {
-            PRICE_CHIP: self.price_window,
-            RECYCLE_CHIP: self.recycle_window,
-            VERDICT_CHIP: self.verdict_window,
-        }
+        self.windows = {RECYCLE_CHIP: self.recycle_window}
         self._hide_after_id: str | None = None
         # Delay the pending hide timer was armed with, for the debug log
         self._hide_delay_ms: int | None = None
@@ -587,30 +559,6 @@ class TooltipChips:
         make_click_through(window)
         return window, body
 
-    def _make_verdict_chip(self) -> tuple[tk.Toplevel, tk.Frame, tk.Frame]:
-        """Build the hidden verdict chip: dark slate panel, left stripe.
-
-        Returns the window, the stripe frame (recoloured per verdict) and the
-        content frame. Corners stay square, a Tk toplevel is rectangular.
-        """
-        window = tk.Toplevel(self.root)
-        window.title("ARLO verdict")
-        window.attributes("-topmost", True)  # noqa: FBT003
-        window.attributes("-alpha", 0.96)
-        window.overrideredirect(boolean=True)
-        window.withdraw()
-
-        panel = tk.Frame(window, bg=VERDICT_BG)
-        panel.pack()
-        # About a fifth of the text height, in tk units
-        stripe_w = max(3, self._scale(round(VERDICT_SIZE * 1.334 / 5)))
-        stripe = tk.Frame(panel, bg=ACTION_COLORS["UNKNOWN"], width=stripe_w)
-        stripe.pack(side="left", fill="y")
-        body = tk.Frame(panel, bg=VERDICT_BG, padx=self._scale(14), pady=self._scale(6))
-        body.pack(side="left")
-        make_click_through(window)
-        return window, stripe, body
-
     def _label(
         self, parent: tk.Frame, fg: str, *, size: int | None = None, bold: bool = False
     ) -> tk.Label:
@@ -629,17 +577,11 @@ class TooltipChips:
         self,
         item_name: str,
         layout: TooltipLayout,
-        price_text: str | None,
-        stack_text: str | None,
         recycle_label: str | None,
         recycle_text: str | None,
         hold_ms: int | None = None,
-        verdict_word: str | None = None,
-        verdict_kind: str | None = None,
     ) -> bool:
         """Fill, measure, place and show the chips that have content.
-
-        verdict_word and verdict_kind (a Verdict.kind) fill the verdict chip.
 
         For the item already showing, chips are only moved with geometry,
         never withdrawn and mapped again, so the compositor does not fade
@@ -658,13 +600,6 @@ class TooltipChips:
             self._hide_after_id = None
 
         active: list[str] = []
-        if price_text:
-            _set_text(self.price_label, price_text)
-            self.stack_label.pack_forget()
-            if stack_text:
-                _set_text(self.stack_label, stack_text)
-                self.stack_label.pack(anchor="w")
-            active.append(PRICE_CHIP)
         if recycle_label and recycle_text:
             title_fg = (
                 self.recycle_accent
@@ -674,10 +609,6 @@ class TooltipChips:
             _set_text(self.recycle_title, recycle_label, fg=title_fg)
             _set_text(self.recycle_text, recycle_text)
             active.append(RECYCLE_CHIP)
-        if verdict_word and verdict_kind:
-            _set_text(self.verdict_label, verdict_word)
-            self.verdict_stripe.config(bg=action_color(verdict_kind))
-            active.append(VERDICT_CHIP)
 
         # Sizes in physical pixels, measured before the chips are mapped
         tk_scale = get_backend().tk_scale
@@ -697,7 +628,7 @@ class TooltipChips:
             sizes,
             Size(screen_w, screen_h),
             round(self.PAD * tk_scale),
-            layout.clipped,
+            layout.recycle_icons,
         )
 
         for key, window in self.windows.items():

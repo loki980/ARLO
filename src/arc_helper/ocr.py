@@ -38,6 +38,7 @@ from .title_reader import TextLine
 from .title_reader import TitleReader
 from .title_reader import TitleReaderUnavailableError
 from .title_reader import make_reader
+from .tooltip_layout import RECYCLES_INTO
 from .tooltip_layout import Edges
 from .tooltip_layout import Point as LayoutPoint
 from .tooltip_layout import Rect
@@ -45,6 +46,7 @@ from .tooltip_layout import TooltipLayout
 from .tooltip_layout import Word
 from .tooltip_layout import find_cream_rect
 from .tooltip_layout import find_label_rows
+from .tooltip_layout import find_recycle_icons
 from .tooltip_layout import find_tooltip_card
 from .tooltip_layout import to_screen
 
@@ -101,6 +103,38 @@ def same_card(a: CardSignature, b: CardSignature) -> bool:
         return False
     diff = np.abs(a.thumb.astype(np.int16) - b.thumb.astype(np.int16))
     return float(diff.mean()) <= SIGNATURE_THUMB_TOL
+
+
+def _card_layout(
+    image: Image.Image,
+    cream: Rect,
+    origin: LayoutPoint,
+    labels: dict[str, Rect],
+    clipped: Edges,
+) -> TooltipLayout:
+    """TooltipLayout in screen pixels from card-coordinate label rows.
+
+    cream is the card in capture coordinates and origin the capture's screen
+    position. With a RECYCLES INTO row the recycle icons under it are looked
+    for in the card crop.
+    """
+    card_origin = LayoutPoint(origin.x + cream.left, origin.y + cream.top)
+    icons = None
+    recycles_into = labels.get(RECYCLES_INTO)
+    if recycles_into is not None:
+        card = np.array(
+            image.crop((cream.left, cream.top, cream.right, cream.bottom)).convert(
+                "RGB"
+            )
+        )
+        found = find_recycle_icons(card, recycles_into)
+        icons = to_screen(found, card_origin) if found is not None else None
+    return TooltipLayout(
+        tooltip=to_screen(cream, origin),
+        labels={name: to_screen(rect, card_origin) for name, rect in labels.items()},
+        clipped=clipped,
+        recycle_icons=icons,
+    )
 
 
 def build_reader(engine: str) -> TitleReader:
@@ -455,7 +489,6 @@ class OCREngine:
                 return None
             cream, clipped = region
 
-        crop_origin = LayoutPoint(origin.x + cream.left, origin.y + cream.top)
         if self._last_card is not None and self._last_lines is not None:
             # One Word per detected line, already in card coordinates
             words = [
@@ -463,12 +496,8 @@ class OCREngine:
                 for i, line in enumerate(self._last_lines)
                 for left, top, right, bottom in [line.box]
             ]
-            labels = {
-                name: to_screen(rect, crop_origin)
-                for name, rect in find_label_rows(words, 1).items()
-            }
-            return TooltipLayout(
-                tooltip=to_screen(cream, origin), labels=labels, clipped=clipped
+            return _card_layout(
+                image, cream, origin, find_label_rows(words, 1), clipped
             )
 
         scale = 2
@@ -504,12 +533,8 @@ class OCREngine:
             if data["text"][i].strip()
         ]
 
-        labels = {
-            name: to_screen(rect, crop_origin)
-            for name, rect in find_label_rows(words, scale).items()
-        }
-        return TooltipLayout(
-            tooltip=to_screen(cream, origin), labels=labels, clipped=clipped
+        return _card_layout(
+            image, cream, origin, find_label_rows(words, scale), clipped
         )
 
     def check_trigger_any(self, regions: list[RegionMixin]) -> bool:

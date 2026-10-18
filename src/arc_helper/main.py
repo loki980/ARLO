@@ -83,7 +83,6 @@ from arc_helper.overlay import RECYCLE_LABEL_HOME_RECYCLER
 from arc_helper.overlay import OverlayWindow
 from arc_helper.overlay import StatusWindow
 from arc_helper.overlay import TooltipChips
-from arc_helper.overlay import action_word
 from arc_helper.overlay import window_rect_phys
 from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
@@ -103,7 +102,6 @@ from arc_helper.tooltip_layout import Rect
 from arc_helper.tooltip_layout import to_screen
 from arc_helper.verdict import KEEP
 from arc_helper.verdict import KEEP_SOME
-from arc_helper.verdict import UNKNOWN
 from arc_helper.verdict import Verdict
 from arc_helper.verdict import compute_verdict
 from arc_helper.verdict import is_blueprint
@@ -1966,24 +1964,16 @@ class DebugOverlay:
 
 
 def chip_payload(
-    item: Item,
     outputs: list[RecycleOutput],
     home_only: list[RecycleOutput],
-    verdict: Verdict | None = None,
 ) -> dict[str, str | None]:
-    """Chip texts for TooltipChips.show. None hides that line or chip.
+    """Recycle chip texts for TooltipChips.show. None hides the chip.
 
     Without field rows the recycle chip lists every home output. With field
     rows it lists only the home extras, and hides when there are none. The
-    verdict word and kind come from the verdict, never from item.action.
+    game card shows the sell price and the advice card the verdict, so the
+    chips show neither.
     """
-    price_text = stack_text = None
-    if item.sell_price is not None:
-        price_text = f"SELLS FOR {item.sell_price:,} \u20a1"
-        if item.stack_size is not None:
-            stack_total = item.sell_price * item.stack_size
-            stack_text = f"\u00d7{item.stack_size} = {stack_total:,} \u20a1"
-
     recycle_label = recycle_text = None
     home = [o for o in outputs if o.location == HOME]
     has_field = any(o.location == FIELD for o in outputs)
@@ -1993,16 +1983,7 @@ def chip_payload(
     elif home and home_only:
         recycle_label = RECYCLE_LABEL_HOME_ONLY
         recycle_text = "  ".join(f"+{o.quantity} {o.component}" for o in home_only)
-
-    verdict_shown = verdict is not None and verdict.kind != UNKNOWN
-    return {
-        "price_text": price_text,
-        "stack_text": stack_text,
-        "recycle_label": recycle_label,
-        "recycle_text": recycle_text,
-        "verdict_word": action_word(verdict.kind) if verdict_shown else None,
-        "verdict_kind": verdict.kind if verdict_shown else None,
-    }
+    return {"recycle_label": recycle_label, "recycle_text": recycle_text}
 
 
 @dataclass
@@ -2029,7 +2010,8 @@ class Scanner:
 
     root: tk.Tk
     overlay: OverlayWindow
-    status: StatusWindow
+    # None unless SHOW_STATUS_WINDOW is on
+    status: StatusWindow | None
     db: Database = field(default_factory=get_database)
     state: ScannerState = ScannerState.IDLE
     stats: ScannerStats = field(default_factory=ScannerStats)
@@ -2623,7 +2605,6 @@ class Scanner:
         if settings.overlay.tooltip_chips:
             self._queue_chips(
                 recommendation,
-                verdict=verdict,
                 same_item=same_item,
                 frame=hovered.frame,
             )
@@ -2766,11 +2747,14 @@ class Scanner:
         self,
         recommendation: Item | None,
         *,
-        verdict: Verdict | None = None,
+        verdict: Verdict | None = None,  # noqa: ARG002
         same_item: bool = False,
         frame: Rect | object | None = LOCATE_FRAME,
     ) -> None:
         """Locate the tooltip and queue the chips for the current item.
+
+        verdict is accepted but no longer reaches the chips, the advice card
+        shows it.
 
         frame is the hovered slot's gold frame from _locate_hovered_slot,
         None for no frame. Left out, the frame is located here.
@@ -2792,10 +2776,8 @@ class Scanner:
             return
 
         payload = chip_payload(
-            recommendation,
             self.db.recycle_outputs(recommendation.name),
             self.db.home_only_outputs(recommendation.name),
-            verdict,
         )
         # The gold frame marks the hovered cell of every identified item,
         # whatever the verdict
@@ -2886,7 +2868,7 @@ class Application:
         self._popup_corner = Point(self.overlay.overlay_x, self.overlay.overlay_y)
         self._popup_spot = POPUP_HOME
         self._place_popup()
-        self.status = StatusWindow(self.root, on_quit=self.quit)
+        self.status = self._make_status()
         self.chips = (
             TooltipChips(self.root) if self.settings.overlay.tooltip_chips else None
         )
@@ -2920,6 +2902,16 @@ class Application:
         # Bind close handler
         self.root.protocol("WM_DELETE_WINDOW", self.quit)
 
+    def _make_status(self) -> StatusWindow | None:
+        """The scanning and inventory indicator, None unless SHOW_STATUS_WINDOW.
+
+        It is a debug aid, so it is off by default and nothing creates or
+        maps it then.
+        """
+        if not self.settings.show_status_window:
+            return None
+        return StatusWindow(self.root, on_quit=self.quit)
+
     def _make_stash(self) -> StashBadges | None:
         """The stash badges per STASH_BADGES, None when turned off."""
         overlay = self.settings.overlay
@@ -2934,6 +2926,8 @@ class Application:
 
     def _apply_status(self, status: str) -> None:
         """Apply a status update to the StatusWindow (main thread only)."""
+        if self.status is None:
+            return
         if status == "scanning":
             self.status.set_scanning()
         elif status == "active":
@@ -3167,7 +3161,9 @@ class Application:
         tk_scale = get_backend().tk_scale
         rects: list[Rect] = []
         labelled: dict[str, Rect] = {}
-        windows = [(STATUS, self.status.window)]
+        windows: list[tuple[str, tk.Toplevel]] = []
+        if self.status is not None:
+            windows.append((STATUS, self.status.window))
         if self.advice is None:
             windows.insert(0, (POPUP, self.overlay.window))
         else:
