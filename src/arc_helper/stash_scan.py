@@ -44,9 +44,9 @@ surface's message format (badge_surface.encode_message): for every
 identified item with a sell price, a patch over the type icon of a square
 slot's bottom bar (a pill top left on wide slots) showing the stack's
 worth, both filled by worth_colours so the cheap slots and those worth
-WORTH_HIGH or more show at a glance. For an item an unfinished goal still needs, a have/need tag top left,
-red with a red tile outline while the stash is short, green with a check mark
-when it is enough.
+WORTH_HIGH or more show at a glance. For an item an unfinished goal still
+needs, a have/need tag top left, red with a red tile outline while the stash
+is short, green with a check mark when it is enough.
 
 Pure functions, no Tk or screen access. The embedder is only touched when a
 frame has filled slots.
@@ -153,41 +153,50 @@ WIDE_ASPECT = 1.25
 TAG_BG = "#141414d9"
 # The wide-slot price pill's alpha below WORTH_HIGH, TAG_BG's own
 TAG_ALPHA = "d9"
-# The pill is fully opaque from WORTH_HIGH, so the white stands out
+# The pill is fully opaque from WORTH_HIGH, so the gold stands out
 TAG_ALPHA_HIGH = "ff"
 
-# Worth at a glance: the price patch and pill are filled by the stack's worth.
-# Greys only, so a value colour is never taken for a rarity (grey, green,
-# blue, purple, pink, gold) or for HOVER_GOLD and SHORT_RED. Below WORTH_LOW
-# a slot is cheap enough to drop first
+# Worth at a glance: the price patch and pill are filled by the stack's worth,
+# red for the cheapest stacks through yellow and green, gold from WORTH_HIGH.
+# The patch covers only the icon end of the bar, the rest keeps the rarity.
+# Below WORTH_LOW a slot is cheap enough to drop first
 WORTH_LOW = 250
 # From WORTH_HIGH a slot must stand out
 WORTH_HIGH = 5000
-# The fill of a cheap slot, near black
-WORTH_CHEAP_FILL = "#1a1a1a"
-# The text of a cheap slot, a dim grey with 5.2:1 on WORTH_CHEAP_FILL
-WORTH_CHEAP_TEXT = "#8c8c8c"
-# The ramp from WORTH_LOW to WORTH_HIGH starts at WORTH_CHEAP_FILL and ends at
-# the lightest grey on which the cream patch text still has 4.5:1 (4.52:1),
-# well short of white, so the jump to white at WORTH_HIGH stays sharp
-WORTH_RAMP_TOP = "#6d6d6d"
-# The ramp's text, the game's own count ink as badge_helper draws it
-WORTH_RAMP_TEXT = "#" + "".join(f"{round(c * 255):02x}" for c in PATCH_TEXT_RGB)
-# The fill and text from WORTH_HIGH up
-WORTH_HIGH_FILL = "#ffffff"
-WORTH_HIGH_TEXT = "#111111"
+# The fill below WORTH_LOW and where the ramp starts. Every channel is more
+# than 3 times grid.RED_TOLERANCE from SHORT_RED in at least one channel
+# (45 in blue), so a cheap patch is never read as a short-stock outline
+WORTH_RED = "#f43b20"
+# The ramp passes this lemon yellow at WORTH_MID, the middle of the log range
+WORTH_YELLOW = "#e8d44a"
+WORTH_MID = math.sqrt(WORTH_LOW * WORTH_HIGH)
+# Where the ramp ends, just below WORTH_HIGH
+WORTH_GREEN = "#3fb950"
+# The fill from WORTH_HIGH up, a deep gold: more than 3 times
+# grid.GOLD_TOLERANCE from both ARLO_GOLDS in red (83 and 69), so a patch is
+# never taken for ARLO's hover frame, and further from WORTH_YELLOW in OKLab
+# (0.266) than the yellow is from WORTH_GREEN (0.212)
+WORTH_GOLD = "#ad7500"
+# Halvings of the chroma when a ramp colour falls outside sRGB, and how far
+# outside a channel may be (it is clipped after)
+GAMUT_STEPS = 24
+GAMUT_SLACK = 1e-4
+# The two text colours. Each fill takes the one with the higher contrast
+WORTH_DARK_TEXT = "#111111"
+# The game's own count ink as badge_helper draws it
+WORTH_LIGHT_TEXT = "#" + "".join(f"{round(c * 255):02x}" for c in PATCH_TEXT_RGB)
 
-# The passes run on captures that show ARLO's own patches, and a grey or
-# white fill hides the bar from slot_marks (the bar is darker, about 15).
+# The passes run on captures that show ARLO's own patches, and a patch fill
+# hides the bar from slot_marks (the bar is darker, about 15).
 # unpatch repaints a patch's fill in the bar's colour first. A patch is the
 # largest run of columns, starting in the left PATCH_START_MAX of a square
-# crop's rows from PATCH_TOP share of its height down, where one exact grey
-# level of the worth scale appears in PATCH_MIN_ROWS rows or more, with
-# PATCH_MIN_SHARE of the crop area or more of that level. Gaps under
+# crop's rows from PATCH_TOP share of its height down, where one exact fill
+# of the worth scale appears in PATCH_MIN_ROWS rows or more, with
+# PATCH_MIN_SHARE of the crop area or more of that fill. Gaps under
 # PATCH_BRIDGE columns (the text) are bridged. The fill must start below
 # the first of those rows and reach PATCH_BOTTOM_MIN of the height, as the
 # bar does (bar tops at 0.734 to 0.758, bottoms about 0.94), which leaves
-# out flat grey item art above the bar
+# out flat item art above the bar
 PATCH_TOP = 0.7
 PATCH_BOTTOM_MIN = 0.85
 PATCH_MIN_SHARE = 0.01
@@ -1064,50 +1073,165 @@ def _rgb(hex_colour: str) -> list[int]:
     return [int(hex_colour[i : i + 2], 16) for i in (1, 3, 5)]
 
 
-def _lightness(grey: int) -> float:
-    """CIE L* of an sRGB grey level 0..255."""
-    c = grey / 255
-    y = c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    return 116 * y ** (1 / 3) - 16 if y > (6 / 29) ** 3 else y * (29 / 3) ** 3
+def _linear(channel: int) -> float:
+    """An sRGB channel 0..255 as linear light 0..1."""
+    c = channel / 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-def _grey_of(lightness: float) -> int:
-    """The sRGB grey level 0..255 nearest a CIE L*."""
-    f = (lightness + 16) / 116
-    y = f**3 if f > 6 / 29 else lightness * (3 / 29) ** 3
-    c = 12.92 * y if y <= 0.0031308 else 1.055 * y ** (1 / 2.4) - 0.055
+def _srgb(linear: float) -> int:
+    """Linear light as the nearest sRGB channel 0..255, clipped."""
+    c = 12.92 * linear if linear <= 0.0031308 else 1.055 * linear ** (1 / 2.4) - 0.055
     return max(0, min(255, round(c * 255)))
 
 
-def _fill_levels() -> frozenset[int]:
-    """Every grey level worth_colours fills with."""
-    low = int(WORTH_CHEAP_FILL[1:3], 16)
-    top = int(WORTH_RAMP_TOP[1:3], 16)
-    return frozenset({*range(low, top + 1), int(WORTH_HIGH_FILL[1:3], 16)})
+def oklch(hex_colour: str) -> tuple[float, float, float]:
+    """A '#rrggbb' colour as OKLCH: lightness, chroma and hue in degrees."""
+    r, g, b = (_linear(v) for v in _rgb(hex_colour))
+    lms = (
+        0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b,
+        0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b,
+        0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b,
+    )
+    l_, m_, s_ = (math.copysign(abs(v) ** (1 / 3), v) for v in lms)
+    lightness = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
+    a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+    b_ = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+    return lightness, math.hypot(a, b_), math.degrees(math.atan2(b_, a)) % 360
 
 
-# The grey levels unpatch looks for
-_FILL_LEVELS = _fill_levels()
+def _linear_of_oklch(
+    lightness: float, chroma: float, hue: float
+) -> tuple[float, float, float]:
+    a = chroma * math.cos(math.radians(hue))
+    b = chroma * math.sin(math.radians(hue))
+    l_ = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (lightness - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    return (
+        4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+    )
+
+
+def _hex_of_oklch(lightness: float, chroma: float, hue: float) -> str:
+    """An OKLCH colour as '#rrggbb'.
+
+    Outside sRGB the chroma is lowered until the colour fits, keeping its
+    lightness and hue, so the scale's hue never jumps where it clips.
+    """
+    low, high = 0.0, chroma
+    for _ in range(GAMUT_STEPS):
+        channels = _linear_of_oklch(lightness, high, hue)
+        if all(-GAMUT_SLACK <= c <= 1 + GAMUT_SLACK for c in channels):
+            break
+        middle = (low + high) / 2
+        inside = _linear_of_oklch(lightness, middle, hue)
+        if all(-GAMUT_SLACK <= c <= 1 + GAMUT_SLACK for c in inside):
+            low = middle
+        else:
+            high = middle
+    channels = _linear_of_oklch(lightness, high, hue)
+    return "#" + "".join(f"{_srgb(c):02x}" for c in channels)
+
+
+def _mix(first: str, second: str, share: float) -> str:
+    """The colour share of the way from first to second in OKLCH.
+
+    The hue takes the short way round, so red to green passes yellow.
+    """
+    l1, c1, h1 = oklch(first)
+    l2, c2, h2 = oklch(second)
+    turn = (h2 - h1 + 180) % 360 - 180
+    return _hex_of_oklch(
+        l1 + share * (l2 - l1), c1 + share * (c2 - c1), h1 + share * turn
+    )
+
+
+def contrast(first: str, second: str) -> float:
+    """The WCAG contrast ratio of two '#rrggbb' colours."""
+
+    def luminance(colour: str) -> float:
+        r, g, b = (_linear(v) for v in _rgb(colour))
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    dark, light = sorted([luminance(first), luminance(second)])
+    return (light + 0.05) / (dark + 0.05)
+
+
+def _text_on(fill: str) -> str:
+    """WORTH_DARK_TEXT or WORTH_LIGHT_TEXT, whichever reads better on fill."""
+    dark = contrast(fill, WORTH_DARK_TEXT)
+    return (
+        WORTH_DARK_TEXT
+        if dark >= contrast(fill, WORTH_LIGHT_TEXT)
+        else WORTH_LIGHT_TEXT
+    )
+
+
+def _worth_fill(worth: int) -> str:
+    if worth >= WORTH_HIGH:
+        return WORTH_GOLD
+    if worth < WORTH_LOW:
+        return WORTH_RED
+    if worth < WORTH_MID:
+        share = math.log(worth / WORTH_LOW) / math.log(WORTH_MID / WORTH_LOW)
+        return _mix(WORTH_RED, WORTH_YELLOW, share)
+    share = math.log(worth / WORTH_MID) / math.log((WORTH_HIGH - 1) / WORTH_MID)
+    return _mix(WORTH_YELLOW, WORTH_GREEN, share)
+
+
+def worth_colours(worth: int) -> tuple[str, str]:
+    """The (fill, text) of a price patch or pill for a stack's worth, as '#rrggbb'.
+
+    Below WORTH_LOW WORTH_RED. From WORTH_LOW to WORTH_HIGH a ramp in OKLCH,
+    even steps in log worth being even steps of colour, from WORTH_RED
+    through orange to WORTH_YELLOW at WORTH_MID, then through yellow-green
+    to WORTH_GREEN just below WORTH_HIGH. From WORTH_HIGH WORTH_GOLD. The
+    text is the one of WORTH_DARK_TEXT and WORTH_LIGHT_TEXT that reads
+    better on the fill.
+    """
+    fill = _worth_fill(worth)
+    return fill, _text_on(fill)
+
+
+def _fill_codes() -> np.ndarray:
+    """Every fill worth_colours can return, as sorted 0xrrggbb ints."""
+    fills = {_worth_fill(worth) for worth in range(WORTH_LOW, WORTH_HIGH)}
+    fills |= {WORTH_RED, WORTH_GOLD}
+    return np.array(sorted(int(f[1:], 16) for f in fills), dtype=np.int32)
+
+
+# The fills unpatch looks for, computed once from the scale
+FILL_CODES = _fill_codes()
 
 
 def unpatch(crop: np.ndarray) -> np.ndarray:
     """A square slot crop with ARLO's price patch fill in the bar's colour.
 
-    The fill is found as the comment above PATCH_MIN_SHARE says and its
-    pixels take the per-channel median of the other pixels of its rows that
-    are not ink, mostly the bar right of it. The text stays, as it did on patches drawn in the bar's
-    colour. A crop without a patch comes back as it is, the same array.
+    The fill is found as the comment above PATCH_MIN_SHARE says, among the
+    colours of FILL_CODES, and its pixels take the per-channel median of
+    the other pixels of its rows that are not ink, mostly the bar right of
+    it. The text stays, as it did on patches drawn in the bar's colour. A
+    crop without a patch comes back as it is, the same array.
     """
     height, width = crop.shape[:2]
     top = round(PATCH_TOP * height)
     lower = np.asarray(crop[top:, :, :3])
-    grey = lower[..., 0]
-    neutral = (grey == lower[..., 1]) & (grey == lower[..., 2])
-    counts = np.bincount(grey[neutral], minlength=256)
-    level = max(_FILL_LEVELS, key=lambda v: counts[v])
-    if counts[level] < PATCH_MIN_SHARE * height * width:
+    codes = (
+        (lower[..., 0].astype(np.int32) << 16)
+        | (lower[..., 1].astype(np.int32) << 8)
+        | lower[..., 2]
+    )
+    known = codes[np.isin(codes, FILL_CODES)]
+    least = PATCH_MIN_SHARE * height * width
+    if known.size < least:
         return crop
-    fill = neutral & (grey == level)
+    values, counts = np.unique(known, return_counts=True)
+    if counts.max() < least:
+        return crop
+    fill = codes == values[np.argmax(counts)]
     runs = [
         run
         for run in _runs(fill.sum(axis=0) >= PATCH_MIN_ROWS, PATCH_BRIDGE)
@@ -1134,25 +1258,6 @@ def unpatch(crop: np.ndarray) -> np.ndarray:
     colour = np.median(lower[plain], axis=0).round().astype(np.uint8)
     out[top:, :, :3][region] = colour
     return out
-
-
-def worth_colours(worth: int) -> tuple[str, str]:
-    """The (fill, text) of a price patch or pill for a stack's worth, as '#rrggbb'.
-
-    Below WORTH_LOW the cheap near black with dim text. From WORTH_LOW to
-    WORTH_HIGH a grey ramp from WORTH_CHEAP_FILL to WORTH_RAMP_TOP, even
-    steps in log worth being even steps in lightness (CIE L*), with cream
-    text. From WORTH_HIGH white with near black text.
-    """
-    if worth >= WORTH_HIGH:
-        return WORTH_HIGH_FILL, WORTH_HIGH_TEXT
-    if worth < WORTH_LOW:
-        return WORTH_CHEAP_FILL, WORTH_CHEAP_TEXT
-    share = math.log(worth / WORTH_LOW) / math.log(WORTH_HIGH / WORTH_LOW)
-    low = _lightness(int(WORTH_CHEAP_FILL[1:3], 16))
-    top_grey = int(WORTH_RAMP_TOP[1:3], 16)
-    grey = min(top_grey, _grey_of(low + share * (_lightness(top_grey) - low)))
-    return f"#{grey:02x}{grey:02x}{grey:02x}", WORTH_RAMP_TEXT
 
 
 def patch_badge(slot: SlotItem, worth: int) -> dict | None:
