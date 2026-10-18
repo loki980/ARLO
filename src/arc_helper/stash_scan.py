@@ -53,7 +53,10 @@ frame has filled slots.
 
 import datetime
 import hashlib
+import json
 import re
+import threading
+import time
 from collections import OrderedDict
 from collections.abc import Callable
 from collections.abc import Iterable
@@ -66,6 +69,7 @@ import numpy as np
 from .badge_helper import TAG_TEXT_MAX
 from .badge_helper import TAG_TEXT_MIN
 from .badge_helper import TAG_TEXT_SHARE
+from .config import logger
 from .database import HOME
 from .database import Database
 from .database import Item
@@ -102,6 +106,13 @@ BLUEPRINT_SUFFIX = " blueprint"  # casefolded, a blueprint's catalog name ends s
 
 # The slot cache: entries kept, least recently used dropped first
 SLOT_CACHE_SIZE = 4096
+# Part of the saved slot cache's fingerprint. Bump it whenever slot_signature
+# or look_signature change, so entries keyed the old way are dropped on load
+SLOT_CACHE_VERSION = 1
+# After the first save, the slot cache is saved at most once per this many
+# seconds, and stop waits at most SLOT_CACHE_STOP_WAIT_S for the last save
+SLOT_CACHE_SAVE_S = 30.0
+SLOT_CACHE_STOP_WAIT_S = 2.0
 # What slot_signature leaves out, as shares of the slot unless named. The
 # border band (the red outline and the hovered frame's edge), at least
 # SIG_BORDER_MIN px
@@ -246,10 +257,16 @@ class SlotCache:
     drawn patch can still be keyed (see identify_slots). Keep one per
     gallery: its entries are only valid for the gallery and lookup that
     made them.
+
+    added counts the entries and bar boxes kept since the cache was made or
+    loaded, so a saver can tell when it has something new. snapshot and
+    from_rows turn the cache into rows for Database.save_slot_cache and
+    back (see load_slot_cache).
     """
 
     def __init__(self, size: int = SLOT_CACHE_SIZE):
         self.size = size
+        self.added = 0
         self._entries: OrderedDict[tuple, _Cached] = OrderedDict()
         self._bars: OrderedDict[tuple, Rect] = OrderedDict()
 
@@ -274,6 +291,7 @@ class SlotCache:
         return self._bars.get(look)
 
     def put(self, key: tuple, value: _Cached) -> None:
+        self.added += 1
         self._entries[key] = value
         self._entries.move_to_end(key)
         while len(self._entries) > self.size:
@@ -287,10 +305,338 @@ class SlotCache:
         return found
 
     def keep_bar_box(self, look: tuple, box: Rect) -> None:
+        if self._bars.get(look) != box:
+            self.added += 1
         self._bars[look] = box
         self._bars.move_to_end(look)
         while len(self._bars) > self.size:
             self._bars.popitem(last=False)
+
+    def snapshot(self) -> "SlotCacheSnapshot":
+        """The entries and bar boxes as they are now, least recently used first.
+
+        Only copies the two dicts, in their order, so it is quick enough for
+        the pass thread. A dict copy makes no object per entry, which a
+        list of pairs would, enough to start a full garbage collection of
+        about 20 ms on the pass thread. rows turns it into rows for the
+        database.
+        """
+        return SlotCacheSnapshot(dict(self._entries), dict(self._bars), self.added)
+
+    @classmethod
+    def from_rows(
+        cls,
+        rows: Iterable[tuple[str, str, str]],
+        lookup: Callable[[str], Item | None],
+        size: int = SLOT_CACHE_SIZE,
+    ) -> "SlotCache":
+        """A cache from (kind, key, value) rows, least recently used first.
+
+        The rows are those SlotCacheSnapshot.rows makes. Each entry's item
+        is looked up again by name, so the catalog's prices of now are
+        used, and an entry whose item is no longer in the catalog is
+        dropped. A row that cannot be read is skipped. At most size entries
+        and bar boxes are kept, the most recently used ones. added starts
+        at 0.
+        """
+        cache = cls(size)
+        items: dict[str, Item | None] = {}
+        skipped = 0
+        for kind, key, value in rows:
+            try:
+                if kind == _ENTRY_ROW:
+                    entry = _decode_entry(json.loads(value), lookup, items)
+                    if entry is not None:
+                        cache.put(_decode_key(key, entry=True), entry)
+                elif kind == _BAR_ROW:
+                    cache.keep_bar_box(_decode_key(key, entry=False), _rect(value))
+                else:
+                    skipped += 1
+            except (ValueError, TypeError, KeyError, IndexError, OverflowError):
+                skipped += 1
+        if skipped:
+            logger.debug("slot cache: skipped %d unreadable rows", skipped)
+        cache.added = 0
+        return cache
+
+
+_ENTRY_ROW = "entry"
+_BAR_ROW = "bar"
+
+
+class SlotCacheSnapshot(NamedTuple):
+    """A SlotCache's entries and bar boxes at one moment, and its added count."""
+
+    entries: dict[tuple, _Cached]
+    bars: dict[tuple, Rect]
+    added: int
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """(kind, key, value) text rows, entries then bar boxes, oldest first."""
+        rows = [
+            (_ENTRY_ROW, _encode_key(key), json.dumps(_encode_entry(entry)))
+            for key, entry in self.entries.items()
+        ]
+        rows += [
+            (_BAR_ROW, _encode_key(look), json.dumps(list(box)))
+            for look, box in self.bars.items()
+        ]
+        return rows
+
+
+def _encode_key(key: tuple) -> str:
+    """A signature key as JSON text, its digest bytes as hex."""
+    return json.dumps([v.hex() if isinstance(v, bytes) else v for v in key])
+
+
+def _decode_key(text: str, *, entry: bool) -> tuple:
+    """_encode_key back. An entry key is (read_stacks, height, width, digest),
+    a look key (height, width, digest). Raises ValueError on any other shape.
+    """
+    values = json.loads(text)
+    if not isinstance(values, list):
+        raise TypeError(text)
+    if entry:
+        if not values or type(values[0]) is not bool:
+            raise ValueError(text)
+        flag, rest = values[:1], values[1:]
+    else:
+        flag, rest = [], values
+    if (
+        len(rest) != 3
+        or not all(type(v) is int for v in rest[:2])
+        or not isinstance(rest[2], str)
+    ):
+        raise ValueError(text)
+    return (*flag, rest[0], rest[1], bytes.fromhex(rest[2]))
+
+
+def _rect(value) -> Rect:
+    values = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(values, list) or len(values) != 4:
+        raise ValueError(value)
+    if not all(type(v) is int for v in values):
+        raise ValueError(value)
+    return Rect(*values)
+
+
+def _optional_rect(value) -> Rect | None:
+    return None if value is None else _rect(value)
+
+
+def _encode_entry(entry: _Cached) -> dict:
+    bar = entry.bar
+    return {
+        "item": entry.item.name if entry.item is not None else None,
+        "tier": entry.tier,
+        "stack": entry.stack,
+        "confidence": entry.confidence,
+        "lead": entry.lead,
+        "guess": entry.guess,
+        "bar": None
+        if bar is None
+        else [
+            list(bar.bar_rect),
+            list(bar.colour),
+            None if bar.icon_box is None else list(bar.icon_box),
+            None if bar.right_mark_box is None else list(bar.right_mark_box),
+        ],
+    }
+
+
+def _decode_entry(
+    data: dict,
+    lookup: Callable[[str], Item | None],
+    items: dict[str, Item | None],
+) -> _Cached | None:
+    """_encode_entry back, None when its item is no longer in the catalog.
+
+    items memoises lookup by name. Raises on a malformed entry.
+    """
+    name = data["item"]
+    item = None
+    if name is not None:
+        if not isinstance(name, str):
+            raise TypeError(name)
+        if name not in items:
+            found = lookup(name)
+            same = found is not None and found.name.casefold() == name.casefold()
+            items[name] = found if same else None
+        item = items[name]
+        if item is None:
+            return None
+    bar = data["bar"]
+    if bar is not None:
+        box, colour, icon, mark = bar
+        if len(colour) != 3 or not all(type(v) is int for v in colour):
+            raise ValueError(colour)
+        bar = BarGeometry(
+            _rect(box), tuple(colour), _optional_rect(icon), _optional_rect(mark)
+        )
+    stack = data["stack"]
+    if stack is not None and type(stack) is not int:
+        raise TypeError(stack)
+    return _Cached(
+        item,
+        data["tier"],
+        stack,
+        float(data["confidence"]),
+        float(data["lead"]),
+        data["guess"],
+        bar,
+    )
+
+
+def slot_cache_fingerprint(
+    names: Sequence[str],
+    gallery_bytes: int,
+    item_count: int,
+    version: int = SLOT_CACHE_VERSION,
+) -> str:
+    """What a saved slot cache is valid for, as a sha256 hex digest.
+
+    Taken over the gallery's names in order, the embedding file's byte
+    size, the catalog's item count and version, joined by newlines. A
+    stored cache with another fingerprint is not loaded.
+    """
+    text = "\n".join([*names, str(gallery_bytes), str(item_count), str(version)])
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def load_slot_cache(
+    db: Database, fingerprint: str, size: int = SLOT_CACHE_SIZE
+) -> SlotCache:
+    """The slot cache stored in db's user database for this fingerprint.
+
+    Empty when none is stored, when the stored one has another fingerprint
+    or when reading fails (logged). Items are looked up with db.lookup.
+    """
+    try:
+        rows = db.slot_cache_rows(fingerprint)
+        return SlotCache.from_rows(rows, db.lookup, size)
+    except Exception:  # noqa: BLE001 - a lost cache only costs one slow pass
+        logger.warning("slot cache: loading failed", exc_info=True)
+        return SlotCache(size)
+
+
+class SlotCacheSaver:
+    """Saves a SlotCache in the background when it has new entries.
+
+    after_pass, called after each pass, queues a save of the cache when
+    entries or bar boxes were kept since the last queued save: at once the
+    first time, then at most once per interval_s on clock while new ones
+    remain unsaved. Queuing only takes a snapshot and wakes the saver's
+    daemon thread, started with the saver (starting a thread from the pass
+    thread costs it a GIL switch interval), so the pass thread never waits
+    for the write. A newer snapshot queued before the thread took the
+    older one replaces it. flush queues what is still unsaved, throttle or not, and waits a
+    bounded time for the queued saves. save gets SlotCacheSnapshot.rows.
+    A failed save is logged, never raised, and its entries count as unsaved
+    again: the next pass after interval_s, or flush, queues them anew. The
+    writer never retries on its own.
+    """
+
+    def __init__(
+        self,
+        save: Callable[[list[tuple[str, str, str]]], None],
+        *,
+        interval_s: float = SLOT_CACHE_SAVE_S,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._save = save
+        self._interval_s = interval_s
+        self._clock = clock
+        self._done = threading.Condition()
+        self._pending: SlotCacheSnapshot | None = None
+        self._busy = False
+        self._cache: SlotCache | None = None
+        # added of the last snapshot queued and of the last one written
+        self._queued_added = 0
+        self._saved_added = 0
+        self._failed = False
+        self._queued_at: float | None = None
+        threading.Thread(
+            target=self._write, name="slot-cache-save", daemon=True
+        ).start()
+
+    def after_pass(self, cache: SlotCache) -> bool:
+        """Queue a save when the cache has unsaved entries and the throttle allows.
+
+        True when one was queued.
+        """
+        self._cache = cache
+        with self._done:
+            if cache.added == self._queued_added:
+                return False
+        now = self._clock()
+        if self._queued_at is not None and now - self._queued_at < self._interval_s:
+            return False
+        self._queued_at = now
+        return self._queue(cache)
+
+    def flush(self, timeout: float = SLOT_CACHE_STOP_WAIT_S) -> bool:
+        """Queue what is unsaved and wait up to timeout s for every queued save.
+
+        True when the queued saves were written when it returns, False when
+        one is still running or the last one failed.
+        """
+        cache = self._cache
+        with self._done:
+            unsaved = cache is not None and cache.added != self._queued_added
+        if unsaved:
+            self._queue(cache)
+        deadline = time.monotonic() + timeout
+        with self._done:
+            while self._busy:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    logger.warning("slot cache: last save still running at stop")
+                    return False
+                self._done.wait(left)
+            return not self._failed
+
+    def _queue(self, cache: SlotCache) -> bool:
+        try:
+            snapshot = cache.snapshot()
+        except RuntimeError:
+            # Changed by a pass while copied (only from flush at stop)
+            logger.warning("slot cache: changed while copied, not saved")
+            return False
+        with self._done:
+            self._queued_added = snapshot.added
+            self._pending = snapshot
+            self._busy = True
+            self._done.notify_all()
+        return True
+
+    def _write(self) -> None:
+        while True:
+            with self._done:
+                while self._pending is None:
+                    self._busy = False
+                    self._done.notify_all()
+                    self._done.wait()
+                snapshot, self._pending = self._pending, None
+            start = time.perf_counter()
+            try:
+                rows = snapshot.rows()
+                self._save(rows)
+            except Exception:  # noqa: BLE001 - a lost save only costs one slow pass
+                logger.warning("slot cache: saving failed", exc_info=True)
+                with self._done:
+                    self._failed = True
+                    if self._pending is None:
+                        # Unsaved again, for the next pass or flush to queue
+                        self._queued_added = self._saved_added
+                continue
+            with self._done:
+                self._failed = False
+                self._saved_added = snapshot.added
+            logger.debug(
+                "slot cache: saved %d rows in %.0f ms",
+                len(rows),
+                (time.perf_counter() - start) * 1000,
+            )
 
 
 def _band(crop: np.ndarray) -> int:

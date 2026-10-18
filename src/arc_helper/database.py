@@ -8,6 +8,7 @@ import difflib
 import re
 import sqlite3
 import string
+from collections.abc import Iterable
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -629,6 +630,18 @@ class Database:
                     agrees INTEGER
                 )
             """)
+            # The stash pass's slot cache: rows from SlotCache snapshots in
+            # least recently used order, valid only for their fingerprint
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS slot_cache (
+                    kind TEXT NOT NULL,
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    fingerprint TEXT NOT NULL,
+                    PRIMARY KEY (kind, key)
+                )
+            """)
             conn.commit()
             self._user_db_ready = True
         return conn
@@ -812,6 +825,40 @@ class Database:
                 "SELECT name, SUM(count) FROM loadout_items GROUP BY name"
             ).fetchall()
         return {row[0]: row[1] for row in rows}
+
+    def save_slot_cache(
+        self, fingerprint: str, rows: Iterable[tuple[str, str, str]]
+    ) -> None:
+        """Replace the stored slot cache with these (kind, key, value) rows.
+
+        The rows keep their order, in one transaction, under fingerprint.
+        """
+        with self._get_user_connection() as conn:
+            conn.execute("DELETE FROM slot_cache")
+            conn.executemany(
+                "INSERT INTO slot_cache (kind, key, value, position, fingerprint) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    (kind, key, value, n, fingerprint)
+                    for n, (kind, key, value) in enumerate(rows)
+                ),
+            )
+
+    def slot_cache_rows(self, fingerprint: str) -> list[tuple[str, str, str]]:
+        """The stored slot cache's (kind, key, value) rows in their saved order.
+
+        Empty when the stored cache has another fingerprint, or, without
+        creating the user database, when it does not exist.
+        """
+        if not self.user_db_path.exists():
+            return []
+        with self._get_user_connection() as conn:
+            rows = conn.execute(
+                "SELECT kind, key, value FROM slot_cache WHERE fingerprint = ? "
+                "ORDER BY position",
+                (fingerprint,),
+            ).fetchall()
+        return [(row[0], row[1], row[2]) for row in rows]
 
     def sync_from_csvs(self) -> None:
         """Load the recycle, needs, blueprint and progress CSVs that exist."""
