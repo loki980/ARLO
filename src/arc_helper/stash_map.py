@@ -2,20 +2,34 @@
 The stored stash map: every slot of the whole stash, kept in the user
 database between sessions and updated whenever part of the stash is seen.
 
-StashMapStore.observe takes one full-screen RGB frame. An empty store takes
-the frame's view (the selected tab, slot size and grid left edge, see
-stash_stitch.frame_view) when its STASH header reads (a filtered tab shows
-no capacity, so its header does not read), and its top whole row is row 0.
-Frames of another view are ignored after that.
+StashMapStore.observe takes one full-screen RGB frame. Row 0 is always the
+stash's first row. An empty store starts its map on a frame scrolled to the
+top of the stash (see top_at_rest) of the whole stash, not a filtered tab:
+its STASH header reads (a filtered tab shows no capacity, so its header
+does not read) or, as the header's OCR can fail on every frame of a run,
+its selected tab is ALL_TAB. It takes that frame's view (the selected tab,
+slot size and grid left edge, see stash_stitch.frame_view). Frames of
+another view are ignored after that.
 
-A frame is placed by the stitch's method: its offset from the last placed
-frame of this session (grid.scroll_offset checked by the slot looks),
-otherwise its slot looks matched to the stored cells' looks
-(stash_stitch.look_offset, with the stored cells standing in as the other
-frame), otherwise its looks matched to the last placed frame's. The place
-found must then agree with the stored looks: LOOK_VOTES textured slots
-matching, not stash_stitch.shift_wrong. A frame that does not place changes
-nothing.
+A frame scrolled to the top places on its own, its top whole row as row 0,
+with no last frame and no stored looks needed (FIRST). Any other frame is
+placed by the stitch's method: its offset from the last placed frame of
+this session (grid.scroll_offset checked by the slot looks), otherwise its
+slot looks matched to the stored cells' looks (stash_stitch.look_offset,
+with the stored cells standing in as the other frame), otherwise its looks
+matched to the last placed frame's. The place found must then agree with
+the cells seen this session (not stash_stitch.shift_wrong) and be borne
+out by LOOK_VOTES matching looks. A cell not seen since the restart may be
+stale, the stash changed since it was saved: it can find a place but never
+stop one. A frame that does not place changes nothing, and Observed.why
+says which check stopped it. The last placed frame stays the reference for
+the next frame, so a later frame still places by its offset from that one,
+by the stored looks, or on its own at the top.
+
+The map is saved with MAP_VERSION. A map of another version (one saved
+before the version, with row 0 wherever its first frame was and looks taken
+from higher up the slot) is not loaded: the store starts empty and its
+first save replaces the old map's cells.
 
 Every whole slot of a placed frame lands on a (row, column) cell. A cell
 not seen before is added. A stored cell changes only on clear evidence
@@ -39,6 +53,7 @@ from .grid import STASH
 from .grid import Slot
 from .grid import find_slots
 from .grid import scroll_offset
+from .inventory_header import STASH_REST_TOPS
 from .inventory_header import StashHeader
 from .inventory_header import read_stash_header
 from .stash_scan import SlotItem
@@ -73,8 +88,36 @@ SCROLL = "scroll"
 LOOKS = "looks"
 NO_SLOTS = "no slots"
 NO_HEADER = "no header"
+NO_TOP = "no top"
 OTHER_VIEW = "other view"
 UNPLACED = "unplaced"
+
+# The stored map's format. 2: row 0 is the stash's first row and the looks
+# leave out ARLO's tag band (stash_stitch.LOOK_TOP 0.34). A map of another
+# version is dropped and rebuilt
+MAP_VERSION = 2
+
+# The stash rests at its top when its top whole row is within REST_TOLERANCE
+# px of a resting top (inventory_header.STASH_REST_TOPS) and the scrollbar's
+# thumb starts there too. A row at the resting top alone also happens one
+# whole number of rows down, the thumb tells the two apart. Lengths in px on
+# a 2160 px tall frame (stash_stitch.REFERENCE_HEIGHT). Measured on the 15 Oct
+# captures: the thumb is 12 px wide, 44 to 55 px right of the grid's right
+# edge, grey 118 on a 25 background, and its top is at y 543 with the first
+# row at rest (544). Scrolled by one row (208 px) it starts about 18 px lower
+REST_TOLERANCE = 6
+THUMB_DX_MIN = 20
+THUMB_DX_MAX = 90
+THUMB_LIT = 70
+# The thumb's columns are lit from THUMB_FROM to THUMB_TO px below the
+# resting top, and dark from CLEAR_FROM to CLEAR_TO px above it
+THUMB_FROM = 3
+THUMB_TO = 40
+CLEAR_FROM = 30
+CLEAR_TO = 8
+THUMB_MIN_WIDTH = 6
+# The tab bar's first tab shows the whole stash (stash_stitch.tab_index 0)
+ALL_TAB = 0
 
 Clock = Callable[[], datetime]
 
@@ -115,12 +158,14 @@ class StoredMap(NamedTuple):
 class Observed(NamedTuple):
     """What observe did with a frame: how it went (FIRST, SCROLL, LOOKS or
     one of the reasons it changed nothing), the frame y of row 0's top,
-    the cells it changed and the rows it showed."""
+    the cells it changed, the rows it showed, and for an UNPLACED frame
+    which check stopped it."""
 
     how: str
     origin: float | None
     changed: tuple[tuple[int, int], ...]
     rows: tuple[int, int] | None
+    why: str = ""
 
 
 class StashStatus(NamedTuple):
@@ -219,20 +264,56 @@ def _updated(old: StoredCell, new: StoredCell) -> tuple[StoredCell, bool] | None
     return None
 
 
-def _nothing(how: str) -> Observed:
-    return Observed(how, None, (), None)
+def _nothing(how: str, why: str = "") -> Observed:
+    return Observed(how, None, (), None, why)
+
+
+def _thumb_at(rgb: np.ndarray, x0: int, x1: int, rest: int, scale: float) -> bool:
+    """Whether the scrollbar's thumb starts at the resting top rest, between x0 and x1."""
+    above = rest - round(CLEAR_FROM * scale)
+    below = rest + round(THUMB_TO * scale)
+    if above < 0 or below > rgb.shape[0]:
+        return False
+    lit = rgb[above:below, x0:x1].max(axis=2) > THUMB_LIT
+    clear = ~lit[: rest - round(CLEAR_TO * scale) - above].any(axis=0)
+    body = lit[rest + max(1, round(THUMB_FROM * scale)) - above :].all(axis=0)
+    return int((clear & body).sum()) >= max(1, round(THUMB_MIN_WIDTH * scale))
+
+
+def top_at_rest(rgb: np.ndarray, whole: list[Slot]) -> int | None:
+    """The frame y of the top whole row when the stash is scrolled to its top.
+
+    None when it is not, or when the scrollbar's thumb is not seen (see
+    REST_TOLERANCE). whole are the frame's whole stash slots.
+    """
+    if not whole:
+        return None
+    scale = frame_scale(rgb)
+    top = min(s.rect.top for s in whole)
+    right = max(s.rect.right for s in whole)
+    x0 = right + round(THUMB_DX_MIN * scale)
+    x1 = min(rgb.shape[1], right + round(THUMB_DX_MAX * scale))
+    if x1 <= x0:
+        return None
+    for share in STASH_REST_TOPS:
+        rest = round(share * rgb.shape[0])
+        if abs(top - rest) <= REST_TOLERANCE * scale and _thumb_at(
+            rgb, x0, x1, rest, scale
+        ):
+            return top
+    return None
 
 
 def _stored_observations(
-    stored: StoredMap, pitch: float, left: float
+    stored: StoredMap, pitch: float, left: float, keys=None
 ) -> tuple[Observation, ...]:
-    """The stored cells with a look as observations of one tall frame,
-    row r's top at r * pitch."""
+    """The stored cells with a look (of keys only, when given) as
+    observations of one tall frame, row r's top at r * pitch."""
     # Only the tops and left edges take part in the matching
     side = round(pitch)
     out = []
-    for c in stored.cells.values():
-        if c.look is None:
+    for key, c in stored.cells.items():
+        if c.look is None or (keys is not None and key not in keys):
             continue
         x = round(left + c.column * pitch)
         y = round(c.row * pitch)
@@ -249,14 +330,27 @@ class StashMapStore:
         self.db = db
         self.clock = clock
         self._map = self.load()
+        # A store that starts without a map replaces whatever cells an old
+        # map left on its first save
+        self._replace = self._map is None
         self._last: _Last | None = None
+        # The cells a placed frame of this session showed
+        self._seen: set[tuple[int, int]] = set()
         self._top = 1 << 30
         self._bottom = 0
 
     def load(self) -> StoredMap | None:
-        """The map as saved in the user database, None when there is none."""
+        """The map as saved in the user database, None when there is none or
+        it is of another MAP_VERSION."""
         view, rows = self.db.load_stash_map()
         if view is None:
+            return None
+        if view["version"] != MAP_VERSION:
+            logger.info(
+                "stash map: stored map of version %s dropped, it is rebuilt "
+                "from the top of the stash",
+                view["version"],
+            )
             return None
         cells = {
             (r["row"], r["col"]): StoredCell(
@@ -332,11 +426,15 @@ class StashMapStore:
         items = {s.rect: s for s in slot_items}
         observations = slot_observations(0, rgb, whole, items)
         view = frame_view(rgb, whole)
+        rest = top_at_rest(rgb, whole)
         stored = self._map
         if stored is None:
-            if header is None:
+            if header is None and view.tab != ALL_TAB:
                 logger.info("stash map: first frame without a STASH header, ignored")
                 return _nothing(NO_HEADER)
+            if rest is None:
+                logger.info("stash map: waiting for a frame at the top of the stash")
+                return _nothing(NO_TOP)
             pitches = row_pitches(observations)
             if not pitches:
                 return _nothing(NO_SLOTS)
@@ -352,14 +450,14 @@ class StashMapStore:
         self._top = min(self._top, *(s.rect.top for s in stash))
         self._bottom = max(self._bottom, *(s.rect.bottom for s in stash))
         probes = grid_probes(rgb, observations, self._top, self._bottom, pitch, scale)
-        if not stored.cells:
-            origin, how = float(min(o.rect.top for o in observations)), FIRST
+        if rest is not None:
+            origin, how = float(rest), FIRST
         else:
-            placed = self._place(rgb, stash, probes, stored, pitch, left, scale)
+            placed, how = self._place(rgb, stash, probes, stored, pitch, left, scale)
             if placed is None:
-                logger.info("stash map: frame not placed, nothing changed")
-                return _nothing(UNPLACED)
-            origin, how = placed
+                logger.info("stash map: frame not placed (%s), nothing changed", how)
+                return _nothing(UNPLACED, how)
+            origin = placed
         now = self.clock().isoformat(timespec="seconds")
         seen: dict[tuple[int, int], StoredCell] = {}
         for o in observations:
@@ -392,9 +490,11 @@ class StashMapStore:
         cells = {**stored.cells, **writes}
         new_map = stored._replace(cells=cells)
         if writes or new_map[:6] != (self._map[:6] if self._map else None):
-            self._save(new_map, writes.values())
+            self._save(new_map, writes.values(), replace=self._replace)
+            self._replace = False
         self._map = new_map
         self._last = _Last(rgb, stash, probes, origin)
+        self._seen.update(seen)
         rows = sorted(r for r, _ in seen)
         return Observed(
             how, origin, tuple(sorted(changed)), (rows[0], rows[-1]) if rows else None
@@ -409,13 +509,16 @@ class StashMapStore:
         pitch: float,
         left: float,
         scale: float,
-    ) -> tuple[float, str] | None:
-        """The frame y of row 0's top and how it was found, None when the
-        frame does not place."""
+    ) -> tuple[float | None, str]:
+        """The frame y of row 0's top and how it was found (SCROLL or LOOKS),
+        or None and which check stopped the frame."""
         cells = _stored_observations(stored, pitch, left)
         last = self._last
         found = None
-        if last is not None and last.rgb.shape == rgb.shape:
+        tried = []
+        if last is None or last.rgb.shape != rgb.shape:
+            tried.append("no last frame")
+        else:
             measured = scroll_offset(
                 last.rgb,
                 rgb,
@@ -423,32 +526,46 @@ class StashMapStore:
                 [s.rect for s in last.stash if s.filled],
                 [s.rect for s in stash if s.filled],
             )
-            if measured is not None and offset_checked(
-                last.probes, probes, measured, pitch, scale
-            ):
+            if measured is None:
+                tried.append("no scroll offset")
+            elif not offset_checked(last.probes, probes, measured, pitch, scale):
+                tried.append(f"scroll offset {measured} against the looks")
+            else:
                 found = (last.origin + measured, SCROLL)
+        support = 0
         if found is None:
             shift = look_offset(cells, probes, pitch, scale)
             if shift is not None:
                 found = (float(shift.offset), LOOKS)
+                support = shift.support
+            else:
+                tried.append("no look offset to the stored cells")
         if found is None and last is not None:
             shift = look_offset(last.probes, probes, pitch, scale)
             if shift is not None:
                 found = (last.origin + shift.offset, LOOKS)
+            else:
+                tried.append("none to the last frame")
         if found is None:
-            return None
-        # The place must not contradict the stored looks, and must be borne
-        # out by LOOK_VOTES matching looks, of the stored cells or of the
-        # last placed frame (whose probes reach rows find_slots missed)
+            return None, ", ".join(tried)
+        # The place must not contradict the cells seen this session, and
+        # must be borne out by LOOK_VOTES matching looks: of the stored cells
+        # that found it, of the cells seen this session, or of the last
+        # placed frame (whose probes reach rows find_slots missed). A cell
+        # not seen this session may be stale, the stash changed since it was
+        # saved: it can find a place but never stop one
         origin = found[0]
         tol = LOOK_TOLERANCE * scale
-        support = 0
-        tops, diff = look_pairs(cells, probes, pitch)
+        fresh = _stored_observations(stored, pitch, left, self._seen)
+        tops, diff = look_pairs(fresh, probes, pitch)
         if tops.size:
             judged = judge_offset(tops, diff, round(origin), tol)
             if shift_wrong(judged):
-                return None
-            support = judged.support
+                return None, (
+                    f"{found[1]} place contradicts the cells seen this session "
+                    f"({judged.contra} against, {judged.support} for)"
+                )
+            support = max(support, judged.support)
         if support < LOOK_VOTES and last is not None:
             tops, diff = look_pairs(last.probes, probes, pitch)
             if tops.size:
@@ -456,10 +573,13 @@ class StashMapStore:
                 if not shift_wrong(judged):
                     support = max(support, judged.support)
         if support < LOOK_VOTES:
-            return None
+            return (
+                None,
+                f"{found[1]} place with {support} matching looks of {LOOK_VOTES}",
+            )
         return found
 
-    def _save(self, stored: StoredMap, cells) -> None:
+    def _save(self, stored: StoredMap, cells, *, replace: bool = False) -> None:
         view = {
             "tab": stored.view.tab,
             "side": stored.view.side,
@@ -469,6 +589,7 @@ class StashMapStore:
             "header_used": stored.header_used,
             "header_capacity": stored.header_capacity,
             "header_seen_at": stored.header_seen_at,
+            "version": MAP_VERSION,
         }
         rows = [
             {
@@ -484,4 +605,4 @@ class StashMapStore:
             }
             for c in cells
         ]
-        self.db.save_stash_map(view, rows)
+        self.db.save_stash_map(view, rows, replace=replace)

@@ -1,5 +1,6 @@
 """Tests for stash_map: synthetic frames of one stash panel observed into a stored map."""
 
+import sqlite3
 from datetime import UTC
 from datetime import datetime
 
@@ -12,7 +13,11 @@ from arc_helper.grid import STASH
 from arc_helper.grid import find_slots
 from arc_helper.inventory_header import StashHeader
 from arc_helper.stash_map import FIRST
+from arc_helper.stash_map import LOOKS
+from arc_helper.stash_map import NO_HEADER
+from arc_helper.stash_map import NO_TOP
 from arc_helper.stash_map import OTHER_VIEW
+from arc_helper.stash_map import SCROLL
 from arc_helper.stash_map import UNPLACED
 from arc_helper.stash_map import StashMapStore
 from arc_helper.stash_scan import SlotItem
@@ -32,6 +37,14 @@ BACKGROUND = (27, 27, 35)
 ROWS = 11
 EMPTY = {(9, 2), (9, 3), (10, 0), (10, 1), (10, 2), (10, 3)}
 SCROLLS = (0, 300, 650, 1040)
+# The scrollbar's thumb, as on the 15 Oct captures: 12 px wide, 44 px right
+# of the grid, its top at y 543 at the top of the stash and THUMB_PER_PX px
+# lower per px scrolled
+THUMB_LEFT = LEFT + 3 * PITCH + SIDE + 44
+THUMB_WIDTH, THUMB_HEIGHT = 12, 170
+THUMB_TOP = 543
+THUMB_PER_PX = 0.1
+THUMB_GREY = 118
 
 
 def _paint(image: np.ndarray, row: int, col: int, rng) -> None:
@@ -62,7 +75,39 @@ def _frame(content: np.ndarray, scroll: int, left: int = LEFT) -> np.ndarray:
     frame = np.full((*FRAME, 3), BACKGROUND, np.uint8)
     window = content[scroll : scroll + VIEW_BOTTOM - VIEW_TOP]
     frame[VIEW_TOP:VIEW_BOTTOM, left : left + window.shape[1]] = window
+    thumb = THUMB_TOP + round(scroll * THUMB_PER_PX)
+    x = THUMB_LEFT + left - LEFT
+    frame[thumb : thumb + THUMB_HEIGHT, x : x + THUMB_WIDTH] = THUMB_GREY
     return frame
+
+
+def _tag(content: np.ndarray, row: int, col: int, rng) -> None:
+    """Draw ARLO's have/need tag on slot (row, col), its text as noise from rng.
+
+    The pill's largest extent from badge_helper's geometry: the text 0.17 of
+    the slot height (33 px), the pill from 0.3 of that below the slot's top
+    to 1.9 of it plus 1 px, and across most of the slot.
+    """
+    top, left = FIRST_ROW + row * PITCH, col * PITCH
+    text = round(0.17 * SIDE)
+    y0, y1 = top + round(0.3 * text), top + round(1.9 * text) + 1
+    x0, x1 = left + round(0.3 * text), left + SIDE - round(0.3 * text)
+    content[y0:y1, x0:x1] = (20, 20, 20)
+    glyphs = rng.integers(0, 2, (3, (x1 - x0 - 2 * text) // 6), dtype=bool)
+    ink = np.repeat(np.repeat(glyphs, text // 3, 0), 6, 1)
+    y, x = y0 + round(0.3 * text), x0 + text
+    content[y : y + ink.shape[0], x : x + ink.shape[1]][ink] = (230, 90, 80)
+
+
+def _tagged(seed: int) -> np.ndarray:
+    """The content with a tag on every filled slot, the tags' text from seed."""
+    content = _content()
+    rng = np.random.default_rng(seed)
+    for row in range(ROWS):
+        for col in range(COLUMNS):
+            if (row, col) not in EMPTY:
+                _tag(content, row, col, rng)
+    return content
 
 
 def _header(used: int) -> StashHeader:
@@ -280,3 +325,72 @@ def test_a_change_within_the_same_second_is_reported(db):
     look = store.map.cells[3, 1].look
     assert not np.array_equal(look, before.cells[3, 1].look)
     assert np.array_equal(StashMapStore(db).map.cells[3, 1].look, look)
+
+
+def test_an_empty_store_waits_for_the_top_of_the_stash(db):
+    store = StashMapStore(db, clock=_Clock())
+    content = _content()
+    # One whole row down, row 1 rests where row 0 does at the top, but the
+    # scrollbar's thumb sits lower
+    seen = store.observe(_frame(content, PITCH), [], _header(FILLED))
+    assert seen.how == NO_TOP
+    assert store.map is None
+    seen = store.observe(_frame(content, 0), [], _header(FILLED))
+    assert (seen.how, seen.origin) == (FIRST, VIEW_TOP + FIRST_ROW)
+
+
+def test_after_a_restart_a_top_frame_places_as_row_0_and_a_scroll_follows(db):
+    _built(db)
+    store = StashMapStore(db, clock=_Clock())
+    # Other items in every slot: the stored looks match nothing, the top
+    # places the frame all the same
+    other = _content(seed=5)
+    seen = store.observe(_frame(other, 0), [], _header(FILLED))
+    assert (seen.how, seen.origin, seen.rows) == (FIRST, VIEW_TOP + FIRST_ROW, (0, 5))
+    seen = store.observe(_frame(other, 300), [], _header(FILLED))
+    assert seen.how == SCROLL
+    assert seen.origin == VIEW_TOP + FIRST_ROW - 300
+
+
+def test_a_tag_text_change_on_every_tile_does_not_stop_look_placement(db):
+    _built(db, _tagged(seed=11))
+    store = StashMapStore(db, clock=_Clock())
+    seen = store.observe(_frame(_tagged(seed=12), 650), [], _header(FILLED))
+    assert seen.how == LOOKS
+    assert seen.origin == VIEW_TOP + FIRST_ROW - 650
+    assert seen.changed == ()
+
+
+def test_an_unplaced_frame_followed_by_a_top_frame_recovers(db):
+    _built(db)
+    store = StashMapStore(db, clock=_Clock())
+    other = _content(seed=7)
+    seen = store.observe(_frame(other, 300), [], _header(FILLED))
+    assert seen.how == UNPLACED
+    assert seen.why
+    assert store.observe(_frame(other, 0), [], _header(FILLED)).how == FIRST
+    assert store.observe(_frame(other, 300), [], _header(FILLED)).how == SCROLL
+
+
+def test_a_map_of_an_old_version_is_rebuilt(db):
+    _built(db)
+    # As saved before MAP_VERSION
+    with sqlite3.connect(db.user_db_path) as conn:
+        conn.execute("UPDATE stash_map_view SET version = NULL")
+    store = StashMapStore(db, clock=_Clock())
+    assert store.map is None
+    seen = store.observe(_frame(_content(), 0), [], _header(FILLED))
+    assert seen.how == FIRST
+    # The old map's cells below the rows seen are gone with it
+    loaded = StashMapStore(db).map
+    assert sorted({r for r, _ in loaded.cells}) == list(range(6))
+    assert _cells_except(store.map, loaded, set())
+
+
+def test_an_empty_store_starts_on_the_all_tab_without_a_header(db):
+    store = StashMapStore(db, clock=_Clock())
+    frame = _frame(_content(), 0)
+    assert store.observe(frame, [], None).how == NO_HEADER
+    # The selected first tab: a white disc 104 px left of the grid
+    frame[560:640, LEFT - 134 : LEFT - 74] = 255
+    assert store.observe(frame, [], None).how == FIRST
