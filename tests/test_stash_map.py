@@ -7,11 +7,15 @@ import numpy as np
 import pytest
 
 from arc_helper.database import Database
+from arc_helper.database import Item
+from arc_helper.grid import STASH
+from arc_helper.grid import find_slots
 from arc_helper.inventory_header import StashHeader
 from arc_helper.stash_map import FIRST
 from arc_helper.stash_map import OTHER_VIEW
 from arc_helper.stash_map import UNPLACED
 from arc_helper.stash_map import StashMapStore
+from arc_helper.stash_scan import SlotItem
 
 # The stash panel of test_stash_stitch: 4 columns of 192 px slots on a 208 px
 # pitch from x 304, shown between y 510 and 1900 of a 4K frame, row 0 of the
@@ -44,13 +48,13 @@ def _paint(image: np.ndarray, row: int, col: int, rng) -> None:
     image[top + 40 : top + 144, left + 24 : left + 168] = icon
 
 
-def _content(seed: int = 1, rows: int = ROWS) -> np.ndarray:
+def _content(seed: int = 1, rows: int = ROWS, empty=EMPTY) -> np.ndarray:
     rng = np.random.default_rng(seed)
     height = FIRST_ROW + rows * PITCH + VIEW_BOTTOM
     image = np.full((height, COLUMNS * PITCH, 3), BACKGROUND, np.uint8)
     for row in range(rows):
         for col in range(COLUMNS):
-            _paint(image, row, col, None if (row, col) in EMPTY else rng)
+            _paint(image, row, col, None if (row, col) in empty else rng)
     return image
 
 
@@ -69,13 +73,15 @@ FILLED = ROWS * COLUMNS - len(EMPTY)
 
 
 class _Clock:
-    """A clock one minute later on every call."""
+    """A clock one minute later on every call, or always the same time."""
 
-    def __init__(self):
+    def __init__(self, *, still: bool = False):
         self.minute = 0
+        self.still = still
 
     def __call__(self) -> datetime:
-        self.minute += 1
+        if not self.still:
+            self.minute += 1
         return datetime(2026, 10, 17, 12, self.minute, tzinfo=UTC)
 
 
@@ -186,3 +192,91 @@ def test_a_new_store_places_a_frame_and_updates_one_cell(db):
     assert seen.changed == ((7, 0),)
     assert _cells_except(before, store.map, {(7, 0)})
     assert _cells_except(store.map, StashMapStore(db).map, set())
+
+
+def _items(frame: np.ndarray, scroll: int, reads: dict) -> list[SlotItem]:
+    """SlotItems for the stash slots of frame at the cells in reads, each read
+    (name, tier, stack), name None for an unidentified item."""
+    out = []
+    for slot in find_slots(frame):
+        if slot.panel != STASH:
+            continue
+        row = round((slot.rect.top - VIEW_TOP + scroll - FIRST_ROW) / PITCH)
+        col = round((slot.rect.left - LEFT) / PITCH)
+        if (row, col) not in reads:
+            continue
+        name, tier, stack = reads[row, col]
+        item = Item(name=name, action="Keep") if name else None
+        out.append(SlotItem(slot.rect, STASH, item, tier, stack, 0.9, 0.1, name))
+    return out
+
+
+def test_a_removed_row_clears_its_cells(db):
+    # Seven filled cells in view: row 3, and row 4 but its last column
+    keep = {(3, c) for c in range(COLUMNS)} | {(4, c) for c in range(3)}
+    empty = {(r, c) for r in range(6) for c in range(COLUMNS)} - keep
+    store = StashMapStore(db, clock=_Clock())
+    content = _content(rows=6, empty=empty)
+    store.observe(_frame(content, 0), [], _header(7))
+    before = store.map
+    gone = {(3, c) for c in range(COLUMNS)}
+    for _, col in gone:
+        _paint(content, 3, col, None)
+    seen = store.observe(_frame(content, 0), [], _header(3))
+    assert seen.how != UNPLACED
+    assert set(seen.changed) == gone
+    assert _cells_except(before, store.map, gone)
+    loaded = StashMapStore(db).map
+    assert not any(loaded.cells[k].filled for k in gone)
+    assert loaded.header_used == 3
+    assert store.status().sure
+
+
+def test_an_unidentified_stack_count_updates(db):
+    store = _built(db)
+    frame = _frame(_content(), 300)
+    store.observe(frame, _items(frame, 300, {(3, 1): (None, None, 2)}), _header(FILLED))
+    before = store.map
+    assert before.cells[3, 1].stack == 2
+    seen = store.observe(
+        frame, _items(frame, 300, {(3, 1): (None, None, 3)}), _header(FILLED)
+    )
+    assert seen.changed == ((3, 1),)
+    assert store.map.cells[3, 1].stack == 3
+    assert store.map.cells[3, 1].last_seen > before.cells[3, 1].last_seen
+    assert _cells_except(before, store.map, {(3, 1)})
+    assert StashMapStore(db).map.cells[3, 1].stack == 3
+
+
+def test_a_tier_change_of_the_same_item_updates(db):
+    store = _built(db)
+    frame = _frame(_content(), 300)
+    store.observe(
+        frame, _items(frame, 300, {(3, 1): ("Wolfpack", "I", None)}), _header(FILLED)
+    )
+    before = store.map
+    assert before.cells[3, 1].tier == "I"
+    seen = store.observe(
+        frame, _items(frame, 300, {(3, 1): ("Wolfpack", "II", None)}), _header(FILLED)
+    )
+    assert seen.changed == ((3, 1),)
+    cell = store.map.cells[3, 1]
+    assert (cell.name, cell.tier) == ("Wolfpack", "II")
+    assert cell.last_seen > before.cells[3, 1].last_seen
+    assert _cells_except(before, store.map, {(3, 1)})
+    assert StashMapStore(db).map.cells[3, 1].tier == "II"
+
+
+def test_a_change_within_the_same_second_is_reported(db):
+    store = StashMapStore(db, clock=_Clock(still=True))
+    content = _content()
+    for scroll in SCROLLS:
+        store.observe(_frame(content, scroll), [], _header(FILLED))
+    before = store.map
+    changed = _content()
+    _paint(changed, 3, 1, np.random.default_rng(99))
+    seen = store.observe(_frame(changed, 300), [], _header(FILLED))
+    assert seen.changed == ((3, 1),)
+    look = store.map.cells[3, 1].look
+    assert not np.array_equal(look, before.cells[3, 1].look)
+    assert np.array_equal(StashMapStore(db).map.cells[3, 1].look, look)

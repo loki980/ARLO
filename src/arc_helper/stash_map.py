@@ -21,8 +21,8 @@ Every whole slot of a placed frame lands on a (row, column) cell. A cell
 not seen before is added. A stored cell changes only on clear evidence
 (see _updated): another icon, an empty slot where an item was, an item
 where the slot was empty, a better identification of the same icon, or
-another stack count. A frame that shows most of the filled cells it covers
-as empty is drawn half way (icons not painted yet) and changes nothing.
+another stack count or tier. A frame drawn half way (icons not painted
+yet) can clear cells, and the next sighting with icons fills them again.
 Changed cells get the frame's time as last_seen, and only they are written.
 """
 
@@ -75,12 +75,6 @@ NO_SLOTS = "no slots"
 NO_HEADER = "no header"
 OTHER_VIEW = "other view"
 UNPLACED = "unplaced"
-HALF_DRAWN = "half drawn"
-
-# A frame is half drawn when more than this share of the stored filled cells
-# it shows whole, and at least HALF_DRAWN_MIN of them, come out empty
-HALF_DRAWN_SHARE = 0.5
-HALF_DRAWN_MIN = 3
 
 Clock = Callable[[], datetime]
 
@@ -181,11 +175,12 @@ def _from_observation(row: int, column: int, o: Observation, seen: str) -> Store
     )
 
 
-def _updated(old: StoredCell, new: StoredCell) -> StoredCell | None:
-    """The stored cell after a sighting, None when the sighting changes nothing.
+def _updated(old: StoredCell, new: StoredCell) -> tuple[StoredCell, bool] | None:
+    """The stored cell after a sighting, and whether its content changed.
 
-    The look fingerprint alone (a textured look where the stored one was
-    flat) is taken without changing last_seen.
+    None when the sighting changes nothing. The look fingerprint alone (a
+    textured look where the stored one was flat) is taken as no content
+    change, keeping last_seen.
     """
     distance = _distance(old.look, new.look)
     same = distance is not None and distance < LOOK_SAME
@@ -194,22 +189,33 @@ def _updated(old: StoredCell, new: StoredCell) -> StoredCell | None:
         if not old.filled or same:
             # Still empty, or the same icon (the fill test wavered)
             return None
-        return new
+        return new, True
     if not old.filled:
         # A stale badge can make an empty slot read filled: take it only
         # with an icon or an identification
         if new.look is None and new.name is None:
             return None
-        return new
+        return new, True
     if different:
-        return new
+        return new, True
+    # The same icon, or looks that cannot tell: take what the sighting read
+    # and keep what it did not
+    cell = old
     if new.name is not None and new.name != old.name:
-        if old.name is None or new.confidence > old.confidence:
-            return new
-    elif new.name is not None and new.stack is not None and new.stack != old.stack:
-        return old._replace(stack=new.stack, last_seen=new.last_seen)
+        if old.name is not None and new.confidence <= old.confidence:
+            # A weaker identification: only the stack read still counts
+            new = new._replace(tier=None)
+        else:
+            cell = cell._replace(name=new.name, confidence=new.confidence)
+    if new.tier is not None and new.tier != cell.tier:
+        cell = cell._replace(tier=new.tier)
+    if new.stack is not None and new.stack != cell.stack:
+        cell = cell._replace(stack=new.stack)
+    if cell[:7] != old[:7]:
+        look = new.look if new.look is not None else old.look
+        return cell._replace(look=look, last_seen=new.last_seen), True
     if old.look is None and new.look is not None:
-        return old._replace(look=new.look)
+        return old._replace(look=new.look), False
     return None
 
 
@@ -364,25 +370,15 @@ class StashMapStore:
             key = (row, round((o.rect.left - left) / pitch))
             if key not in seen:
                 seen[key] = _from_observation(*key, o, now)
-        covered = [stored.cells[k] for k in seen if k in stored.cells]
-        emptied = sum(c.filled and not seen[c.row, c.column].filled for c in covered)
-        filled_before = sum(c.filled for c in covered)
-        if emptied >= HALF_DRAWN_MIN and emptied > HALF_DRAWN_SHARE * filled_before:
-            logger.info(
-                "stash map: %d of %d filled cells empty, frame half drawn",
-                emptied,
-                filled_before,
-            )
-            return _nothing(HALF_DRAWN)
         writes: dict[tuple[int, int], StoredCell] = {}
         changed = []
         for key, new in seen.items():
             old = stored.cells.get(key)
-            cell = new if old is None else _updated(old, new)
-            if cell is None:
+            update = (new, True) if old is None else _updated(old, new)
+            if update is None:
                 continue
-            writes[key] = cell
-            if old is None or cell.last_seen != old.last_seen:
+            writes[key], content = update
+            if content:
                 changed.append(key)
         if header is not None and (header.used, header.capacity) != (
             stored.header_used,
