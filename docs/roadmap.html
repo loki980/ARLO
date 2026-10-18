@@ -157,15 +157,15 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <div class="capacity"><b>2 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 68 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~68%</span></div>
-  <div class="track"><i style="width:68%"></i></div>
-  <small>55 of 69 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 67 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~67%</span></div>
+  <div class="track"><i style="width:67%"></i></div>
+  <small>55 of 70 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
   <div><b>2 / 8</b><span>phases done</span><small>phases 0 and 3 done</small></div>
-  <div><b>55 / 69</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>55 / 70</b><span>steps done</span><small>across all eight phases</small></div>
   <div><b>674</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
 </section>
@@ -173,7 +173,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span></span><span>Nothing underway, paused at your ask. Next: <a href="#phase5">Phase 5, step 2, part 2</a>, stitching the stash live, then the ledger with your owned counts in the tags.</span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 20, The overlay keeps up with the inventory</a><small>Hide the moment the grid leaves, known items on the first frame</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase5">Phase 5, step 2, Stitch the stash, part 2</a><small>Your stash map and known items saved between sessions, updated whenever rows are seen, checked against the header</small></span></li>
   </ul>
 </section>
 
@@ -205,7 +206,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
       <div class="gauge" aria-label="Phase 1 about 85 percent done">
         <div class="bar"><i style="width:85%"></i></div>
-        <div class="read">~95%<small>18 of 19 steps</small></div>
+        <div class="read">~90%<small>18 of 20 steps</small></div>
       </div>
       
       <div class="split">
@@ -299,16 +300,17 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase4">
-    <div class="slot">4</div>
+    <div class="slot now">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 11 Oct</span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 11 Oct</span></div>
       <h2>Badges on every cell</h2>
       <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
-      <div class="gauge" aria-label="Phase 4 about 95 percent done">
-        <div class="bar"><i style="width:95%"></i></div>
-        <div class="read">~95%<small>18 of 19 steps</small></div>
+      <div class="gauge" aria-label="Phase 4 about 90 percent done">
+        <div class="bar"><i style="width:90%"></i></div>
+        <div class="read">~90%<small>18 of 20 steps</small></div>
       </div>
       <ul class="steps">
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 20, The overlay keeps up with the inventory<small>Badges hid 2.2 s after closing and came 2.1 s after opening. Now: hide the moment the grid leaves, known items on the first frame</small></span><span class="when recent">added 17 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when">11 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">The badge layer<small>One transparent click-through layer over the whole screen, drawn by a small helper</small></span><span class="when recent">done 14 Oct</span></li>
         <li class="done"><span class="tick">✓</span><span class="what">The stash pass<small>Every visible slot identified from one frame and turned into badges</small></span><span class="when recent">done 14 Oct</span></li>
@@ -354,9 +356,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase">
-    <div class="slot">5</div>
+    <div class="slot now">5</div>
     <article class="card" data-tab="Phase 5" id="phase5">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from 15 Oct</span><span class="when recent">moved up 15 Oct</span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
       <div class="gauge" aria-label="Phase 5 about 15 percent done">
@@ -365,7 +367,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       </div>
       <ul class="steps">
         <li class="done"><span class="tick">✓</span><span class="what">Step 1, Read the headers<small>The stash's used and total slots and its value, the loadout's weight and value</small></span><span class="when recent">done 15 Oct</span></li>
-        <li class="todo"><span class="tick">○</span><span class="what">Step 2, Stitch the stash across scrolling, next: your 67 scroll frames already stitch into one map, 275 filled slots matching the header. Part 2 does it live<small>The scrollbar position and the overlap with the last frame give each row its place</small></span><span class="when recent">changed 15 Oct</span></li>
+        <li class="now"><span class="nowmark">NOW</span><span class="what">Step 2, Stitch the stash across scrolling, part 2<small>Scroll once, then the map and the known items are saved between sessions, updated whenever rows are seen, and checked against the header (275 of 304)</small></span><span class="when recent">changed 17 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 3, The ledger, next: the loadout tally and surer stack counts are merged (none wrong of 158, 60 times faster). The LOADOUT header now reads in raid and next to a card. Part 2, wiring it in, is next. <small>Stash, backpack, quick use, safe pocket and equipment in one local store, updated from every still frame</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 4, Use it<small>Your real totals in the have/need tags and the advice card</small></span><span class="when recent">added 15 Oct</span></li>
         <li class="todo"><span class="tick">○</span><span class="what">Step 5, An unsure flag<small>Say so when the tally and the headers disagree, instead of showing wrong numbers</small></span><span class="when recent">added 15 Oct</span></li>
@@ -438,6 +440,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time>15 Oct</time><span>Merged: blueprint tiles told apart from their items (283 right instead of 269), and the Collections screen read whenever you open it. 664 tests. The blink fix and the stash stitching are still running.</span></li>
   <li><time>15 Oct</time><span>Merged: badges that never blink. On the replay a fading card, a hover and a short pass clear and hide nothing. 670 tests. Pausing after the stash stitching, at your ask.</span></li>
   <li><time>15 Oct</time><span>Your 67 scroll frames stitched into one stash map: rows 0 to 71, 275 filled slots, exactly what the header says. Paused for the night at your ask. 674 tests.</span></li>
+  <li><time>17 Oct</time><span>Back on: you asked for a stash map kept between sessions and a faster overlay. Your log showed badges hiding 2.2 s after closing and coming 2.1 s after opening. Four workers: the faster overlay, known items saved across restarts, the saved stash map, the stash header read while scrolled.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">
