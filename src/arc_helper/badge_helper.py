@@ -393,7 +393,8 @@ def _draw_patch(cr, badge: dict, family: str) -> None:
     )
     cr.set_source_rgba(*parse_rgb(badge["colour"]))
     cr.fill()
-    cr.set_source_rgba(*PATCH_TEXT_RGB, 1)
+    fg = badge.get("fg")
+    cr.set_source_rgba(*(parse_color(fg) if fg else (*PATCH_TEXT_RGB, 1)))
     baseline = bottom - PATCH_BASELINE_SHARE * (bottom - top)
     text.draw_on_baseline(left + PATCH_PAD, baseline)
 
