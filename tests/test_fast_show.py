@@ -445,3 +445,115 @@ def test_hide_message_hides_popup_and_chips_at_once(visible):
     app._hide_card_windows()  # noqa: SLF001
     assert app.overlay.calls == ([("hide", None)] if visible else [])
     assert app.chips.calls == [("hide", "card_gone")]
+
+
+GRID_FRAME_SLOTS = [Rect(0, 0, 16, 16), Rect(44, 44, 60, 60)]
+
+
+class _GridClosingOcr(_ClosingOcr):
+    """_ClosingOcr whose full-screen captures show the grid for grid_cycles.
+
+    Every capture after those has no grid: the inventory closed.
+    """
+
+    search_width = 0
+    search_height = 0
+    _last_card = None
+
+    def __init__(self, clock, cards, grid_cycles, **kwargs):
+        super().__init__(clock, cards, **kwargs)
+        self.grid_cycles = grid_cycles
+        self.grid = np.zeros((64, 64, 3), np.uint8)
+        self._last_origin = Point(0, 0)
+        self._last_capture = None
+        self.gone_at = None
+
+    def locate_card_at_cursor(self):
+        found = super().locate_card_at_cursor()
+        self.grid_cycles -= 1
+        if self.grid_cycles >= 0:
+            self._last_capture = self.grid
+        else:
+            self._last_capture = np.zeros((64, 64, 3), np.uint8)
+            if self.gone_at is None:
+                self.gone_at = self.clock.now
+        return found
+
+
+def test_the_grid_gone_clears_at_once_and_the_state_waits_for_the_debounce(
+    monkeypatch, caplog
+):
+    clock = _Clock()
+    ocr = _GridClosingOcr(clock, [None] * 40, 4)
+    monkeypatch.setattr(main_module, "get_ocr_engine", lambda: ocr)
+    monkeypatch.setattr(
+        main_module,
+        "find_slots",
+        lambda rgb: [SimpleNamespace(rect=r) for r in GRID_FRAME_SLOTS]
+        if rgb is ocr.grid
+        else [],
+    )
+    monkeypatch.setattr(main_module, "get_screen_resolution", lambda: (1, 1))
+
+    def no_backend():
+        raise RuntimeError
+
+    monkeypatch.setattr(main_module, "get_backend", no_backend)
+    ref = []
+    scanner = Scanner(root=None, overlay=None, status=None, db=_Db(), hotkey=None)
+    clears = []
+
+    class _Surface:
+        @staticmethod
+        def start():
+            return True
+
+        @staticmethod
+        def draw(_badges):
+            pass
+
+        @staticmethod
+        def clear():
+            clears.append((scanner.state, clock.now))
+
+    def badges(slot_items):
+        return [{"rect": tuple(s.rect), "kind": "border"} for s in slot_items]
+
+    stash = main_module.StashBadges(
+        lambda _rgb: [
+            SimpleNamespace(rect=r, item=None, tier=None) for r in GRID_FRAME_SLOTS
+        ],
+        badges,
+        _Surface(),
+        threaded=False,
+        gap_s=0,
+        clock=clock.monotonic,
+    )
+    feed = stash.feed
+
+    def feed_and_step(*args):
+        feed(*args)
+        stash.step()
+
+    stash.feed = feed_and_step
+    scanner.stash = stash
+    ocr.scanner = scanner
+    scanner.hotkey = _Hotkey(ocr, ref, held=False)
+    ref.append(scanner)
+    scanner._running = True  # noqa: SLF001 - test seam
+    monkeypatch.setattr(main_module, "get_settings", _settings)
+    monkeypatch.setattr(main_module.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
+    with caplog.at_level(logging.DEBUG, logger=main_module.logger.name):
+        scanner._scan_loop()  # noqa: SLF001
+
+    # Cleared on the first cycle without a grid, while still ACTIVE
+    assert clears == [(ScannerState.ACTIVE, ocr.gone_at)]
+    assert "stash badges cleared reason=grid_gone" in caplog.text
+    leave = [
+        r.getMessage()
+        for r in caplog.records
+        if "reason=trigger_lost" in r.getMessage()
+    ]
+    assert leave == ["state ACTIVE -> IDLE reason=trigger_lost misses=3 span=2100 ms"]
+    assert scanner.state == ScannerState.IDLE

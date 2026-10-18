@@ -254,13 +254,13 @@ def test_find_slots_runs_once_per_held_frame(monkeypatch):
     stash = _stash(lambda _rgb: [_slot(SLOT_A)], _Surface())
     # Four still frames, then two of a moved grid, each a new array
     frames = [_frame(0) for _ in range(4)] + [_frame(120), _frame(120)]
-    for i, rgb in enumerate(frames):
+    for rgb in frames:
         stash.feed(rgb, None, ())
         stash.step()
-        # Cached exactly the frames _prev, _newest and _job refer to, once
-        # the first compare has run (the first frame alone is not looked at)
+        # Cached exactly the frames _prev, _newest and _job refer to (the
+        # first frame alone too, for its grid)
         held = {id(r) for r in stash._held()}  # noqa: SLF001
-        assert set(stash._slot_cache) == (held if i else set())  # noqa: SLF001
+        assert set(stash._slot_cache) == held  # noqa: SLF001
     # Each frame once: the first as the frame before, the rest as the newest
     assert sorted(calls) == sorted(id(f) for f in frames)
     stash.clear("test")
@@ -436,7 +436,7 @@ def test_a_fading_card_with_no_located_card_clears_nothing(
     stash, calls = _grid_stash(
         monkeypatch,
         surface,
-        slots=lambda rgb: GRID_SLOTS[:3] + GRID_SLOTS[4:]
+        slots=lambda rgb: GRID_SLOTS[:3] + GRID_SLOTS[13:]
         if rgb is fading
         else GRID_SLOTS,
     )
@@ -445,7 +445,8 @@ def test_a_fading_card_with_no_located_card_clears_nothing(
         stash.step()
         stash.feed(fading if after else _grid(), card, ())
         stash.step()
-    assert "stash big change waits changed=9 slots=40 lone=1" in caplog.text
+    # find_slots loses the 10 slots 3 to 12 of 40 too, a quarter: big
+    assert "stash big change waits changed=15 slots=40 lone=10" in caplog.text
     assert ("clear",) not in surface.calls
     assert "cleared" not in caplog.text
     assert "hidden" not in caplog.text
@@ -531,6 +532,9 @@ def test_a_changed_slot_is_redrawn_from_the_slot_cache_before_the_pass(
         return [_slot(GRID_SLOTS[5])]
 
     stash, _calls = _grid_stash(monkeypatch, surface, identify=identify, peek=peek)
+    # The first frame with a grid drew the known slots
+    assert peeks == [1]
+    peeks.clear()
     with caplog.at_level(logging.DEBUG, logger="arc_helper"):
         for shade in (40, 60):
             stash.feed(_grid([5], shade), None, ())
@@ -605,7 +609,10 @@ def test_a_stale_pass_keeps_the_unchanged_slots(monkeypatch, caplog):
 
 
 def _one_slot_off(monkeypatch, caplog, before, after):
-    """Feed a frame whose find_slots finds after, with badges from before."""
+    """Feed a frame whose find_slots finds after, with badges from before.
+
+    The one lone slot hides only its own badges, nothing clears.
+    """
     changed = _grid()
     surface = _Surface()
     stash, _calls = _grid_stash(
@@ -617,15 +624,16 @@ def _one_slot_off(monkeypatch, caplog, before, after):
         for _ in range(2):
             stash.feed(changed, None, ())
             stash.step()
-    assert surface.calls[-1] == ("clear",)
-    assert "stash badges cleared reason=grid_moved" in caplog.text
+    assert ("clear",) not in surface.calls
+    assert "cleared" not in caplog.text
+    assert "stash badges hidden slots=1 reason=slot_changed" in caplog.text
 
 
-def test_one_slot_removed_clears_all(monkeypatch, caplog):
+def test_one_slot_removed_hides_only_its_badges(monkeypatch, caplog):
     _one_slot_off(monkeypatch, caplog, GRID_SLOTS, GRID_SLOTS[:-1])
 
 
-def test_one_slot_added_clears_all(monkeypatch, caplog):
+def test_one_slot_added_hides_only_its_badges(monkeypatch, caplog):
     # The last slot found on the newer frame only
     _one_slot_off(monkeypatch, caplog, GRID_SLOTS[:-1], GRID_SLOTS)
 
@@ -1068,3 +1076,124 @@ def test_stop_saves_the_slot_cache_the_throttle_held_back():
     stash.stop()
     assert [len(rows) for rows in saves] == [1, 2]
     assert surface.calls[-1] == ("stop",)
+
+
+def _peeking(identify):
+    """identify with a peek that knows every slot of GRID_SLOTS, and its calls."""
+    peeks = []
+
+    def peek(_rgb):
+        peeks.append(1)
+        return [_slot(r) for r in GRID_SLOTS]
+
+    identify.peek = peek
+    return identify, peeks
+
+
+def test_the_grid_gone_clears_at_once_and_comes_back_from_peek(monkeypatch, caplog):
+    # The inventory closes: a frame with no slots clears on that frame, the
+    # frames after it start no pass, and the grid back draws the known slots
+    # on its first frame, before a pass
+    gone = _grid()
+    passes = []
+
+    def identify(rgb):
+        passes.append(rgb)
+        return [_slot(r) for r in GRID_SLOTS]
+
+    identify, peeks = _peeking(identify)
+    surface = _Surface()
+    stash, _calls = _grid_stash(
+        monkeypatch,
+        surface,
+        identify=identify,
+        slots=lambda rgb: [] if rgb is gone else GRID_SLOTS,
+    )
+    assert len(passes) == 1
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        stash.feed(gone, None, ())
+        stash.step()
+        assert surface.calls[-1] == ("clear",)
+        for _ in range(3):
+            stash.feed(gone, None, ())
+            stash.step()
+        assert len(passes) == 1
+        assert surface.calls.count(("clear",)) == 1
+        peeks.clear()
+        stash.feed(_grid(), None, ())
+        stash.step()
+        assert peeks == [1]
+        assert len(passes) == 1
+        assert len(surface.draws()[-1]) == 80
+        # The next still frame's pass confirms them
+        stash.feed(_grid(), None, ())
+        stash.step()
+    assert len(passes) == 2
+    assert "stash badges cleared reason=grid_gone slots=0 last=40" in caplog.text
+    assert "grid_moved" not in caplog.text
+
+
+def test_known_slots_are_drawn_on_the_first_frame_after_opening(monkeypatch):
+    # At the start and after the inventory closed (a clear from the scanner)
+    # the first frame with a grid draws the known slots, no still pair needed
+    monkeypatch.setattr(
+        main, "find_slots", lambda _rgb: [SimpleNamespace(rect=r) for r in GRID_SLOTS]
+    )
+    passes = []
+    identify, peeks = _peeking(lambda rgb: passes.append(rgb) or [])
+    surface = _Surface()
+    stash = _stash(identify, surface)
+    for _ in range(2):
+        stash.feed(_grid(), None, ())
+        stash.step()
+        assert peeks == [1]
+        assert len(surface.draws()[-1]) == 80
+        assert not passes
+        stash.clear("inventory_closed")
+        peeks.clear()
+
+
+# 59 slots, the stash and loadout of the 17 Oct log, on an 8 by 8 grid
+LONE_SLOTS = [
+    Rect(56 * c, 56 * r, 56 * c + 48, 56 * r + 48) for r in range(8) for c in range(8)
+][:59]
+
+
+def _lone_run(monkeypatch, caplog, lost: int) -> _Surface:
+    """Badges on 59 slots, then two frames on which find_slots loses lost slots."""
+    lone = np.zeros((448, 448, 3), np.uint8)
+
+    def found(rgb):
+        return LONE_SLOTS[lost:] if rgb is lone else LONE_SLOTS
+
+    monkeypatch.setattr(
+        main, "find_slots", lambda rgb: [SimpleNamespace(rect=r) for r in found(rgb)]
+    )
+    surface = _Surface()
+    stash = _stash(lambda rgb: [_slot(r) for r in found(rgb)], surface)
+    for _ in range(2):
+        stash.feed(np.zeros((448, 448, 3), np.uint8), None, ())
+        stash.step()
+    assert len(surface.draws()[-1]) == 118
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        for _ in range(2):
+            stash.feed(lone, None, ())
+            stash.step()
+    return surface
+
+
+def test_four_lone_slots_of_59_hide_only_their_badges(monkeypatch, caplog):
+    surface = _lone_run(monkeypatch, caplog, 4)
+    assert ("clear",) not in surface.calls
+    assert "stash badges hidden slots=4 reason=slot_changed" in caplog.text
+    assert _drawn_slots(surface) == {tuple(r) for r in LONE_SLOTS[4:]}
+
+
+def test_twenty_lone_slots_of_59_clear_all(monkeypatch, caplog):
+    # 20 of 59 is under BIG_CHANGE_FRACTION but over LONE_BIG_FRACTION
+    surface = _lone_run(monkeypatch, caplog, 20)
+    assert surface.calls[-1] == ("clear",)
+    assert (
+        "stash badges cleared reason=grid_moved changed=20 slots=59 lone=20"
+        in caplog.text
+    )
