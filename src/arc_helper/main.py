@@ -56,6 +56,7 @@ from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
 from arc_helper.database import get_database
 from arc_helper.grid import BACKPACK
+from arc_helper.grid import EQUIPMENT
 from arc_helper.grid import STASH
 from arc_helper.grid import STILL_MEAN
 from arc_helper.grid import STILL_SCALE
@@ -71,6 +72,10 @@ from arc_helper.hovered_cell import snap_to_slot
 from arc_helper.icon_embed import EmbedGallery
 from arc_helper.icon_embed import build_gallery
 from arc_helper.icon_embed import default_embedder
+from arc_helper.inventory_header import read_loadout_header
+from arc_helper.inventory_header import read_stash_header
+from arc_helper.inventory_ledger import loadout_tally
+from arc_helper.inventory_ledger import owned_counts
 from arc_helper.ocr import CardSignature
 from arc_helper.ocr import OCREngine
 from arc_helper.ocr import OCREngineManager
@@ -89,6 +94,10 @@ from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 from arc_helper.screen import get_backend
 from arc_helper.slot_marks import learned_check
+from arc_helper.stash_map import FIRST
+from arc_helper.stash_map import LOOKS
+from arc_helper.stash_map import SCROLL
+from arc_helper.stash_map import StashMapStore
 from arc_helper.stash_scan import SlotCacheSaver
 from arc_helper.stash_scan import SlotItem
 from arc_helper.stash_scan import badges_for
@@ -421,6 +430,9 @@ def hovered_cell_on_screen(
 # thread wakes at least every STASH_TICK_S.
 STASH_PASS_GAP_S = 0.25
 STASH_TICK_S = 0.1
+# A loadout tally whose counts did not change is saved at most once per
+# LOADOUT_SAVE_S, changed counts are saved at once
+LOADOUT_SAVE_S = 5.0
 # Share of the inventory slots that must change at once (or the slot set
 # itself, a scroll or tab switch) to clear every badge. Fewer changed slots
 # only hide the badges on them.
@@ -894,14 +906,123 @@ def stash_identifier(
 
 
 def stash_badge_maker(
-    db: Database, show_ended: Callable[[], bool]
+    db: Database,
+    show_ended: Callable[[], bool],
+    owned: Callable[[], dict[str, int] | None] | None = None,
 ) -> Callable[[list[SlotItem]], list[dict]]:
-    """badges_for with the verdicts of the moment, as the popup decides them."""
+    """badges_for with the verdicts of the moment, as the popup decides them.
+
+    owned gives the owned totals of the moment (StashLedger.owned), None to
+    count the slots on screen.
+    """
 
     def make(slot_items: list[SlotItem]) -> list[dict]:
-        return badges_for(slot_items, verdicts_for(db, show_ended=show_ended()))
+        verdicts = verdicts_for(db, show_ended=show_ended())
+        return badges_for(slot_items, verdicts, owned() if owned else None)
 
     return make
+
+
+class StashLedger:
+    """The stored stash map and the latest loadout, kept current from the passes.
+
+    after_pass takes each pass's frame, its find_slots slots and its slot
+    items. A frame with stash slots goes to the StashMapStore with its STASH
+    header, one DEBUG line per observe. A frame with loadout slots and a
+    readable LOADOUT header gives the latest loadout tally, saved with
+    db.save_loadout at once when its counts changed, else at most once per
+    LOADOUT_SAVE_S on clock. An error is logged and never raised.
+
+    owned is the stored map's counts plus the latest loadout's
+    (inventory_ledger.owned_counts), None while the map is missing or not
+    sure. The map and the loadout saved before are used from the start.
+    """
+
+    def __init__(
+        self,
+        db: Database,
+        *,
+        store: StashMapStore | None = None,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._db = db
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._store = store if store is not None else StashMapStore(db)
+        try:
+            self._loadout: dict[str, int] = db.loadout_counts()
+        except Exception:  # noqa: BLE001 - a missing loadout only drops it from the totals
+            logger.warning("loadout counts not loaded", exc_info=True)
+            self._loadout = {}
+        # The counts last saved and when, on clock
+        self._saved: tuple[dict[str, int], float] | None = None
+        self._totals = self._combined()
+
+    def owned(self) -> dict[str, int] | None:
+        """The combined owned totals, None to fall back to the slots on screen."""
+        with self._lock:
+            return self._totals
+
+    def after_pass(
+        self, rgb: np.ndarray, slots: Sequence, slot_items: list[SlotItem]
+    ) -> None:
+        """Observe the stash part and tally the loadout part of a pass's frame."""
+        stash = [s for s in slots if s.panel == STASH]
+        if stash:
+            try:
+                self._observe(rgb, stash, slot_items)
+            except Exception:  # noqa: BLE001 - the ledger must never stop a pass
+                logger.warning("stash map observe failed", exc_info=True)
+        if any(s.panel != STASH for s in slots):
+            try:
+                self._tally(rgb, slots, slot_items)
+            except Exception:  # noqa: BLE001 - the ledger must never stop a pass
+                logger.warning("loadout tally failed", exc_info=True)
+        totals = self._combined()
+        with self._lock:
+            self._totals = totals
+
+    def _combined(self) -> dict[str, int] | None:
+        try:
+            sure = self._store.status().sure
+            return owned_counts(self._store.map, self._loadout, sure=sure)
+        except Exception:  # noqa: BLE001 - fall back to the slots on screen
+            logger.warning("owned totals failed", exc_info=True)
+            return None
+
+    def _observe(
+        self, rgb: np.ndarray, stash: list, slot_items: list[SlotItem]
+    ) -> None:
+        header = read_stash_header(rgb, stash)
+        items = [s for s in slot_items if s.panel == STASH]
+        seen = self._store.observe(rgb, items, header)
+        status = self._store.status()
+        logger.debug(
+            "stash map observe placed=%s changed=%d filled=%d header=%s sure=%s",
+            "yes" if seen.how in {FIRST, SCROLL, LOOKS} else "no",
+            len(seen.changed),
+            status.filled,
+            f"{header.used}/{header.capacity}" if header else "none",
+            "yes" if status.sure else "no",
+        )
+
+    def _tally(
+        self, rgb: np.ndarray, slots: Sequence, slot_items: list[SlotItem]
+    ) -> None:
+        header = read_loadout_header(rgb, [s for s in slots if s.panel == EQUIPMENT])
+        if header is None:
+            return
+        tally = loadout_tally(slot_items, header)
+        self._loadout = tally.totals
+        now = self._clock()
+        saved = self._saved
+        if (
+            saved is None
+            or saved[0] != tally.totals
+            or now - saved[1] >= LOADOUT_SAVE_S
+        ):
+            self._db.save_loadout(tally)
+            self._saved = (tally.totals, now)
 
 
 def _latency_from(moved: float) -> dict[str, float | None]:
@@ -992,8 +1113,10 @@ class StashBadges:
         threaded: bool = True,
         clock: Callable[[], float] = time.monotonic,
         peek: Callable[[np.ndarray], list[SlotItem]] | None = None,
+        ledger: StashLedger | None = None,
     ) -> None:
         self._identify = identify
+        self._ledger = ledger
         self._peek = peek if peek is not None else getattr(identify, "peek", None)
         self._make_badges = make_badges
         self._surface = surface
@@ -1758,6 +1881,8 @@ class StashBadges:
         began = self._clock()
         try:
             slot_items = self._identify(rgb)
+            if self._ledger is not None:
+                self._feed_ledger(rgb, slot_items)
             badges = self._make_badges(slot_items)
             spent = self._clock() - began
         except Exception as e:  # noqa: BLE001 - badges must never stop ARLO
@@ -1854,6 +1979,13 @@ class StashBadges:
                 self._lat["pass"] = spent
                 self._latency_check()
             self._evict_slots()
+
+    def _feed_ledger(self, rgb: np.ndarray, slot_items: list[SlotItem]) -> None:
+        """Hand a pass's frame to the ledger before its badges are made. Never raises."""
+        try:
+            self._ledger.after_pass(rgb, self._found_of(rgb), slot_items)
+        except Exception:  # noqa: BLE001 - the ledger must never stop a pass
+            logger.warning("stash ledger failed", exc_info=True)
 
     def _kept_drawn(self, badges: list[dict], looks: Sequence[Rect]) -> list[dict]:
         """The drawn badges a pass's badges have nothing for, on unchanged slots.
@@ -2925,11 +3057,21 @@ class Application:
         overlay = self.settings.overlay
         if not overlay.stash_badges:
             return None
+        try:
+            ledger = StashLedger(self.db)
+        except Exception:  # noqa: BLE001 - without it the tags count the slots on screen
+            logger.warning("stash ledger off", exc_info=True)
+            ledger = None
         return StashBadges(
             stash_identifier(self.db, self.settings.icon_cache_dir, warm=True),
-            stash_badge_maker(self.db, lambda: get_settings().show_ended_projects),
+            stash_badge_maker(
+                self.db,
+                lambda: get_settings().show_ended_projects,
+                ledger.owned if ledger else None,
+            ),
             BadgeSurface(),
             keep_border=overlay.stash_badge_keep_border,
+            ledger=ledger,
         )
 
     def _apply_status(self, status: str) -> None:

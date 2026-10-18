@@ -14,6 +14,7 @@ from arc_helper import stash_scan
 from arc_helper.grid import STILL_MEAN
 from arc_helper.grid import Slot
 from arc_helper.icon_embed import EmbedGallery
+from arc_helper.inventory_header import LoadoutHeader
 from arc_helper.main import StashBadges
 from arc_helper.main import stash_still
 from arc_helper.stash_scan import SlotItem
@@ -1197,3 +1198,154 @@ def test_twenty_lone_slots_of_59_clear_all(monkeypatch, caplog):
         "stash badges cleared reason=grid_moved changed=20 slots=59 lone=20"
         in caplog.text
     )
+
+
+class _Store:
+    """A StashMapStore stand-in: a fixed map and status, observe recorded."""
+
+    def __init__(self, counts=None, *, sure=True, fail=False) -> None:
+        self.map = None
+        if counts is not None:
+            self.map = SimpleNamespace(
+                cells={
+                    (0, i): SimpleNamespace(filled=True, name=name, stack=stack)
+                    for i, (name, stack) in enumerate(counts.items())
+                }
+            )
+        self.sure = sure
+        self.fail = fail
+        self.calls: list[tuple] = []
+
+    def status(self):
+        return SimpleNamespace(
+            sure=self.sure, filled=len(self.map.cells) if self.map else 0
+        )
+
+    def observe(self, rgb, slot_items, header=None):
+        self.calls.append((rgb, slot_items, header))
+        if self.fail:
+            msg = "observe broke"
+            raise RuntimeError(msg)
+        return SimpleNamespace(how="scroll", changed=((0, 0),))
+
+
+class _LedgerDb:
+    def __init__(self, loadout=None) -> None:
+        self.loadout = loadout or {}
+        self.saved: list = []
+
+    def loadout_counts(self) -> dict:
+        return dict(self.loadout)
+
+    def save_loadout(self, tally) -> None:
+        self.saved.append(tally.totals)
+
+
+NEED_SOURCES = (("Gunsmith II", 12),)
+
+
+def _parts(rect: Rect, panel: str = "stash", stack: int = 2) -> SlotItem:
+    item = SimpleNamespace(name="Metal Parts", sell_price=None)
+    return SlotItem(rect, panel, item, None, stack, 0.9, 0.2, "Metal Parts")
+
+
+def _ledger_stash(monkeypatch, store, db, identify):
+    """A StashBadges with a StashLedger on store and db, tags from badges_for."""
+    monkeypatch.setattr(
+        main,
+        "find_slots",
+        lambda _rgb: [SimpleNamespace(rect=SLOT_A, panel="stash", filled=True)],
+    )
+    monkeypatch.setattr(main, "read_stash_header", lambda _rgb, _stash: "header")
+    monkeypatch.setattr(
+        main,
+        "verdicts_for",
+        lambda _db, **_kw: lambda _s: SimpleNamespace(sources=NEED_SOURCES),
+    )
+    ledger = main.StashLedger(db, store=store)
+    maker = main.stash_badge_maker(db, lambda: False, ledger.owned)
+    made: list = []
+
+    def make(items):
+        made.append(maker(items))
+        return made[-1]
+
+    surface = _Surface()
+    stash = StashBadges(identify, make, surface, threaded=False, gap_s=0, ledger=ledger)
+    frame = _frame(0)
+    for _ in range(2):
+        stash.feed(frame, None, ())
+        stash.step()
+    return surface, frame, made
+
+
+def _tag_texts(made) -> list[str]:
+    return [b["text"] for b in made[-1] if b["kind"] == "tag"]
+
+
+def test_the_pass_hands_its_frame_items_and_header_to_the_stash_map(monkeypatch):
+    store = _Store({"Metal Parts": 7})
+    items = [_parts(SLOT_A)]
+    _, frame, _ = _ledger_stash(monkeypatch, store, _LedgerDb(), lambda _rgb: items)
+    assert store.calls == [(frame, items, "header")]
+
+
+def test_a_saved_sure_map_gives_combined_tags_on_the_first_pass(monkeypatch):
+    store = _Store({"Metal Parts": 7})
+    db = _LedgerDb({"Metal Parts": 3})
+    _, _, made = _ledger_stash(monkeypatch, store, db, lambda _rgb: [_parts(SLOT_A)])
+    assert _tag_texts(made) == ["10/12"]
+
+
+@pytest.mark.parametrize(
+    "store",
+    [_Store({"Metal Parts": 7}, sure=False), _Store(None)],
+    ids=["unsure", "missing"],
+)
+def test_tags_fall_back_to_the_slots_on_screen(monkeypatch, store):
+    db = _LedgerDb({"Metal Parts": 3})
+    _, _, made = _ledger_stash(monkeypatch, store, db, lambda _rgb: [_parts(SLOT_A)])
+    assert _tag_texts(made) == ["2/12"]
+
+
+def test_a_failing_observe_does_not_fail_the_pass(monkeypatch, caplog):
+    store = _Store({"Metal Parts": 7}, fail=True)
+    with caplog.at_level(logging.WARNING, logger="arc_helper"):
+        surface, _, made = _ledger_stash(
+            monkeypatch, store, _LedgerDb(), lambda _rgb: [_parts(SLOT_A)]
+        )
+    assert store.calls
+    assert "stash map observe failed" in caplog.text
+    assert surface.draws() == [[tuple(SLOT_A)] * 2]
+    assert _tag_texts(made) == ["7/12"]
+
+
+def _loadout_run(monkeypatch, steps) -> list:
+    """after_pass on a loadout frame at each (time, stack), the saved totals."""
+    monkeypatch.setattr(
+        main,
+        "read_loadout_header",
+        lambda _rgb, _equipment: LoadoutHeader(10.0, 50.0, 100),
+    )
+    clock = _Clock()
+    db = _LedgerDb()
+    ledger = main.StashLedger(db, store=_Store(None), clock=clock)
+    slots = [SimpleNamespace(rect=SLOT_A, panel="backpack", filled=True)]
+    for at, stack in steps:
+        clock.now = at
+        ledger.after_pass(_frame(0), slots, [_parts(SLOT_A, "backpack", stack)])
+    return db.saved
+
+
+def test_unchanged_loadout_counts_save_once_within_the_throttle(monkeypatch):
+    assert _loadout_run(monkeypatch, [(0.0, 2), (4.0, 2)]) == [{"Metal Parts": 2}]
+
+
+def test_changed_loadout_counts_save_at_once(monkeypatch):
+    saved = _loadout_run(monkeypatch, [(0.0, 2), (4.0, 3)])
+    assert saved == [{"Metal Parts": 2}, {"Metal Parts": 3}]
+
+
+def test_unchanged_loadout_counts_save_again_after_the_throttle(monkeypatch):
+    saved = _loadout_run(monkeypatch, [(0.0, 2), (main.LOADOUT_SAVE_S, 2)])
+    assert saved == [{"Metal Parts": 2}] * 2
