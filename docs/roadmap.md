@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 73 percent of the whole roadmap, weighted by effort: 60 of 68 steps
-done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+About 72 percent of the whole roadmap, weighted by effort: 60 of 69 steps
+done, 3 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
 Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
@@ -332,7 +332,7 @@ Done:
    52 of 53. With the icon model, weapons identified exactly 39 of 44 (11
    before). Measured on the crops the reader was tuned on.
 
-## Phase 4. Badges on every cell. Done 18 Oct
+## Phase 4. Badges on every cell. Started 11 Oct, 95 percent, 21 of 22 steps
 
 Decided 11 Oct. The Wayland risk sat here and is settled: the X11 layer works
 over the game. Delivered: prices on every icon (steps 4 to 6), the gold frame
@@ -458,6 +458,12 @@ Done:
     over its own patches before reading a bar, so the new colours read as
     well as before (0 item changes on 12 captures, against 6 with the old
     patches).
+22. Worth in colour. Jeffrey, 18 Oct, after seeing step 21's greys: "the
+    gradient is black->grey->white. Can we instead be red to yellow to green
+    to gold?" Red for the cheapest stacks, through yellow and green, gold
+    from 5,000 up. Green and gold are also rarity colours, Jeffrey's call.
+    The gold stays apart from ARLO's hover frame gold so the grid reader
+    never confuses them. Underway 18 Oct. Added 18 Oct.
 
 ## Phase 4b. Blueprint tracker. Started 11 Oct, 50 percent, 2 of 4 steps. Added 11 Oct
 
