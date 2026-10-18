@@ -69,12 +69,25 @@ REFERENCE_HEIGHT = 2160
 # tallest stash slot
 WHOLE_SHARE = 0.04
 
-# The slot look: a grey LOOK_SIDE square of the slot's middle, without the
-# border band (ARLO's red outline, the hover frame), the top band (ARLO's
-# have/need tag) and the bottom bar (ARLO's price patch and the count)
+# The slot look: a grey LOOK_SIDE square of the slot's middle, without what
+# ARLO draws on a tile, so a change in its badges never changes a look.
+# - The border band, LOOK_BORDER of the side: the old red short-stock outline
+#   (5 px inside the rect at 4K, 0.026 of a 194 px slot). The gold hover
+#   frame (cell_border) lies outside the rect, in the gap between slots.
+# - The top band, LOOK_TOP of the height: the have/need tag, or a wide
+#   slot's price pill, in a top corner. badge_helper draws its text at
+#   TAG_TEXT_SHARE (0.17) of the slot height, inset 0.3 of the text size,
+#   the pill the text's ink (at most the text size) plus 0.3 of it above and
+#   below, and a 2 px outline. Its bottom is at most 1.9 x 0.17 = 0.323 of
+#   the height plus 1 px, and about 1 px more from rounding the text size,
+#   for slots 65 to 235 px tall (where the text size is not clamped): under
+#   0.34 from 100 px up. Measured on composites of the 15 Oct captures:
+#   0.286.
+# - The bottom bar, from LOOK_BOTTOM of the height: the price patch is drawn
+#   on the bar, whose top is at 0.734 to 0.758, and the count.
 LOOK_SIDE = 16
 LOOK_BORDER = 0.07
-LOOK_TOP = 0.22
+LOOK_TOP = 0.34
 LOOK_BOTTOM = 0.72
 # A look whose grey spread is under this is flat: an empty slot or an icon
 # not drawn yet, which matches anything and is left out of the matching

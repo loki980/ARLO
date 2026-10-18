@@ -6,6 +6,7 @@ from arc_helper.stash_stitch import LOOKS
 from arc_helper.stash_stitch import NEW_SEGMENT
 from arc_helper.stash_stitch import SCROLL
 from arc_helper.stash_stitch import filled_cells
+from arc_helper.stash_stitch import slot_look
 from arc_helper.stash_stitch import stitch
 
 # A 4K frame with a stash viewport like the real one: 4 columns of 192 px
@@ -119,3 +120,26 @@ def test_an_unmeasurable_offset_starts_a_new_segment():
     assert segments[1].frames == (1, 2)
     # The first segment has only the first frame's six rows, nothing guessed
     assert sorted({r for r, _ in result.cells}) == list(range(6))
+
+
+def test_arlo_drawings_on_a_slot_leave_its_look_alone():
+    content = _content(1, seed=3, empty=set())
+    slot = content[FIRST_ROW : FIRST_ROW + SIDE, 0:SIDE]
+    rng = np.random.default_rng(4)
+    looks = []
+    for _ in range(2):
+        drawn = slot.copy()
+        # The have/need tag at its largest (badge_helper: text 0.17 of the
+        # height, the pill down to 1.9 of that plus 1 px), across the top
+        text = round(0.17 * SIDE)
+        tag = slice(round(0.3 * text), round(1.9 * text) + 1)
+        drawn[tag, 8 : SIDE - 8] = rng.integers(0, 256, (1, SIDE - 16, 3), np.uint8)
+        # The old red short-stock outline, 5 px inside the edge
+        red = (255, 92, 77)
+        drawn[:5] = drawn[-5:] = drawn[:, :5] = drawn[:, -5:] = red
+        # A price patch on the bar, from 0.734 of the height
+        drawn[round(0.734 * SIDE) :, 8:90] = rng.integers(0, 256, 3, np.uint8)
+        looks.append(slot_look(drawn))
+    assert looks[0] is not None
+    np.testing.assert_array_equal(looks[0], looks[1])
+    np.testing.assert_array_equal(looks[0], slot_look(slot))
