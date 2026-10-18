@@ -423,6 +423,10 @@ STASH_TICK_S = 0.1
 # itself, a scroll or tab switch) to clear every badge. Fewer changed slots
 # only hide the badges on them.
 BIG_CHANGE_FRACTION = 0.4
+# Share of the slots found on one frame only (lone) that clears every badge
+# on its own, a changed slot set. Fewer lone slots only hide their own badges,
+# find_slots loses a few slots on a still grid now and then
+LONE_BIG_FRACTION = 0.25
 # The panels that scroll on their own. A big change inside one of them only,
 # by a measured vertical offset, moves its badges with it instead of clearing
 SCROLL_PANELS = (STASH, BACKPACK)
@@ -709,10 +713,11 @@ def stash_changes(
     half a STILL_SCALE cell. A matched slot changed when its own mean
     difference outside ignore reaches STILL_MEAN (grid.slot_diffs). A slot
     found on one frame only changed too, unless ignore covers all of it and
-    it may only be hidden. The change is big when such a slot looks the same
-    on both frames, so the slot set itself changed (a scroll, a tab switch,
-    the inventory layout) and not just the slot's look, or when at least
-    BIG_CHANGE_FRACTION of the slots changed. Without a slot on either frame, or with an
+    it may only be hidden. The change is big when at least
+    BIG_CHANGE_FRACTION of the slots changed (lone ones included), or when at
+    least LONE_BIG_FRACTION of the slots are lone, so the slot set itself
+    changed (a scroll, a tab switch, the inventory layout). Fewer lone slots
+    are only changed slots. Without a slot on either frame, or with an
     injected still other than frames_still, the whole compare of
     stash_still decides: not still is big. gray, when given, returns the
     grey copy of a frame (a cached grid.still_gray).
@@ -735,15 +740,15 @@ def stash_changes(
         if m is not None and m >= STILL_MEAN
     ]
     # A lone slot wholly under ignore rects may only be covered on one frame.
-    # One whose look changed was missed for that (find_slots loses a darkened
-    # or lit slot), one that looks the same means the slot set changed
+    # Others changed: find_slots lost a darkened or lit slot, or a few slots
+    # on a still grid, or the slot set changed when many are lone
     seen = slot_diffs(a, b, alone, ignore)
-    lone = [(r, m) for r, m in zip(alone, seen, strict=True) if m is not None]
-    changed += [r for r, _m in lone]
+    lone = [r for r, m in zip(alone, seen, strict=True) if m is not None]
+    changed += lone
     total = len(pairs) + len(alone)
     return GridChange(
-        big=any(m < STILL_MEAN for _r, m in lone)
-        or len(changed) >= BIG_CHANGE_FRACTION * total,
+        big=len(changed) >= BIG_CHANGE_FRACTION * total
+        or len(lone) >= LONE_BIG_FRACTION * total,
         changed=tuple(changed),
         slots=total,
         lone=len(lone),

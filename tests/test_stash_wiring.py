@@ -436,7 +436,7 @@ def test_a_fading_card_with_no_located_card_clears_nothing(
     stash, calls = _grid_stash(
         monkeypatch,
         surface,
-        slots=lambda rgb: GRID_SLOTS[:3] + GRID_SLOTS[4:]
+        slots=lambda rgb: GRID_SLOTS[:3] + GRID_SLOTS[13:]
         if rgb is fading
         else GRID_SLOTS,
     )
@@ -445,7 +445,8 @@ def test_a_fading_card_with_no_located_card_clears_nothing(
         stash.step()
         stash.feed(fading if after else _grid(), card, ())
         stash.step()
-    assert "stash big change waits changed=9 slots=40 lone=1" in caplog.text
+    # find_slots loses the 10 slots 3 to 12 of 40 too, a quarter: big
+    assert "stash big change waits changed=15 slots=40 lone=10" in caplog.text
     assert ("clear",) not in surface.calls
     assert "cleared" not in caplog.text
     assert "hidden" not in caplog.text
@@ -605,7 +606,10 @@ def test_a_stale_pass_keeps_the_unchanged_slots(monkeypatch, caplog):
 
 
 def _one_slot_off(monkeypatch, caplog, before, after):
-    """Feed a frame whose find_slots finds after, with badges from before."""
+    """Feed a frame whose find_slots finds after, with badges from before.
+
+    The one lone slot hides only its own badges, nothing clears.
+    """
     changed = _grid()
     surface = _Surface()
     stash, _calls = _grid_stash(
@@ -617,15 +621,16 @@ def _one_slot_off(monkeypatch, caplog, before, after):
         for _ in range(2):
             stash.feed(changed, None, ())
             stash.step()
-    assert surface.calls[-1] == ("clear",)
-    assert "stash badges cleared reason=grid_moved" in caplog.text
+    assert ("clear",) not in surface.calls
+    assert "cleared" not in caplog.text
+    assert "stash badges hidden slots=1 reason=slot_changed" in caplog.text
 
 
-def test_one_slot_removed_clears_all(monkeypatch, caplog):
+def test_one_slot_removed_hides_only_its_badges(monkeypatch, caplog):
     _one_slot_off(monkeypatch, caplog, GRID_SLOTS, GRID_SLOTS[:-1])
 
 
-def test_one_slot_added_clears_all(monkeypatch, caplog):
+def test_one_slot_added_hides_only_its_badges(monkeypatch, caplog):
     # The last slot found on the newer frame only
     _one_slot_off(monkeypatch, caplog, GRID_SLOTS[:-1], GRID_SLOTS)
 
@@ -1044,3 +1049,49 @@ def test_a_tab_switch_still_clears_every_badge(monkeypatch, caplog):
     assert surface.calls[-1] == ("clear",)
     assert not [c for c in surface.calls if c[0] == "translate"]
     assert "stash badges cleared reason=grid_moved" in caplog.text
+
+
+# 59 slots, the stash and loadout of the 17 Oct log, on an 8 by 8 grid
+LONE_SLOTS = [
+    Rect(56 * c, 56 * r, 56 * c + 48, 56 * r + 48) for r in range(8) for c in range(8)
+][:59]
+
+
+def _lone_run(monkeypatch, caplog, lost: int) -> _Surface:
+    """Badges on 59 slots, then two frames on which find_slots loses lost slots."""
+    lone = np.zeros((448, 448, 3), np.uint8)
+
+    def found(rgb):
+        return LONE_SLOTS[lost:] if rgb is lone else LONE_SLOTS
+
+    monkeypatch.setattr(
+        main, "find_slots", lambda rgb: [SimpleNamespace(rect=r) for r in found(rgb)]
+    )
+    surface = _Surface()
+    stash = _stash(lambda rgb: [_slot(r) for r in found(rgb)], surface)
+    for _ in range(2):
+        stash.feed(np.zeros((448, 448, 3), np.uint8), None, ())
+        stash.step()
+    assert len(surface.draws()[-1]) == 118
+    with caplog.at_level(logging.DEBUG, logger="arc_helper"):
+        for _ in range(2):
+            stash.feed(lone, None, ())
+            stash.step()
+    return surface
+
+
+def test_four_lone_slots_of_59_hide_only_their_badges(monkeypatch, caplog):
+    surface = _lone_run(monkeypatch, caplog, 4)
+    assert ("clear",) not in surface.calls
+    assert "stash badges hidden slots=4 reason=slot_changed" in caplog.text
+    assert _drawn_slots(surface) == {tuple(r) for r in LONE_SLOTS[4:]}
+
+
+def test_twenty_lone_slots_of_59_clear_all(monkeypatch, caplog):
+    # 20 of 59 is under BIG_CHANGE_FRACTION but over LONE_BIG_FRACTION
+    surface = _lone_run(monkeypatch, caplog, 20)
+    assert surface.calls[-1] == ("clear",)
+    assert (
+        "stash badges cleared reason=grid_moved changed=20 slots=59 lone=20"
+        in caplog.text
+    )
