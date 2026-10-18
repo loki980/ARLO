@@ -6,14 +6,19 @@ and compares that sum with the value the LOADOUT header shows. Stash slots
 are ignored. It is a pure function: the caller finds and identifies the
 slots (stash_scan.identify_slots) and reads the header
 (inventory_header.read_loadout_header).
+
+stash_map_counts counts the items of the stored stash map, owned_counts
+adds the latest loadout counts to them for the have/need tags.
 """
 
 from collections.abc import Iterable
+from collections.abc import Mapping
 from typing import NamedTuple
 
 from .grid import PANELS
 from .grid import STASH
 from .inventory_header import LoadoutHeader
+from .stash_map import StoredMap
 from .stash_scan import SlotItem
 
 # The header value includes weapon mods and durability that catalog sell
@@ -104,3 +109,34 @@ def loadout_tally(
         agrees,
         reason,
     )
+
+
+def stash_map_counts(stored: StoredMap) -> dict[str, int]:
+    """Item name to count over the stored map's filled, identified cells.
+
+    A cell counts its stack, or 1 when the stack is None.
+    """
+    counts: dict[str, int] = {}
+    for cell in stored.cells.values():
+        if not cell.filled or cell.name is None:
+            continue
+        count = cell.stack if cell.stack is not None else 1
+        counts[cell.name] = counts.get(cell.name, 0) + count
+    return counts
+
+
+def owned_counts(
+    stored: StoredMap | None, loadout: Mapping[str, int], *, sure: bool
+) -> dict[str, int] | None:
+    """The stored stash map's counts plus the loadout counts, by item name.
+
+    None when there is no stored map or it is not sure (its filled count is
+    not the header's used count), so the caller falls back to the slots on
+    screen (stash_scan.owned_totals).
+    """
+    if stored is None or not sure:
+        return None
+    totals = stash_map_counts(stored)
+    for name, count in loadout.items():
+        totals[name] = totals.get(name, 0) + count
+    return totals

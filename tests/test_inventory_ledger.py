@@ -8,7 +8,11 @@ from arc_helper.grid import SAFE_POCKET
 from arc_helper.grid import STASH
 from arc_helper.inventory_header import LoadoutHeader
 from arc_helper.inventory_ledger import loadout_tally
+from arc_helper.inventory_ledger import owned_counts
+from arc_helper.stash_map import StoredCell
+from arc_helper.stash_map import StoredMap
 from arc_helper.stash_scan import SlotItem
+from arc_helper.stash_stitch import View
 from arc_helper.tooltip_layout import Rect
 
 RECT = Rect(0, 0, 10, 10)
@@ -92,3 +96,33 @@ def test_save_then_load_replaces_the_snapshot(tmp_path):
     db.save_loadout(loadout_tally([_slot(SAFE_POCKET, AMMO, 3)], None))
     assert db.loadout_counts() == {"Light Ammo": 3}
     assert (tmp_path / "arlo_user.db").exists()
+
+
+def _stored(*cells) -> StoredMap:
+    """A stored map of (name, stack, filled) cells in row 0."""
+    return StoredMap(
+        View(0, 10, 10),
+        0.05,
+        0.1,
+        3,
+        280,
+        "t",
+        {
+            (0, i): StoredCell(0, i, filled, name, None, stack, 0.9, None, "t")
+            for i, (name, stack, filled) in enumerate(cells)
+        },
+    )
+
+
+def test_owned_counts_add_the_map_and_the_loadout_when_sure():
+    stored = _stored(
+        ("Light Ammo", 40, True), ("Light Ammo", None, True), (None, None, True)
+    )
+    owned = owned_counts(stored, {"Light Ammo": 82, "Stitcher I": 1}, sure=True)
+    assert owned == {"Light Ammo": 123, "Stitcher I": 1}
+
+
+def test_owned_counts_fall_back_when_unsure_or_missing():
+    stored = _stored(("Light Ammo", 40, True))
+    assert owned_counts(stored, {"Light Ammo": 82}, sure=False) is None
+    assert owned_counts(None, {"Light Ammo": 82}, sure=True) is None
