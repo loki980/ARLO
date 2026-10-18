@@ -154,29 +154,27 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <div>
     <div class="eyebrow">ARLO · Arc Raiders Loot Overlay</div>
     <h1>ARLO Overlay Roadmap</h1>
-    <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 11 October 2026.</p>
+    <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 18 October 2026.</p>
   </div>
-  <div class="capacity"><b>2 / 8</b>phases done</div>
+  <div class="capacity"><b>4 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 68 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~68%</span></div>
-  <div class="track"><i style="width:68%"></i></div>
-  <small>56 of 71 steps done, 2 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 73 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~73%</span></div>
+  <div class="track"><i style="width:73%"></i></div>
+  <small>60 of 68 steps done, 4 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>2 / 8</b><span>phases done</span><small>phases 0 and 3 done</small></div>
-  <div><b>56 / 71</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>4 / 8</b><span>phases done</span><small>phases 0, 1, 3 and 4 done</small></div>
+  <div><b>60 / 68</b><span>steps done</span><small>across all eight phases</small></div>
   <div><b>713</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
-  <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 54 of 57</small></div>
+  <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 56 of 56 after the reader bake-off (14 Oct)</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
-  <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4">Phase 4, step 21, Worth at a glance</a><small>Price patches darker the cheaper the stack, white from 5,000 up, so you see what to drop</small></span></li>
-  </ul>
+  <p>Nothing is underway right now.</p>
 </section>
 
 <ol class="course">
@@ -190,58 +188,43 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <details>
         <summary><span class="chev">▸</span><span class="show">Show the 4 steps</span><span class="hide">Hide the 4 steps</span></summary>
         <ul class="steps">
-          <li class="done"><span class="tick">✓</span><span class="what">Step 1, Code survey<small>How the scanner, popup, database, and capture work today</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 2, ARC Tracker teardown<small>A detector plus a learned icon model, OCR only for text. Ideas only, the app is all rights reserved</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 3, Data sources checked<small>Found the recycle feed dead since April and the quest reader broken. Chose ARC Tracker's public API, MetaForge for workshop levels</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 4, Design written<small>In the repo under docs, phase 1 in full, later phases outlined</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 1, Code survey<small>How the scanner, popup, database, and capture work today</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 2, ARC Tracker teardown<small>A detector plus a learned icon model, OCR only for text. Ideas only, the app is all rights reserved</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 3, Data sources checked<small>Found the recycle feed dead since April and the quest reader broken. Chose ARC Tracker's public API, MetaForge for workshop levels</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 4, Design written<small>In the repo under docs, phase 1 in full, later phases outlined</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
         </ul>
       </details>
     </article>
   </li>
 
   <li class="phase" id="phase1">
-    <div class="slot">1</div>
+    <div class="slot done">1</div>
     <article class="card" data-tab="Phase 1">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
+      <div class="tags"><span class="tag done">Done</span><span class="dates"><time datetime="2026-10-11" data-rel>11 Oct</time> to <time datetime="2026-10-17" data-rel>17 Oct</time></span></div>
       <h2>Hover an item and read the whole story</h2>
-      <p>Two small chips beside the game's own tooltip: the sell price on the "Can be found in" row, and under "Recycles into", the extra parts you only get from the Speranza recycler, lit in amber.</p>
-      <div class="gauge" aria-label="Phase 1 about 85 percent done">
-        <div class="bar"><i style="width:85%"></i></div>
-        <div class="read">~85%<small>17 of 20 steps</small></div>
-      </div>
-      
-      <div class="split">
-        <div>
-          <h3>Done</h3>
-          <ul class="steps">
-            <li class="done"><span class="tick">✓</span><span class="what">Step 1, The two chips and the geometry that places them<small>Finds the cream card and its labels, anchors the price to the label when the card is cut off</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 2, Home and field recycling kept apart<small>Power Bank: 2 Battery and 2 Wires at home, 2 Battery in the field</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 3, Weekly data feed repaired<small>Dead feed replaced, quest reader fixed, the weekly job installs what it needs</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 4, Roman numerals resolved from the catalog and the picture<small>"ARPEGGIO V" becomes Arpeggio IV, strokes are counted in the numeral itself</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 5, New data loaded, catalog grown to 1,109 items<small>Frozen Trail items known, database stable on open</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 6, First capture session measured<small>7 of 7 captures with a card read right, the vote said IV at 0.88 on the real font</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 7, Find the card anywhere on screen<small>99 of your captures held no card because the fixed box missed it. A search around the cursor now finds the card wherever the game draws it</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 13, Weapons identified in game<small>The whole screen is searched, so tall weapon cards keep their title. You confirmed weapon identification works</small></span><span class="when recent">done <time datetime="2026-10-12" data-rel>12 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 11, A faster title reader<small>About 135 ms a card instead of 520. Garnet and other mod cards read right</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 12, Popups stay put while you hover<small>Your hover log showed the popup hid one second after each read while a new read took up to 2.5 seconds. The hide delay now follows the scan speed. You confirmed it fixed</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 14, Captures only when you ask<small>Capture now runs only for a test started with the capture flag, stops after 300 images, and saves in the background so scanning is never slowed</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 15, Gold frame on the hovered item<small>The game's glow ring is found beside the card in about 4 ms, and a gold frame goes around an item to keep</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 16, Never read a card ARLO covers<small>The popup now lives in your red box in the LOADOUT panel and steps aside when a card opens over it</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 17, Fast show and hide<small>A new card is read at once, the same card is never read again, and the advice hides as soon as the card goes. Reads in your session replay dropped from 44 to 26</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 18, ARLO wakes up in raid too<small>Containers and ARC loot now get advice: when the trigger boxes miss the shifted INVENTORY tab, a wide strip across the top is searched</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 19, No advice for a garbled read<small>"CRACKED BIOSCANNER" plus junk now resolves to the item. A read that matches nothing shows nothing</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 20, A tidier card<small>No price chip, no KEEP chip, no status window, HOME ONLY lined up with the recycle icons</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
-          </ul>
-        </div>
-        <div>
-          <h3>Ahead, in order</h3>
-          <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">Step 8, Your live check of the chips<small>Hover a Power Bank, tell me where the chips land and what the game's own recycle row shows. Also a screenshot of any weapon hover where ARLO shows nothing</small></span><span class="when"></span></li>
-            <li class="todo"><span class="tick">○</span><span class="what">Step 9, Capture run for tiers I to III<small>So the stroke counter is tuned on every numeral, not only IV</small></span><span class="when"></span></li>
-            <li class="todo"><span class="tick">○</span><span class="what">Step 10, Decide the recycle chip label<small>"home only" if the game shows the field result, "field only" if it shows home</small></span><span class="when"></span></li>
-          </ul>
-        </div>
-      </div>
+      <p>One small chip on the game's tooltip: HOME ONLY beside the Recycles into icons, naming the extra parts you only get from the Speranza recycler. The game already shows the price and the advice card gives the advice, so the price and KEEP chips went on 17 Oct. ARLO also finds the card anywhere, reads its title fast and frames the hovered slot in gold.</p>
+      <details>
+        <summary><span class="chev">▸</span><span class="show">Show the 17 steps</span><span class="hide">Hide the 17 steps</span></summary>
+        <ul class="steps">
+          <li class="done"><span class="tick">✓</span><span class="what">Step 1, The two chips and the geometry that places them<small>Finds the cream card and its labels, anchors the price to the label when the card is cut off</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 2, Home and field recycling kept apart<small>Power Bank: 2 Battery and 2 Wires at home, 2 Battery in the field</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 3, Weekly data feed repaired<small>Dead feed replaced, quest reader fixed, the weekly job installs what it needs</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 4, Roman numerals resolved from the catalog and the picture<small>"ARPEGGIO V" becomes Arpeggio IV, strokes are counted in the numeral itself</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 5, New data loaded, catalog grown to 1,109 items<small>Frozen Trail items known, database stable on open</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 6, First capture session measured<small>7 of 7 captures with a card read right, the vote said IV at 0.88 on the real font</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 7, Find the card anywhere on screen<small>99 of your captures contained no card because the fixed box missed it. A search around the cursor now finds the card wherever the game draws it</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 13, Weapons identified in game<small>The whole screen is searched, so tall weapon cards keep their title. You confirmed weapon identification works</small></span><span class="when recent">done <time datetime="2026-10-12" data-rel>12 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 11, A faster title reader<small>About 135 ms a card instead of 520. Garnet and other mod cards read right</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 12, Popups stay put while you hover<small>Your hover log showed the popup hid one second after each read while a new read took up to 2.5 seconds. The hide delay now follows the scan speed. You confirmed it fixed</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 14, Captures only when you ask<small>Capture now runs only for a test started with the capture flag, stops after 300 images, and saves in the background so scanning is never slowed</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 15, Gold frame on the hovered item<small>The game's glow ring is found beside the card in about 4 ms, and a gold frame goes around the hovered item</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time> &middot; changed <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 16, Never read a card ARLO covers<small>The popup now lives in your red box in the LOADOUT panel and steps aside when a card opens over it</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 17, Fast show and hide<small>A new card is read at once, the same card is never read again, and the advice hides as soon as the card goes. Reads in your session replay dropped from 44 to 26</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 18, ARLO wakes up in raid too<small>Containers and ARC loot now get advice: when the trigger boxes miss the shifted INVENTORY tab, a wide strip across the top is searched</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 19, No advice for a garbled read<small>"CRACKED BIOSCANNER" plus junk now resolves to the item. A read that matches nothing shows nothing</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 20, A tidier card<small>No price chip, no KEEP chip, no status window, HOME ONLY lined up with the recycle icons</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
+        </ul>
+      </details>
     </article>
   </li>
 
@@ -250,20 +233,22 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <article class="card" data-tab="Phase 2">
       <div class="tags"><span class="tag started">Started</span><span class="dates">from <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
       <h2>Advice with a reason</h2>
-      <p>Instead of a bare "Keep", the popup says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell.</p>
-      <div class="gauge" aria-label="Phase 2 about 80 percent done">
-        <div class="bar"><i style="width:80%"></i></div>
-        <div class="read">~80%<small>7 of 10 steps</small></div>
+      <p>Instead of a bare "Keep", the advice card says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell.</p>
+      <div class="gauge" aria-label="Phase 2 about 90 percent done">
+        <div class="bar"><i style="width:90%"></i></div>
+        <div class="read">~90%<small>9 of 10 steps</small></div>
       </div>
       
       <div class="split">
         <div>
           <h3>Done</h3>
           <ul class="steps">
-            <li class="done"><span class="tick">✓</span><span class="what">Step 1, The needs list<small>289 rows: every quest, project phase, and workshop level that wants items, all nine Frozen Trail quests and the Outpost included. Matches your cheatsheet where checked</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 1, The needs list<small>289 rows: every quest, project phase, and workshop level that wants items, all nine Frozen Trail quests and the Outpost included. Matches your cheatsheet where checked</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 2, The verdict engine, with the weapon rule<small>Active needs minus your progress, a reason naming the sources, keep at least one of every weapon. Radial Press reads "keep, 3 for Gunsmith IV, then sell"</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 3, Popup overhaul<small>Verdict word colored by the verdict, the catalog name instead of the raw read, home recycle outputs on the notes line</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 4, Manual progress file<small>Your bench levels, finished quests, and project phases, kept in a separate untracked database so updates never conflict</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 6, Readable text in a game-style font<small>The popup and chips drawn in the bundled game font. The KEEP chip it added was retired 17 Oct</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time> &middot; changed <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 7, A card that looks like part of the game<small>ARC Tracker's card in your LOADOUT box in place of the corner popup, with the recycle line naming parts you still need. In daily use, and your report on 15 Oct led to step 8</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time> &middot; changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 8, The advice card stays under your second gun<small>It went to the top-left corner when a card covered its spot and never came back. Home now comes from your weapon slots on screen</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 9, Learn or sell a blueprint<small>No check mark on the tile: learn it. A check mark: the usual advice, sell. Remembered for the weapon rule</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 10, Known blueprints in the advice<small>No more "until you own the blueprint" once ARLO has seen it learned, and the card says why a known blueprint is sell</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
@@ -273,8 +258,6 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
           <h3>Ahead, in order</h3>
           <ul class="steps">
             <li class="todo"><span class="tick">○</span><span class="what">Step 5, Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
-            <li class="todo"><span class="tick">○</span><span class="what">Step 6, A big KEEP on the item and readable text<small>Built and merged: a KEEP chip on the game card in a game-style font. Your session showed it can cover the card's own text, so the advice card in step 7 may replace it</small></span><span class="when recent">changed <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="todo"><span class="tick">○</span><span class="what">Step 7, A card that looks like part of the game<small>Built: ARC Tracker's card in your LOADOUT box in place of the corner popup, with the recycle line naming parts you still need. Waiting on your look in game</small></span><span class="when recent">changed <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
           </ul>
         </div>
       </div>
@@ -300,53 +283,37 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase4">
-    <div class="slot now">4</div>
+    <div class="slot done">4</div>
     <article class="card" data-tab="Phase 4">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
+      <div class="tags"><span class="tag done">Done</span><span class="dates"><time datetime="2026-10-11" data-rel>11 Oct</time> to <time datetime="2026-10-18" data-rel>18 Oct</time></span></div>
       <h2>Badges on every cell</h2>
-      <p>Every recognized slot wears a badge: owned over needed, colored by the advice, hidden while you scroll. The risky part was drawing one transparent click-through layer over the game on Wayland.</p>
-      <div class="gauge" aria-label="Phase 4 about 90 percent done">
-        <div class="bar"><i style="width:90%"></i></div>
-        <div class="read">~90%<small>19 of 21 steps</small></div>
-      </div>
-      <div class="nowsteps">
-        <h3>Working on now</h3>
+      <p>Every recognized slot shows its stack's worth on a patch over the type icon, and a have/need tag (red when short, a green check when enough) on items a quest, project or bench wants. A gold frame goes on the hovered slot, and badges move with the scroll.</p>
+      <details>
+        <summary><span class="chev">▸</span><span class="show">Show the 21 steps</span><span class="hide">Hide the 21 steps</span></summary>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 21, Worth at a glance<small>Each price patch darker the cheaper the stack, near black under 250, white with black text from 5,000 up. Grey on purpose, so it never looks like a rarity</small></span><span class="when recent">added <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 1, Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 2, Your run decides the drawing mode<small>X11 mode chosen, live with the game. The Wayland-native mode is only needed if X11 ever fails</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 3, The badge layer<small>One transparent click-through layer over the whole screen, drawn by a small helper</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 4, The stash pass<small>Every visible slot identified from one frame and turned into badges</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 5, Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 6, Tiles like ARC Tracker<small>The stack's worth on a solid patch over the type icon, a red have/need tag when you are short, a green check when you have enough, gold only on the hovered slot</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time> &middot; changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 7, A bolder gold frame<small>Twice as thick and brighter. The red outline it also thickened was dropped 18 Oct</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 11, Badges in about a second<small>A fading card hides nothing, only changed slots lose their badges, items seen before come back in about 55 ms</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 12, Never stall on the badge helper<small>Badges go to the helper from a background thread, the newest set wins, a stuck helper is stopped after 2 seconds</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 13, Badges right after a scroll<small>A one-row scroll draws in about 200 ms after the grid stops (was about 950), known items drawn first</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 14, Badges that move with the scroll<small>All badges stay on their items through a scroll, only new rows are read</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 15, Price text in the game's own font<small>Same size, weight, baseline and cream colour as the game's stack count</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 16, Price patches that hold still<small>The bar is found under ARLO's own patch, lost bars 19 to 1 in 1011 passes</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 17, Slot boxes that hold still<small>No box moves under the red outline, every slot hits the cache</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 18, Badges that never blink<small>Hovering never hides a tile, a fading card no longer counts as the grid moving, a pass never drops drawn badges</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 19, Tell a blueprint tile from its item<small>The blue grid background settles 19 items that share a blueprint's icon, 283 right instead of 269, still 7 wrong</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 20, The overlay keeps up with the inventory<small>Badges clear on the first frame without the grid, known items show on the first frame after opening</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 21, Worth at a glance<small>Price patches darker the cheaper the stack, near black under 250, white with black text from 5,000 up</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
         </ul>
-      </div>
-      <div class="split">
-        <div>
-          <h3>Done</h3>
-          <ul class="steps">
-            <li class="done"><span class="tick">✓</span><span class="what">Step 1, Overlay layer experiment<small>A test script draws a transparent pattern over the whole screen the way the popup already works. Ran on your desktop without the game</small></span><span class="when"><time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 3, The badge layer<small>One transparent click-through layer over the whole screen, drawn by a small helper</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 4, The stash pass<small>Every visible slot identified from one frame and turned into badges</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 5, Gold borders and prices, live<small>Drawn while your grid is still, cleared when it moves</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 6, Tiles like ARC Tracker<small>The stack's worth on a solid patch over the type icon, a red have/need tag and outline when you are short, a green check when you have enough, gold only on the hovered slot</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 7, A bolder gold frame<small>Twice as thick and brighter, the red outline on short items thicker too. Waiting on your look in game</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 8, A steady inventory trigger<small>One missed check closed the inventory 54 times in an hour, hiding popups and badges. It now waits 2 seconds of misses</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 9, Badges over a live background<small>Only the slots are compared, so the moving game world behind the raid inventory no longer throws the badges away</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 10, The gold frame fits wide slots<small>Snapped to the whole slot under the cursor</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 11, Badges in about a second<small>A fading card hides nothing, only changed slots lose their badges, items seen before come back in about 55 ms</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 12, Never stall on the badge helper<small>Badges go to the helper from a background thread, the newest set wins, a stuck helper is stopped after 2 seconds</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 13, Badges right after a scroll<small>A one-row scroll draws in about 200 ms after the grid stops (was about 950), known items drawn first</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 14, Badges that move with the scroll<small>All badges stay on their items through a scroll, only new rows are read</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 15, Price text in the game's own font<small>Same size, weight, baseline and cream colour as the game's stack count</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 16, Price patches that hold still<small>The bar is found under ARLO's own patch, lost bars 19 to 1 in 1011 passes</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 17, Slot boxes that hold still<small>No box moves under the red outline, every slot hits the cache</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 18, Badges that never blink<small>Hovering never hides a tile, a fading card no longer counts as the grid moving, a pass never drops drawn badges</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 19, Tell a blueprint tile from its item<small>The blue grid background settles 19 items that share a blueprint's icon, 283 right instead of 269, still 7 wrong</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 20, The overlay keeps up with the inventory<small>Badges clear on the first frame without the grid, known items show on the first frame after opening</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
-          </ul>
-        </div>
-        <div>
-          <h3>Ahead, in order</h3>
-          <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">Step 2, Your run decides the drawing mode<small>X11 works today. The Wayland-native mode needs one optional package</small></span><span class="when"></span></li>
-          </ul>
-        </div>
-      </div>
+      </details>
     </article>
   </li>
 
@@ -355,7 +322,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <article class="card" data-tab="Phase 4b · added 11 Oct">
       <div class="tags"><span class="tag started">Started</span><span class="dates">from <time datetime="2026-10-11" data-rel>11 Oct</time></span><span class="when recent">added <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
       <h2>Blueprint tracker</h2>
-      <p>Your Collections screen shows 20 of 91 blueprints found and 71 blank boxes. Reading that screen once also tells ARLO which blueprints you own, so the weapon rule stops guessing.</p>
+      <p>Your Collections screen shows 25 of 91 found (15 Oct). Reading that screen once also tells ARLO which blueprints you own, so the weapon rule stops guessing.</p>
       <div class="gauge" aria-label="Phase 4b about 50 percent done">
         <div class="bar"><i style="width:50%"></i></div>
         <div class="read">~50%<small>2 of 4 steps</small></div>
@@ -371,7 +338,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">Step 3, Hover assist<small>Name and best places to find it, in the popup</small></span><span class="when"></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Step 3, Hover assist<small>Name and best places to find it, on the advice card</small></span><span class="when"></span></li>
             <li class="todo"><span class="tick">○</span><span class="what">Step 4, Greyed icons in the empty cells<small>Needs the overlay surface from phase 4</small></span><span class="when"></span></li>
           </ul>
         </div>
@@ -385,9 +352,9 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag started">Started</span><span class="dates">from <time datetime="2026-10-15" data-rel>15 Oct</time></span><span class="when recent">moved up <time datetime="2026-10-15" data-rel>15 Oct</time></span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
-      <div class="gauge" aria-label="Phase 5 about 55 percent done">
-        <div class="bar"><i style="width:55%"></i></div>
-        <div class="read">~55%<small>3 of 5 steps</small></div>
+      <div class="gauge" aria-label="Phase 5 about 60 percent done">
+        <div class="bar"><i style="width:60%"></i></div>
+        <div class="read">~60%<small>3 of 5 steps</small></div>
       </div>
       <div class="split">
         <div>
@@ -401,8 +368,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
         <div>
           <h3>Ahead, in order</h3>
           <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">Step 4, Use it<small>Your real totals in the have/need tags and the advice card</small></span><span class="when recent">added <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="todo"><span class="tick">○</span><span class="what">Step 5, An unsure flag<small>Say so when the tally and the headers disagree, instead of showing wrong numbers</small></span><span class="when recent">added <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Step 4, Use it<small>Use it on the advice card: You have N and keep N more, from the same totals the tags use</small></span><span class="when recent">changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+            <li class="todo"><span class="tick">○</span><span class="what">Step 5, An unsure flag<small>Say so on screen when the tally and the headers disagree. The stored map already falls back to on-screen counts when it disagrees with the header</small></span><span class="when recent">changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
           </ul>
         </div>
       </div>
@@ -428,14 +395,15 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 
 <h2 class="section">Calls that are yours to make</h2>
 <ul class="plain">
-  <li><b>Which recycle row does the game show?</b> One hover on a Power Bank settles the chip label.</li>
   <li><b>Expeditions 1 to 4 are over.</b> Show them, hide them, or hide anything ended by default? Hidden by default until you say.</li>
-  <li><b>Some project phases ask for coins, not items.</b> Skip them, or show "fund 50,000 ₡" as a line?</li>
-  <li><b>One optional package.</b> Installing gtk4-layer-shell lets the overlay experiment try the Wayland-native mode too.</li>
+  <li><b>Some project phases ask for coins, not items.</b> Skip them, or show "fund 50,000 &#8353;" as a line?</li>
+  <li><b>One optional package.</b> Installing gtk4-layer-shell lets the overlay try the Wayland-native mode too. Only needed if X11 ever fails.</li>
   <li><b>Blueprint find locations.</b> MetaForge's terms ask for attribution and want paid projects to ask first. ARLO is free. Use their vote data with a credit in the README, or stick to the wiki table alone?</li>
-  <li><b>A few lines in .env.example</b>, which agents cannot touch: <code>TOOLTIP_CHIPS</code>, <code>CAPTURE_LIBRARY_DIR</code>, <code>OCR_ENGINE</code>, <code>ADVICE_CARD</code> and <code>STASH_BADGES</code>. The old capture switch in your own .env can go, it is ignored now.</li>
-  <li><b>The KEEP chip on the game card.</b> The advice card now gives the advice. Retire the chip?</li>
-  <li><b>Two data differences to check in game.</b> Banjo sells for 2,000 in ARLO and 1,000 in ARC Tracker, and 7 recycle rows differ, mostly Sheet Metal from furniture.</li>
+  <li><b>Banjo's price.</b> It sells for 2,000 in ARLO and 1,000 in ARC Tracker. Check in game.</li>
+  <li><b>7 recycle rows differ</b> between ARLO and ARC Tracker, mostly Sheet Metal from furniture. Check in game.</li>
+  <li><b>Recycle rows where the APIs and the wiki disagree.</b> Anvil I to IV and Arpeggio I to IV look swapped, plus Wasp Driver and Synthesized Fuel. Check in game.</li>
+  <li><b>Four catalog names appear twice</b> ignoring case (Colorful Shoes and three others). The database keeps the last row. Leave it, or dedupe in the updater?</li>
+  <li><b>A few lines in .env.example</b>, which agents cannot touch: <code>TOOLTIP_CHIPS</code>, <code>CAPTURE_LIBRARY_DIR</code>, <code>OCR_ENGINE</code>, <code>ADVICE_CARD</code>, <code>STASH_BADGES</code> and <code>SHOW_STATUS_WINDOW</code>. The old capture switch in your own .env can go, it is ignored now.</li>
 </ul>
 
 <h2 class="section">Raid log</h2>
@@ -444,7 +412,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time datetime="2026-10-11" data-rel>11 Oct</time><span>Design written. Phase 1 chips and the data feed repair built side by side, each through two rounds of external review, then merged. 91 tests.</span></li>
   <li><time datetime="2026-10-11" data-rel>11 Oct</time><span>Recognition question answered. Roman numerals built and accepted. Needs data built and accepted. 146 tests.</span></li>
   <li><time datetime="2026-10-11" data-rel>11 Oct</time><span>New data loaded into the database, catalog refreshed to 1,109 items, weekly job fixed. Overlay layer experiment built and ran on the desktop. 157 tests. The external reviewer's quota is spent until Monday early morning.</span></li>
-  <li><time datetime="2026-10-11" data-rel>11 Oct</time><span>Your first capture session: 125 captures, 7 held a card and all 7 read right. The other 99 held no card, so "find the card anywhere" was added and started. Your Anvil IV screenshot added the weapon rule and the catalog-name fix to phase 2.</span></li>
+  <li><time datetime="2026-10-11" data-rel>11 Oct</time><span>Your first capture session: 125 captures, 7 contained a card and all 7 read right. The other 99 contained no card, so "find the card anywhere" was added and started. Your Anvil IV screenshot added the weapon rule and the catalog-name fix to phase 2.</span></li>
   <li><time datetime="2026-10-11" data-rel>11 Oct</time><span>Verdict engine built with the weapon rule, 176 tests, your progress file moved out of the tracked database. Blueprint tracker added as phase 4b from your Collections screenshot, and its data research started.</span></li>
   <li><time datetime="2026-10-11" data-rel>11 Oct</time><span>Card finder built and merged: the card is found wherever the game draws it. Verdict engine accepted. 183 tests. Your checkout brought up to date automatically, as you asked.</span></li>
   <li><time datetime="2026-10-12" data-rel>12 Oct</time><span>Flicker fixed once (timers) and a second cause found (varying reads). Rattler III, Burletta IV and Anvil I misses traced to the title reader, not the card finder. Labeling of your captures and a reader bake-off started. Blueprint data pipeline started.</span></li>
@@ -477,7 +445,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time datetime="2026-10-17" data-rel>17 Oct</time><span>Back on: you asked for a stash map kept between sessions and a faster overlay. Your log showed badges hiding 2.2 s after closing and coming 2.1 s after opening. Four workers: the faster overlay, known items saved across restarts, the saved stash map, the stash header read while scrolled.</span></li>
   <li><time datetime="2026-10-17" data-rel>17 Oct</time><span>Merged: the faster overlay, known items saved across restarts (78 ms first pass), the stash map saved and updated as you go, the stash header read while scrolled. Started: your owned counts in the tags, and the tidier card you asked for. 702 tests.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: the tidier card (no price, KEEP or status window, HOME ONLY on the icon row) and your whole stash in the have/need tags. Started: worth at a glance, so the cheapest slot to drop is easy to spot. 713 tests.</span></li>
-  <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Every phase's steps renumbered to match the plan and listed in the order they were done. The orange outline on tiles you are short of is gone, the have/need tag says it.</span></li>
+  <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Every phase's steps renumbered to match the plan and listed in the order they were done. The red outline on tiles you are short of is gone, the have/need tag says it.</span></li>
+  <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>The roadmap was checked against the code and outdated steps were dropped: the chip checks in phase 1 are gone and phase 1 is finished. Worth at a glance was merged, which finishes phase 4. Nothing is underway right now.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

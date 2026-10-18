@@ -11,11 +11,12 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 68 percent of the whole roadmap, weighted by effort: 56 of 71 steps
-done, 2 of 8 phases done (18 Oct). Weights: phase 0 counts 1, phases 2 and
-4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
-steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
-entire roadmap". Added 15 Oct.
+About 73 percent of the whole roadmap, weighted by effort: 60 of 68 steps
+done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
+its steps done over its steps. Phase 6 counts its 3 planned items as steps.
+Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
+progress for the entire roadmap". Added 15 Oct.
 
 ## Goal, in Jeffrey's words (11 Oct 2026)
 
@@ -35,55 +36,66 @@ Decided 11 Oct. Code survey, ARC Tracker teardown (ideas only, the app is all
 rights reserved), data-source study with evidence, design written.
 
 1. Code survey. Done 11 Oct.
-2. ARC Tracker 2.3.2 teardown. Done 11 Oct.
+2. ARC Tracker teardown. Version 2.3.2, ideas only, the app is all rights
+   reserved. Done 11 Oct.
 3. Data sources checked. Found the MetaForge recycle feed dead since 2 Apr
    2026 and the quest reader reading a field that does not exist. Chose the
    arctracker.io public API for items, quests and projects, MetaForge for
    workshop levels (the only source with Outpost). Done 11 Oct.
 4. Design written. Done 11 Oct.
 
-## Phase 1. Chips on the tooltip. Underway from 11 Oct, about 76 percent
+## Phase 1. Hover an item and read the whole story. Done 17 Oct
+
+One small chip on the game's tooltip: HOME ONLY beside the Recycles into
+icons, naming the extra parts you only get from the Speranza recycler. The
+game already shows the price and the advice card gives the advice, so the
+price and KEEP chips went on 17 Oct. ARLO also finds the card anywhere, reads
+its title fast and frames the hovered slot in gold. Changed 17 Oct: Jeffrey
+dropped the sells-for chip, the card already shows the price. 17 of 17 steps
+done, steps 8 to 10 dropped and not counted.
 
 Jeffrey's words: "Next to 'can be found in' on the right hand side, show
 'sells for'. Next to 'recycles into' icons, add the additional items the item
 recycles into." Decided 11 Oct.
 
-Done:
+Done (steps 8 to 10 were dropped 18 Oct):
 
 1. The two chips and the geometry that places them. Price anchored to the
    label when the card is cut off by the capture. Done 11 Oct.
-2. Home and field recycling kept apart in the database. Done 11 Oct.
-3. Weekly data feed repaired: dead feed removed, arctracker.io as the recycle
+2. Home and field recycling kept apart. Stored apart in the database. Done
+   11 Oct.
+3. Weekly data feed repaired. Dead feed removed, arctracker.io as the recycle
    source, quest reader fixed, the weekly job installs the project. Done
    11 Oct.
-4. Roman numerals resolved from the catalog and from the picture. Jeffrey's
+4. Roman numerals resolved from the catalog and the picture. Jeffrey's
    words: "I have a suspicion that the roman numerals identification is
    better, but not fixed. This should be tested and maybe improved." A
    capture library, a catalog-aware resolver, a stroke-count vote. Rarity
    checked as a signal and rejected (Anvil I to IV are all Rare). Done
    11 Oct.
-5. New data loaded into the database, catalog refreshed to 1,109 items, the
-   database stable on open. Done 11 Oct.
-6. First capture session measured: 125 captures, 7 with a card and all 7
+5. New data loaded, catalog grown to 1,109 items. Refreshed from the new
+   feed, the database stable on open. Done 11 Oct.
+6. First capture session measured. 125 captures, 7 with a card and all 7
    read right (Anvil IV, Stiletto IV, vote IV at 0.88 on the real font). Done
    11 Oct.
-
-7. Find the card anywhere on screen. 99 of the 125 captures held no card
+7. Find the card anywhere on screen. 99 of the 125 captures contained no card
    because the fixed cursor-relative box missed where the game drew it.
    Replaced the box with a search window and OpenCV connected components on
    the cream mask, nearest solid rectangle to the cursor, old box as the
    fallback. Retires the right-side flip TODO. OpenCV is now a dependency.
-   Added 11 Oct, done 11 Oct (review by the fallback reviewer pending).
+   Added 11 Oct, done 11 Oct, reviewed.
 
-Ahead, in order:
-
-8. Jeffrey's live check of the chips: where they land, and whether the game's
-   own "Recycles into" row shows Battery only or Battery and Wires for a
-   Power Bank.
-9. A capture run for tiers I to III so the stroke thresholds are tuned on
-   every numeral.
-10. Decide the recycle chip label, "home only" or "field only", from step 8.
-11. Replace the card title reader on evidence. Brought forward 12 Oct after
+8. Your live check of the chips. Where they land, and whether the game's own
+   "Recycles into" row shows Battery only or Battery and Wires for a Power
+   Bank. Dropped 18 Oct: the chips it checked are gone, and Jeffrey's 17 Oct
+   screenshot showed the game's recycle row lists the home outputs, so HOME
+   ONLY stays.
+9. Capture run for tiers I to III. So the stroke thresholds are tuned on
+   every numeral. Dropped 18 Oct: the labeled capture library already has
+   tiers I to IV and the catalog resolver settles the tier.
+10. Decide the recycle chip label. "Home only" or "field only", from step 8.
+    Dropped 18 Oct: settled by the same screenshot.
+11. A faster title reader. Replace the card title reader on evidence. Brought forward 12 Oct after
     Jeffrey's second live test: "Burletta IV, Anvil I ... both don't get
     detected. Are you sure an overhaul on the image recognition isn't
     warranted here?" The Rattler III capture settled it: the card was found,
@@ -106,13 +118,12 @@ Ahead, in order:
     reader 777 ms, all equally accurate. The isolated-title reader is the
     default (no extra dependency, popup sooner), paddle stays selectable
     with OCR_ENGINE=paddle. A scan with no card now reads nothing instead
-    of guessing from a box around the cursor. Waiting on Jeffrey's feel for
-    the speed in game. Jeffrey's capture session, 14 Oct: Garnet (a weapon
+    of guessing from a box around the cursor. Jeffrey's capture session, 14 Oct: Garnet (a weapon
     mod card) read as "GARNET REQUIRED RESOURCES G NCIL PARTS" and showed
     UNKNOWN. Fixed 14 Oct, reviewed: light grey description text now ends
     the title, Garnet resolves to Garnet Stencil, 25 of 25 visible titles
     that night, 56 of 56 on 12 Oct.
-12. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
+12. Popups stay put while you hover. Flicker, second cause, 12 Oct: "it's still flickering, but the frequency
     has increased." Raw reads of one item vary between scans and each
     variant counted as a new item, re-showing both windows at scan speed.
     Fix: key everything on the resolved catalog name, never re-map a window
@@ -139,20 +150,21 @@ Ahead, in order:
     slowest recent scan period, capped at 6 s, never below
     OVERLAY_DISPLAY_TIME. Jeffrey, 14 Oct, after testing: "nice. fixed."
     Done 14 Oct.
-13. Search the whole screen for the card. The labeled capture library (320
+13. Weapons identified in game. Search the whole screen for the card. The
+    labeled capture library (320
     captures, 113 with a card) showed 56 cards missing their title row
     because the cursor-centred window cut tall weapon cards at the top. The
     search window now defaults to the full screen. Added 12 Oct, done 12 Oct,
     reviewed. Confirmed by Jeffrey in game 12 Oct: "It seems like all the
     weapon identification is working now."
-14. Capture library only on request. Jeffrey, 14 Oct: "only allow this to
+14. Captures only when you ask. Capture library only on request. Jeffrey, 14 Oct: "only allow this to
     run if I'm using claude." The library was still on in his .env after a
     test, saving a 2 MB full-screen image about every 2 seconds on the scan
     thread (471 files, 285 MB). It now turns on only with
     `uv run arc-helper --capture`, ignores .env, stops after a per-run limit,
     and saves on a background thread. Added 14 Oct, done 14 Oct, accepted
     by Codex with no items.
-15. Gold border on the hovered item. Jeffrey, 14 Oct: "would be nice if these items were higlighted (onscreen gold border around the item?)  At least a big \"KEEP\" on the popup card.  Would also be nice if the cost for each item would show up on the small item icons."
+15. Gold frame on the hovered item. Jeffrey, 14 Oct: "would be nice if these items were higlighted (onscreen gold border around the item?)  At least a big \"KEEP\" on the popup card.  Would also be nice if the cost for each item would show up on the small item icons."
     First an investigation on the 34 full-screen captures: can the hovered
     cell be found beside the tooltip card (the game outlines it in white),
     how reliably and how fast. Then a gold frame drawn around it when the
@@ -161,16 +173,15 @@ Ahead, in order:
     found right in 34 of 34 full-screen captures in about 4 ms. The detector
     and a click-through gold frame are merged. Wired into the scanner 14 Oct,
     reviewed and merged: the frame is drawn just outside the game's glow
-    ring while the verdict is keep and hides with the chips. Waiting on
-    Jeffrey's look in game (the live screenshot could not be taken, the
-    screen was locked). Jeffrey's capture session the same night showed two
+    ring while the verdict is keep and hides with the chips. Jeffrey's capture session the same night showed two
     failures: no frame when the card opens left of the cell (Stiletto I in
     quick use), and a frame across the card's ACTIONS tab when ARLO's
     corner popup covered the card (Anvil I). Fixed 14 Oct, reviewed: 34 of
     35 of that night's captures right (21 before), all 8 left-opening cards
     right. The left-opening items that night were USE or unknown, and the
-    frame only shows for keep.
-16. Never read a card ARLO itself covers. Found in Jeffrey's capture
+    frame only shows for keep. Changed 15 Oct: the frame now marks every
+    identified hovered item (Phase 4, step 6).
+16. Never read a card ARLO covers. Found in Jeffrey's capture
     session, 14 Oct: an Anvil I card opened under the corner popup, the
     next scan read body text and showed UNKNOWN, the wider UNKNOWN popup
     uncovered the title, and the popup flipped between KEEP and UNKNOWN
@@ -179,7 +190,7 @@ Ahead, in order:
     red box -- it'll look nicer and be closer to the cursor." The popup's
     home is now the empty LOADOUT panel area below the weapon slots, and it
     steps to the top-left corner only while a card covers that spot. Done
-    14 Oct, reviewed (one edge case carried into step 17 and fixed there).
+    14 Oct, reviewed (one edge case moved into step 17 and fixed there).
 17. Fast show and hide. Jeffrey, 14 Oct: "really wish the overlay was
     faaster about showing/hiding the popups." The scan loop now watches the
     card every cycle: a new card is read at once, the same card is never
@@ -191,9 +202,9 @@ Ahead, in order:
     and arc do not get the overlay." In raid the MAP tab shifts the
     INVENTORY tab out of the calibrated trigger boxes, so ARLO never woke.
     A wide band across the top centre is searched when the boxes miss
-    (about 60 to 75 ms, only when the boxes fail). Done 14 Oct, reviewed:
-    his in-raid screenshot triggers, 142 of 144 stash captures still
-    trigger through the boxes, no false triggers. Waiting on a raid test.
+    (about 60 to 75 ms, only when the boxes fail). Done 14 Oct, reviewed,
+    reviewer items overruled: his in-raid screenshot triggers, 142 of 144 stash captures still
+    trigger through the boxes, no false triggers.
 19. No advice for a garbled read. Found in the 15 Oct log: the advice card
     showed reads such as "CRACKED BIOSCANNER ;MER:;{JC:..." and "IUST'". A
     catalog name followed by junk now resolves to that name, and a read
@@ -202,12 +213,12 @@ Ahead, in order:
     be removed. It's already on the card. It'd be nice if the \"Home only\"
     badge lined up." Then "I think the \"keep/use/recycle/sell\" should go
     away too", and "get rid of the \"scanning\" and \"inventory\" -- these
-    are almost like debug msgs". Done 17 Oct, reviewed: the price and verdict
+    are almost like debug msgs". Done 17 Oct, reviewed, reviewer items overruled: the price and verdict
     chips are gone, the status window is off unless SHOW_STATUS_WINDOW is
     set, and HOME ONLY sits on the recycle icon row (4 of 4 test cards).
     Added 17 Oct.
 
-## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
+## Phase 2. Advice with a reason. Started 11 Oct, 90 percent, 9 of 10 steps
 
 Jeffrey's words: "Keep until upgrade is complete; sell once done" is the kind
 of advice he wants, with the source named. And, after the popup told him to
@@ -217,31 +228,28 @@ blueprint." Decided 11 Oct.
 
 Done:
 
-1. The needs list: `needs.csv`, 289 rows (80 quest, 128 project, 81
+1. The needs list. `needs.csv`, 289 rows (80 quest, 128 project, 81
    workshop) from arctracker quests and projects plus MetaForge workshop
    levels, all nine Frozen Trail quests and the Outpost levels. Loaded into
    the database. Done 11 Oct.
 
-2. The verdict engine. Rule 0: weapons are keep, at least one, more until the
+2. The verdict engine, with the weapon rule. Rule 0: weapons are keep, at least one, more until the
    blueprint is owned. Then active needs minus progress, a reason naming up
    to three sources, the fallback (sell or recycle) from the item's data.
    Radial Press reads "keep, 3 for Gunsmith IV, then sell". Added 11 Oct
    (weapon rule), done 11 Oct, accepted by the fallback reviewer.
-3. Popup overhaul: the verdict word colored by the verdict (fixes the
+3. Popup overhaul. The verdict word colored by the verdict (fixes the
    keyword-order bug that colored "Keep until upgrade is complete; sell once
    done" gold), the catalog name instead of the raw read (the popup showed
    ANVILIV), home recycle outputs on the notes line. Changed 11 Oct, done
    11 Oct.
-4. Manual progress file (`progress.csv`, not committed) for bench levels,
+4. Manual progress file. A file (`progress.csv`, not committed) for bench levels,
    finished quests and project phases, loaded into `arlo_user.db`, a second
    untracked database so the weekly refresh never conflicts with it. Done
    11 Oct.
 
-Ahead:
-
-5. Jeffrey's decisions: ended projects (Expedition 1 to 4) hidden by default
-   until he says otherwise, coin-funding phases produce no needs.
-6. Readable popup text and a big verdict word. Jeffrey, 14 Oct: "At least
+6. Readable text in a game-style font. Readable popup text and a big
+   verdict word. Jeffrey, 14 Oct: "At least
    a big \"KEEP\" on the popup card." Found 14 Oct: uv's Python bundles a Tk
    with only the bitmap font "fixed", so on Linux every popup font size is
    ignored. Text is drawn with Pillow from a system font when Tk has no
@@ -254,20 +262,22 @@ Ahead:
    should strive for this." So the chips use a bundled game-style font
    (Barlow Semi Condensed) on a dark slate panel with a coloured left
    stripe. Built and reviewed 14 Oct (Codex, two rounds), merged. Added
-   14 Oct, changed 14 Oct. Waiting on Jeffrey's look in game.
-7. A card beside the game's tooltip in the style of ARC Tracker's overlay,
+   14 Oct, changed 14 Oct, done 14 Oct. Changed 17 Oct: the KEEP chip it
+   added was retired by Phase 1 step 20, the advice card gives the advice.
+7. A card that looks like part of the game. A card beside the game's tooltip in the style of ARC Tracker's overlay,
    from Jeffrey's screenshot, 14 Oct: the verdict as a header bar ("Keep
    all 4: 6 more needed"), a needed-for list with a progress bar (quest,
-   workshop level, count), and "You have" with the stash count once phase
-   5 knows it. Replaces the corner popup. Added 14 Oct. Jeffrey, 14 Oct,
+   workshop level, count). Replaces the corner popup. Added 14 Oct. Jeffrey, 14 Oct,
    sharing four more ARC Tracker screenshots (keep, sell, recycle cards):
    "This is super nice. You should just copy it." Part 1, drawing the card
    from the verdict data, done 14 Oct, reviewed. The recycle wording names
    the parts you still need, done 14 Oct. The window that shows it in the
    LOADOUT panel box, done 14 Oct. Hooked into the scanner in place of the
    corner popup (ADVICE_CARD=false brings the popup back), done 14 Oct,
-   reviewed. Waiting on Jeffrey's look in game. Changed 14 Oct.
-8. The advice card stays under the second gun. Jeffrey, 15 Oct: "The popup
+   reviewed. Done 14 Oct, in daily use, and Jeffrey's 15 Oct report led to
+   step 8. Changed 14 Oct. Changed 18 Oct: the "You have N" line with the
+   stash count moved into Phase 5, step 4.
+8. The advice card stays under your second gun. Jeffrey, 15 Oct: "The popup
    has moved back to the upper left?? It should be beneath my 2nd gun".
    Home is found from the weapon slots on screen (base and raid differ),
    the card steps just aside when a game card opens over it and comes back
@@ -284,23 +294,30 @@ Ahead:
     advice card says "You already know this blueprint" when that is why it
     says sell. Done 15 Oct, reviewed. Added 15 Oct.
 
-## Phase 3. Read the grid. Next, after phase 1
+Ahead:
+
+5. Your decisions on ended projects and coin phases. Jeffrey's decisions: ended projects (Expedition 1 to 4) hidden by default
+   until he says otherwise, coin-funding phases produce no needs.
+
+## Phase 3. Read the grid. Done 14 Oct
 
 Jeffrey's words: "OpenCV sounds like the frontier option for this work."
 Answer recorded 11 Oct: OpenCV for geometry and gating, an embedding model
 for icon identity, OCR for text. Changed 11 Oct.
 
-Will contain:
+Done:
 
-1. A perceptual-hash baseline, measured first, expected to fail on lookalikes.
+1. A perceptual-hash baseline. Measured first, expected to fail on
+   lookalikes.
    Done 14 Oct, reviewed: on 110 slot crops labeled from the hovered cell
    and the title read, 46 percent top-1, weapons 9 of 45, wide weapon slots
    all missed, tiers sometimes differ only in the numeral. The evidence for
    step 3.
-2. Slot lattice from edges and contours, frame stillness check, only while
+2. Slot lattice. From edges and contours, frame stillness check, only while
    the INVENTORY trigger is active. Done 14 Oct, reviewed: every slot and
    its panel in about 28 ms a frame, 3 uncovered slots missed in 144 frames.
-3. An embedding model (DINOv2-small under onnxruntime, Apache-2.0) over a
+3. An embedding model for icon identity. DINOv2-small under onnxruntime
+   (Apache-2.0) over a
    gallery built from the stable arctracker icon PNGs plus crops learned from
    hovering (ARLO already reads the tooltip). Done 14 Oct, reviewed: on the
    same 110 crops, top-1 70 percent (hash 50), top-5 99 percent, base item
@@ -309,44 +326,44 @@ Will contain:
    catalog art. About 29 ms a slot on the CPU, model 88.5 MB downloaded on
    first use. Recommendation: the model names the base item, the tier comes
    from the slot numeral (step 4).
-4. Tier numerals on icons by glyph matching (the loadout shows a IV glyph on
-   the weapon card), stack counts by OCR. Done 14 Oct, reviewed: tiers 44 of
+4. Tier numerals and stack counts. Tier numerals on icons by glyph matching
+   (the loadout shows a IV glyph on the weapon card), stack counts by OCR. Done 14 Oct, reviewed: tiers 44 of
    44 weapon slots (square and wide), no false reads, 0.4 ms a slot. Stacks
    52 of 53. With the icon model, weapons identified exactly 39 of 44 (11
    before). Measured on the crops the reader was tuned on.
 
-## Phase 4. Badges on every cell. Underway from 14 Oct
+## Phase 4. Badges on every cell. Done 18 Oct
 
-Decided 11 Oct. Carries the Wayland risk.
+Decided 11 Oct. The Wayland risk sat here and is settled: the X11 layer works
+over the game. Delivered: prices on every icon (steps 4 to 6), the gold frame
+on the hovered slot (steps 6, 7, 10). 21 of 21 steps done.
 
-1. Overlay layer experiment: `scripts/spike_overlay_surface.py` with
-   findings in `docs/spikes/2026-10-11-overlay-surface.md`. The X11 mode
+Done:
+
+1. Overlay layer experiment. A script, `scripts/spike_overlay_surface.py`,
+   with findings in `docs/spikes/2026-10-11-overlay-surface.md`. The X11 mode
    ran on the live Plasma session (depth 32, on top, empty input shape). The
    layer-shell mode needs `gtk4-layer-shell`, not installed. Done 11 Oct.
-2. Jeffrey's run with the game open decides the mode.
-
-Will contain: badge drawing from verdicts and the grid, hidden while the
-grid moves. Jeffrey, 14 Oct, asked for a gold border on items to keep and
-the sell price on the small item icons: both become badge styles here,
-since they need every cell read (phase 3). Changed 14 Oct.
-
-3. The badge surface: one full-screen transparent click-through layer drawn
+2. Your run decides the drawing mode. Jeffrey's run with the game open
+   decided it: X11 mode, live with the game. The layer-shell mode is only
+   needed if X11 ever fails. Done 14 Oct.
+3. The badge layer. One full-screen transparent click-through layer drawn
    by a helper under the system Python with GTK3 (the spike's x11 mode),
    fed badges by ARLO. Done 14 Oct, reviewed. Added 14 Oct.
-4. The stash pass: identify every visible slot from one frame (slot
+4. The stash pass. Identify every visible slot from one frame (slot
    lattice, icon model, tier numeral, stack count) and turn it into badges,
    gold for keep and a price on every icon. Done 14 Oct, reviewed: on 12
    sample frames, 264 of 360 filled slots right, 7 wrong (empty or covered
    slots, no price shown), the rest unidentified and left without a badge.
    Blueprints that share their item's icon get no badge unless the tier
    settles it. About 0.6 s a pass. Added 14 Oct.
-5. Wire the stash pass and the badge surface into the scanner, only while
+5. Gold borders and prices, live. Wire the stash pass and the badge surface into the scanner, only while
    the grid is still. Done 15 Oct, reviewed (STASH_BADGES, on by default):
    a background pass runs when two frames are still, badges clear when the
    grid moves or the inventory closes. The first pass after start takes
-   about 12 s while the icon model loads. Waiting on Jeffrey's live look.
+   about 12 s while the icon model loads.
    Follow-up from review: make the badge hand-off non-blocking so a hung
-   helper can never stall the hover path. Added 14 Oct.
+   helper can never stall the hover path. Added 14 Oct, done as step 12.
 6. Tiles like ARC Tracker. Jeffrey, 15 Oct, after the scale fix: "it's
    bleeding through and doesn't look seamless", and of ARC Tracker's legend:
    "This is great!!! Ensure this approach is implemented." The type icon is
@@ -354,17 +371,18 @@ since they need every cell read (phase 3). Changed 14 Oct.
    worth on it, a red "have/need" tag and outline on items still short, a
    green check tag when you have enough, gold only on the hovered slot.
    Done 15 Oct, reviewed: bar geometry and counts, the drawing protocol and
-   the wiring into the live badges, merged in three parts. Added 15 Oct.
+   the wiring into the live badges, merged in three parts. Added 15 Oct. Changed 18 Oct: the red outline on
+   short tiles is gone at Jeffrey's ask, the have/need tag says it.
 7. A bolder gold frame. Jeffrey, 15 Oct: "The gold border needs to be more
    obvious." The hovered frame is now twice as thick and a brighter gold,
-   and the red outline on short items is thicker too. Done 15 Oct. Added
+   and the red outline on short items is thicker too (outline dropped 18 Oct). Done 15 Oct. Added
    15 Oct.
 8. A steady inventory trigger. Jeffrey, 15 Oct: "the \"fade in fade out\"
    problem is back. Also, the grid doesn't work back in base either". The
    log showed ARLO deciding the inventory closed 54 times in an hour after
    one missed check each, hiding the popups and clearing the badges. It
    now waits for misses over 2 seconds and logs why each check missed.
-   Done 15 Oct, reviewed. Added 15 Oct.
+   Done 15 Oct, reviewed, reviewer items overruled. Added 15 Oct.
 9. Badges over a live background. Jeffrey, 15 Oct: "grid doesn't work in
    game inventory". In raid the game world moves behind the inventory, and
    the stillness check compared the whole screen, so every pass was thrown
@@ -395,7 +413,7 @@ since they need every cell read (phase 3). Changed 14 Oct.
     passes, and badges for slots already known drawn before the pass.
     Done 15 Oct, reviewed: a one-row scroll replay draws in about 200 ms
     after the grid stops, was about 950 ms. Added 15 Oct.
-14. Badges that move with the scroll: measure how far the grid moved and
+14. Badges that move with the scroll. Measure how far the grid moved and
     shift the badges at once, so only the new row needs reading. Done
     15 Oct, reviewed: on the replay all 22 badges stay on their items
     through the scroll. Added 15 Oct.
@@ -403,10 +421,10 @@ since they need every cell read (phase 3). Changed 14 Oct.
     screenshot: "Can you make the font and font size match?" The worth on
     the patch matches the game's count in font, weight, size and baseline,
     and its cream colour. Done 15 Oct, reviewed. Added 15 Oct.
-16. Price patches that hold still: the bar finder loses some bars once
+16. Price patches that hold still. The bar finder loses some bars once
     ARLO's own patch is drawn, so a patch could flicker. Done 15 Oct,
     reviewed: lost bars 19 to 1 of 1011 passes. Added 15 Oct.
-17. Slot boxes that hold still: the slot finder moves 1 or 2 boxes by
+17. Slot boxes that hold still. The slot finder moves 1 or 2 boxes by
     about 4 px under ARLO's red outline. Done 15 Oct, reviewed: no box
     moves, every slot hits the cache. Added 15 Oct.
 18. Badges that never blink. Jeffrey, 15 Oct: "I'm still getting a little
@@ -417,7 +435,7 @@ since they need every cell read (phase 3). Changed 14 Oct.
     ignored, a big change waits one frame, hidden slots come back from the
     cache. Done 15 Oct, reviewed: on the replay a fading card, a hover and a
     pass with fewer badges clear and hide nothing. Added 15 Oct.
-19. Tell a blueprint tile from its item: the blue grid background settles
+19. Tell a blueprint tile from its item. The blue grid background settles
     19 right guesses that a blueprint twin blocked. Done 15 Oct, reviewed:
     283 right instead of 269 on the captures, still 7 wrong. Added 15 Oct.
 20. The overlay keeps up with the inventory. Jeffrey, 17 Oct: "there's
@@ -436,9 +454,12 @@ since they need every cell read (phase 3). Changed 14 Oct.
     for something better." Price patches get darker the cheaper the stack
     (near black under 250), brighter toward 5,000, and white with black
     text from 5,000 up. Grey on purpose, so no value colour is mistaken for
-    a rarity. Underway 17 Oct. Added 17 Oct.
+    a rarity. Added 17 Oct. Done 18 Oct, reviewed, reviewer items overruled. ARLO paints
+    over its own patches before reading a bar, so the new colours read as
+    well as before (0 item changes on 12 captures, against 6 with the old
+    patches).
 
-## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
+## Phase 4b. Blueprint tracker. Started 11 Oct, 50 percent, 2 of 4 steps. Added 11 Oct
 
 Jeffrey's words, 11 Oct, after the weapon rule said "more until you own the
 blueprint": "We should build in some kind of blueprint tracker assist, too.
@@ -446,7 +467,9 @@ The blank boxes should be greyed out images of the actual blueprint. On hover
 it shows the name and best places to find it based on public data." His
 Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
 
-1. Data: the 91 blueprints, the order of the Collections grid, and where each
+Done:
+
+1. Blueprint data. The 91 blueprints, the order of the Collections grid, and where each
    drops, from public sources. Done 11 Oct. arctracker lists exactly 91
    items of type Blueprint with 256 px icons. The wiki's Blueprints page
    has the grid order (17 columns, 88 names and 3 unnamed slots: Banjo,
@@ -462,20 +485,23 @@ Collections screen shows FOUND: 20/91 on an 18 by 6 grid. Decided 11 Oct.
    loads them, ownership lives in arlo_user.db, icons are cached on demand.
    Reviewed and merged. Known fragility: the grid parser counts every line of
    the wiki template as a slot, so a named parameter added by an editor would
-   shift later slots.
-2. Read the Collections screen (Jeffrey's screenshot of 15 Oct, FOUND
-   25/91). Part 1, the reader and the ownership record, done 15 Oct,
+   shift later slots. Done 12 Oct.
+2. Read the Collections screen. Jeffrey's screenshot of 15 Oct, FOUND
+   25/91. Part 1, the reader and the ownership record, done 15 Oct,
    reviewed (25 found cells of 91, checked by eye).
    Part 2, read while idle whenever the screen is open, once per visit,
    done 15 Oct, reviewed. The BLUEPRINTS tab and FOUND count, the
    lattice, found versus empty cells, cells mapped to blueprints by the grid
    order (or learned from the found icons when no public order exists), and
-   ownership stored in the user database. Feeds the weapon rule on its own.
-3. Hover assist: with the cursor over an empty cell, the popup shows the
-   blueprint's name and the best places to find it.
-4. Greyed icons drawn in the empty cells on the overlay surface (phase 4).
+   ownership stored in the user database. Feeds the weapon rule on its own. Done 15 Oct.
 
-## Phase 5. The stash ledger. Underway from 15 Oct, moved up 15 Oct
+Ahead, in order:
+
+3. Hover assist. With the cursor over an empty cell, the advice card shows
+   the blueprint's name and the best places to find it.
+4. Greyed icons in the empty cells. Drawn on the overlay surface (phase 4).
+
+## Phase 5. ARLO knows what you own. Started 15 Oct, 60 percent, 3 of 5 steps. Moved up 15 Oct
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start
 watching and updating a local database of my inventory?" Decided 11 Oct.
@@ -486,8 +512,10 @@ the inventory based on smart parsing of the visible page. This includes
 tallying inventory and stash as one. Tough but possible. It will not really
 be useful without this, you know?" Moved up 15 Oct.
 
-1. Read the anchors: the stash header (used and capacity slots, total
-   value) and the loadout header (weight and value). Done 15 Oct, reviewed.
+Done:
+
+1. Read the headers. The anchors are the stash header (used and capacity
+   slots, total value) and the loadout header (weight and value). Done 15 Oct, reviewed.
 2. Stitch the stash across scrolling. Part 0, capture runs save the whole
    grid, not only hovered cards. Jeffrey, 15 Oct: "You need to be able to
    take a screenshot of the entire screen, not just hover cards." Done
@@ -502,63 +530,71 @@ be useful without this, you know?" Moved up 15 Oct.
    saved and updated whenever rows are seen and checked against the
    header, both done 17 Oct, reviewed: a restart's first pass takes 78 ms
    instead of 845 ms, and the saved map rebuilds the same 275 cells. The
-   stash header now reads while scrolled too. Then: the scrollbar position and the
-   overlap with the last frame give each visible row its absolute place.
-   Needs a capture session scrolling the whole stash, waiting on Jeffrey's
-   screen recording (the capture library only saves frames when a card is
-   read). Must also handle the category filter tabs, since old captures
-   only show filtered stash headers. Added 15 Oct.
-3. The ledger: stash plus backpack, quick use, safe pocket and equipment
-   in one local store, updated from every still frame. Part 2, the map fed
-   from every pass and the combined totals in the have/need tags, done
-   18 Oct, reviewed: Durable Cloth's tag went from 3/6 (visible slots) to
-   54/6 (whole stash). Part 1, the loadout
+   stash header now reads while scrolled too. Done 17 Oct. Added 15 Oct.
+3. The ledger. Stash plus backpack, quick use, safe pocket and equipment
+   in one local store, updated from every still frame. Part 1, the loadout
    panels counted from one frame, checked against the LOADOUT header's
    value and saved locally, done 15 Oct, reviewed. It found the header
    reader failing in raid and next to a card, and small stacks unread.
-   Part 1c, faster and surer stack counts (digit templates, 153 of 158
-   right and none wrong, 946 ms to 16 ms a pass), done 15 Oct, reviewed.
    Part 1b, the header in raid and next to a card, reads both screenshots,
-   done 15 Oct. Its second review rejected one edge case (a value under
-   1,000 next to a card reads nothing), Jeffrey: "accept with notes". Part 2 wires it in and adds the stash after step 2.
-   Added 15 Oct.
-4. Use it: total owned feeds the have and need tags, the advice card's "You
-   have N" and "keep N more". Added 15 Oct.
-5. Unsure flag: when the ledger disagrees with the headers, say so instead
-   of showing wrong numbers. Added 15 Oct.
+   done 15 Oct, reviewed, reviewer items overruled: its second review
+   rejected one edge case (a value under 1,000 next to a card reads
+   nothing), Jeffrey: "accept with notes". Part 1c, faster and surer stack
+   counts (digit templates, 153 of 158 right and none wrong, 946 ms to 16 ms
+   a pass), done 15 Oct, reviewed. Part 2, the map fed from every pass and
+   the combined totals in the have/need tags, done 18 Oct, reviewed:
+   Durable Cloth's tag went from 3/6 (visible slots) to 54/6 (whole stash).
+   Added 15 Oct. Done 18 Oct.
+Ahead, in order:
 
-## Phase 6. Progress from the screen. Next, after phases 2 and 5
+4. Use it. Use it on the advice card: You have N and keep N more, from the
+   same totals the tags use. Added 15 Oct. Changed 18 Oct: the have and need
+   tags already use the totals (step 3), the advice card is what is left.
+5. An unsure flag. When the ledger disagrees with the headers, say so
+   instead of showing wrong numbers. The stored map already falls back to
+   on-screen counts when it disagrees with the header, what is left is
+   saying so on screen. Added 15 Oct. Changed 18 Oct.
+
+## Phase 6. It reads your progress too. Planned, after phases 2 and 5
 
 Jeffrey's words: "You might need to know how the project pages are laid out
 and infer what progress is made per project." Decided 11 Oct.
 
-Will contain: screenshots of the workshop and project pages at 3840x2160
-from Jeffrey, then one reader at a time for the workshop overview, station
-pages, project pages and the quest list.
+Will contain:
+
+1. Screenshots of your workshop and project pages at your resolution, from
+   you. Screenshots of the workshop and project pages at 3840x2160 from
+   Jeffrey.
+2. A reader for the workshop overview and station pages.
+3. A reader for project pages and the quest list.
 
 ## Open decisions for Jeffrey
 
-- Which recycle row the game's own tooltip shows (field or home). One hover
-  on a Power Bank settles the chip label.
 - Whether ended projects (Expedition 1 to 4) are shown, hidden, or hidden by
   default. Hidden by default until he says.
 - Whether coin-funding project phases appear as a line.
-- In-game check of recycle rows where the APIs and the wiki disagree (Anvil I
-  to IV and Arpeggio I to IV look swapped, plus Wasp Driver and Synthesized
-  Fuel).
 - Whether to install `gtk4-layer-shell` (`sudo pacman -S gtk4-layer-shell`)
   so the Wayland-native overlay mode can be tried alongside the X11 mode.
-- Four catalog names appear twice ignoring case (Colorful Shoes and three
-  others). The database keeps the last row. Leave it, or dedupe in the
-  updater.
+  Only needed if X11 ever fails.
 - Blueprint find locations: MetaForge's terms ask for attribution and ask
   paid projects to contact them first, and the vote endpoint is
   undocumented. ARLO is free. Use it with attribution in the README, or stay
   on the wiki table alone.
+- Banjo's price: it sells for 2,000 in ARLO and 1,000 in ARC Tracker. Check
+  in game.
+- 7 recycle rows differ between ARLO and ARC Tracker, mostly Sheet Metal from
+  furniture. Check in game.
+- In-game check of recycle rows where the APIs and the wiki disagree (Anvil I
+  to IV and Arpeggio I to IV look swapped, plus Wasp Driver and Synthesized
+  Fuel).
+- Four catalog names appear twice ignoring case (Colorful Shoes and three
+  others). The database keeps the last row. Leave it, or dedupe in the
+  updater.
 
 ## Known follow-ups
 
-- Add `TOOLTIP_CHIPS=true` and `CAPTURE_LIBRARY_DIR=debug/captures` to
+- Add `TOOLTIP_CHIPS=true`, `CAPTURE_LIBRARY_DIR=debug/captures`,
+  `OCR_ENGINE`, `ADVICE_CARD`, `STASH_BADGES` and `SHOW_STATUS_WINDOW` to
   `.env.example` (blocked for agents by permission settings). Changed 14 Oct:
   `CAPTURE_LIBRARY` is no longer a setting, so it does not belong there, and
   Jeffrey can delete it from his `.env`.
@@ -568,3 +604,10 @@ pages, project pages and the quest list.
 - The capture library should record the cursor position with each image
   (sidecar or file name) so the evaluation script picks the same card the
   live scanner did now that captures are full screen. Added 12 Oct.
+- The README is stale (18 Oct): it says to right-click the status box to quit,
+  but that window is off by default now, and it advertises the sell price on
+  the overlay.
+- `docs/CONFIGURATION.md` and the `TOOLTIP_CHIPS` description in `config.py`
+  still say price chips (18 Oct).
+- The blueprint findings promised for the design spec when Phase 4b step 2
+  started are not in it (18 Oct).
