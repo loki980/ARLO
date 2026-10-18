@@ -2821,7 +2821,8 @@ class Scanner:
             getattr(engine, "_last_card", None),
             self.overlay_rects.snapshot(),
             read_check=is_blueprint(recommendation),
-            read_count=self.ledger is not None,
+            # The stack is only read for the ledger's lower bound
+            **({"read_count": True} if self.ledger is not None else {}),
         )
         if hovered.learned is not None:
             self.db.set_blueprint_owned(recommendation.name, owned=hovered.learned)

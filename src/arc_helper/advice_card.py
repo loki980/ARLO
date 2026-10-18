@@ -133,7 +133,8 @@ def _keep_title(count: int | None, owned: int | None, sure: bool = True) -> str:
         return "Keep"
     if owned is not None:
         more = max(0, count - owned)
-        if not sure:
+        # A lower bound that already covers the count leaves nothing to find
+        if not sure and more:
             return f"Keep all {count}: up to {more} more needed"
         return f"Keep all {count}: {more} more needed"
     return f"Keep {count}"

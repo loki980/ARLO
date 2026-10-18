@@ -212,6 +212,8 @@ def test_a_lower_bound_says_so_in_the_title_and_the_line(monkeypatch):
     card = build_advice_card(KEEP, NEEDS, owned=2, owned_sure=False)
     assert card.title == "Keep all 7: up to 5 more needed"
     assert (card.owned, card.owned_sure) == (2, False)
+    covered = build_advice_card(KEEP, NEEDS, owned=9, owned_sure=False)
+    assert covered.title == "Keep all 7: 0 more needed"
     assert owned_text(2, sure=False) == "2+"
     assert owned_text(2, sure=True) == "2"
     shown = []
