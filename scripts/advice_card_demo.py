@@ -25,6 +25,7 @@ from types import SimpleNamespace
 import numpy as np
 from PIL import Image
 
+from arc_helper.advice_card import _Canvas  # noqa: PLC2701
 from arc_helper.advice_card import build_advice_card
 from arc_helper.advice_card import needed_parts
 from arc_helper.advice_card import render_advice_card
@@ -154,21 +155,34 @@ def ledger_demo(out: Path) -> None:
                 for _ in range(50):
                     scanner._advice_card_for(item, verdict, arg)  # noqa: SLF001
                 timings[key].append((time.perf_counter() - start) / 50 * 1000)
-            shown = "none"
-            if card.owned is not None:
-                from arc_helper.advice_card import owned_text
+            texts = []
+            real_text = _Canvas.text
 
-                shown = owned_text(card.owned, card.owned_sure)
-            line = f"  {label}: verdict={verdict.kind} title={card.title!r} owned line={shown}"
-            if card.rows and card.owned is not None:
-                total_n = card.needed_total or sum(q for _, _, q in card.rows)
-                line += f" of {total_n}"
-            lines.append(line)
+            def record(self, x, y, text, *args, _real=real_text, _texts=texts):
+                _texts.append(text)
+                return _real(self, x, y, text, *args)
+
+            _Canvas.text = record
+            try:
+                image = render_advice_card(card, 1.0)
+            finally:
+                _Canvas.text = real_text
+            drawn = [
+                t
+                for t in texts
+                if " of " in t
+                or t.startswith(("You have", "Not in"))
+                or "in total" in t
+            ]
+            lines.append(
+                f"  {label}: verdict={verdict.kind} title={card.title!r} "
+                f"subtitle={card.subtitle!r} drawn={drawn}"
+            )
             path = (
                 cards
                 / f"{name.replace(' ', '_').lower()}_{label.split(' (')[0].replace(' ', '_')}.png"
             )
-            render_advice_card(card, 1.0).save(path)
+            image.save(path)
             lines.append(f"    {path.name}")
     for key in ("before", "after"):
         values = timings[key]

@@ -96,6 +96,15 @@ class AdviceCard(NamedTuple):
     owned_sure: bool = True
 
 
+WEAPON_REASON = "Weapon, keep at least one"
+NOT_SAVED = "Not in your saved stash yet"
+
+
+def owned_unseen(card: "AdviceCard") -> bool:
+    """True when the partial map has not seen the item, so no number is shown."""
+    return card.owned == 0 and not card.owned_sure
+
+
 def owned_text(owned: int, sure: bool) -> str:  # noqa: FBT001
     """The owned count as shown, '52' when sure and '52+' for a lower bound."""
     return str(owned) if sure else f"{owned}+"
@@ -216,14 +225,20 @@ def build_advice_card(
     subtitle: str | None = None
     rows: tuple[tuple[str, str, int], ...] = ()
     total = verdict.keep_count
+    unseen = owned == 0 and not owned_sure
     if kind == KEEP:
-        title = _keep_title(total, owned, owned_sure)
+        # A weapon keeps one and more until its blueprint is owned, so its
+        # title ignores the count and only the footer shows it
+        weapon = verdict.reason.startswith(WEAPON_REASON)
+        title = _keep_title(total, None if unseen or weapon else owned, owned_sure)
         rows = _rows(verdict, needs)
         subtitle = _keep_reason(verdict, rows)
     elif kind == KEEP_SOME:
         title = "Keep" if total is None else f"Keep {total}"
         rows = _rows(verdict, needs)
-        subtitle = f"{_keep_reason(verdict, rows)}, then sell the rest"
+        spare = owned - total if owned is not None and total is not None else 0
+        rest = f"sell {spare}" if owned_sure and spare > 0 else "sell the rest"
+        subtitle = f"{_keep_reason(verdict, rows)}, then {rest}"
     elif kind == SELL:
         title, subtitle, total = "Sell it", "Nothing you track needs it", None
     elif kind == RECYCLE:
@@ -418,11 +433,12 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
         if total is None:
             total = sum(q for _, _, q in card.rows)
         canvas.text(body_left, y, "Needed for", BODY_SIZE, REGULAR, MUTED)
-        amount = (
-            f"{owned_text(card.owned, card.owned_sure)} of {total}"
-            if card.owned is not None
-            else f"{total} in total"
-        )
+        if card.owned is None or owned_unseen(card):
+            amount = f"{total} in total"
+        elif card.owned >= total:
+            amount = f"{total} of {total}"
+        else:
+            amount = f"{owned_text(card.owned, card.owned_sure)} of {total}"
         canvas.text(body_right, y, amount, BODY_SIZE, BOLD, AMBER, "r")
         y += body_h + s(8)
         track_h = max(2, s(5))
@@ -456,9 +472,14 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
     if card.owned is not None:
         canvas.rect((body_left, y, body_right, y + max(1, s(1))), DIVIDER)
         y += max(1, s(1)) + s(14)
-        shown = owned_text(card.owned, card.owned_sure)
-        canvas.text(body_left, y, f"You have {shown}", BODY_SIZE, BOLD, WHITE)
-        canvas.text(body_right, y, f"{shown} in stash", BODY_SIZE, REGULAR, MUTED, "r")
+        if owned_unseen(card):
+            canvas.text(body_left, y, NOT_SAVED, BODY_SIZE, REGULAR, MUTED)
+        else:
+            shown = owned_text(card.owned, card.owned_sure)
+            canvas.text(body_left, y, f"You have {shown}", BODY_SIZE, BOLD, WHITE)
+            canvas.text(
+                body_right, y, f"{shown} in stash", BODY_SIZE, REGULAR, MUTED, "r"
+            )
         y += bold_h + s(PAD - 4)
     elif not card.rows:
         y = header_bottom
