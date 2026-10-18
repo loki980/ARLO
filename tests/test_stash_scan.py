@@ -712,3 +712,170 @@ def test_a_slot_whose_bar_is_lost_under_its_patch_still_hits(stubs, monkeypatch)
     assert len(stack_reads) == 1
     assert found == clean
     assert found[0].bar is bar
+
+
+FINGERPRINT = stash_scan.slot_cache_fingerprint(NAMES, 1000, 5)
+BAR = BarGeometry(Rect(5, 70, 85, 85), (9, 12, 25), Rect(6, 72, 20, 84), None)
+
+
+def _user_db(tmp_path):
+    from arc_helper.database import Database
+
+    db = Database(tmp_path / "items.db", user_db_path=tmp_path / "arlo_user.db")
+    # The stored entries are looked up again by name on load
+    db.lookup = _catalog
+    return db
+
+
+def _identified(cache, embedder):
+    slots = _slots(3)
+    found = identify_slots(
+        _looks(slots, [60, 120, 180]),
+        _gallery(),
+        _catalog,
+        embedder=embedder,
+        slots=slots,
+        read_stacks=True,
+        cache=cache,
+    )
+    return found
+
+
+@pytest.mark.usefixtures("stubs")
+def test_a_saved_slot_cache_gives_the_same_hits_after_reload(monkeypatch, tmp_path):
+    # Every slot has a bar, so its box is kept and saved beside the entry
+    monkeypatch.setattr(stash_scan, "bar_geometry", lambda _crop: BAR)
+    cache = stash_scan.SlotCache()
+    first = _identified(cache, QueueEmbedder([METAL, RUBBER, ANVIL]))
+    db = _user_db(tmp_path)
+    db.save_slot_cache(FINGERPRINT, cache.snapshot().rows())
+    loaded = stash_scan.load_slot_cache(db, FINGERPRINT)
+    assert len(loaded) == 3
+    assert loaded.added == 0
+    again = QueueEmbedder([])
+    assert _identified(loaded, again) == first
+    assert again.calls == 0
+    assert first[0].bar == BAR
+
+
+@pytest.mark.usefixtures("stubs", "no_bars")
+def test_a_stored_cache_for_another_catalog_item_count_loads_empty(tmp_path):
+    cache = stash_scan.SlotCache()
+    _identified(cache, QueueEmbedder([METAL, RUBBER, ANVIL]))
+    db = _user_db(tmp_path)
+    db.save_slot_cache(FINGERPRINT, cache.snapshot().rows())
+    grown = stash_scan.slot_cache_fingerprint(NAMES, 1000, 6)
+    assert len(stash_scan.load_slot_cache(db, grown)) == 0
+    # The rows are still stored for the fingerprint they were saved under
+    assert len(stash_scan.load_slot_cache(db, FINGERPRINT)) == 3
+
+
+def _key(n: int) -> tuple:
+    return (True, 90, 90, bytes([n]) * 16)
+
+
+def _entry(guess: str) -> stash_scan._Cached:
+    return stash_scan._Cached(None, None, None, 0.5, 0.01, guess, None)  # noqa: SLF001
+
+
+def test_the_size_cap_holds_on_load_and_a_full_cache_replaces_the_oldest(tmp_path):
+    cache = stash_scan.SlotCache()
+    for n in range(5):
+        cache.put(_key(n), _entry(str(n)))
+    db = _user_db(tmp_path)
+    db.save_slot_cache(FINGERPRINT, cache.snapshot().rows())
+    loaded = stash_scan.load_slot_cache(db, FINGERPRINT, size=3)
+    # The three most recently used stay
+    assert [loaded.peek(_key(n)) for n in range(5)] == [
+        None,
+        None,
+        _entry("2"),
+        _entry("3"),
+        _entry("4"),
+    ]
+    loaded.put(_key(9), _entry("9"))
+    assert len(loaded) == 3
+    assert _key(2) not in loaded
+    assert _key(9) in loaded
+
+
+def test_a_corrupt_row_is_skipped(tmp_path):
+    cache = stash_scan.SlotCache()
+    cache.put(_key(1), _entry("1"))
+    cache.put(_key(2), _entry("2"))
+    cache.keep_bar_box((90, 90, b"\x07" * 16), Rect(5, 70, 85, 85))
+    rows = cache.snapshot().rows()
+    good_value = rows[0][2]
+    rows[1:1] = [
+        ("entry", "not json", good_value),
+        ("entry", '[true, 90, 90, "zz"]', good_value),
+        ("entry", rows[0][1].replace("01", "03"), "{bad"),
+        ("bar", '[90, 90, "08"]', "[1, 2]"),
+        ("other", "[]", "[]"),
+    ]
+    db = _user_db(tmp_path)
+    db.save_slot_cache(FINGERPRINT, rows)
+    loaded = stash_scan.load_slot_cache(db, FINGERPRINT)
+    assert len(loaded) == 2
+    assert loaded.peek(_key(2)) == _entry("2")
+    assert loaded.peek_bar_box((90, 90, b"\x07" * 16)) == Rect(5, 70, 85, 85)
+
+
+def test_saves_are_throttled_after_the_first_and_flush_saves_the_rest():
+    now = [0.0]
+    saves: list[list] = []
+    saver = stash_scan.SlotCacheSaver(
+        saves.append, interval_s=30.0, clock=lambda: now[0]
+    )
+    cache = stash_scan.SlotCache()
+    assert not saver.after_pass(cache)
+    cache.put(_key(1), _entry("1"))
+    # The first pass that adds entries saves at once
+    assert saver.after_pass(cache)
+    assert saver.flush(timeout=5)
+    assert len(saves) == 1
+    now[0] = 10.0
+    cache.put(_key(2), _entry("2"))
+    assert not saver.after_pass(cache)
+    now[0] = 29.9
+    assert not saver.after_pass(cache)
+    # Still unsaved after the interval, saved by the next pass
+    now[0] = 30.0
+    assert saver.after_pass(cache)
+    assert saver.flush(timeout=5)
+    now[0] = 100.0
+    assert not saver.after_pass(cache)
+    now[0] = 110.0
+    cache.put(_key(3), _entry("3"))
+    assert saver.after_pass(cache)
+    assert saver.flush(timeout=5)
+    now[0] = 115.0
+    cache.put(_key(4), _entry("4"))
+    assert not saver.after_pass(cache)
+    # The stop flush saves what the throttle held back
+    assert saver.flush(timeout=5)
+    assert [len(rows) for rows in saves] == [1, 2, 3, 4]
+    assert saver.flush(timeout=5)
+    assert len(saves) == 4
+
+
+def test_a_failed_save_is_logged_and_a_stuck_one_bounds_the_flush(caplog):
+    import threading
+
+    def fail(_rows):
+        msg = "disk full"
+        raise OSError(msg)
+
+    saver = stash_scan.SlotCacheSaver(fail, clock=lambda: 0.0)
+    cache = stash_scan.SlotCache()
+    cache.put(_key(1), _entry("1"))
+    with caplog.at_level("WARNING", logger="arc_helper"):
+        assert saver.after_pass(cache)
+        assert saver.flush(timeout=5)
+    assert "slot cache: saving failed" in caplog.text
+    release = threading.Event()
+    stuck = stash_scan.SlotCacheSaver(lambda _rows: release.wait(5), clock=lambda: 0.0)
+    assert stuck.after_pass(cache)
+    assert not stuck.flush(timeout=0.05)
+    release.set()
+    assert stuck.flush(timeout=5)
