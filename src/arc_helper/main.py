@@ -38,6 +38,7 @@ from arc_helper.advice_window import AdviceWindow
 from arc_helper.badge_surface import Badge
 from arc_helper.badge_surface import BadgeSurface
 from arc_helper.badge_surface import Border
+from arc_helper.badge_surface import Icon
 from arc_helper.badge_surface import Patch
 from arc_helper.badge_surface import Tag
 from arc_helper.cell_border import CellBorder
@@ -77,6 +78,7 @@ from arc_helper.hovered_cell import snap_to_slot
 from arc_helper.icon_embed import EmbedGallery
 from arc_helper.icon_embed import build_gallery
 from arc_helper.icon_embed import default_embedder
+from arc_helper.icons import cached_blueprint_icon
 from arc_helper.inventory_header import read_loadout_header
 from arc_helper.inventory_header import read_stash_header
 from arc_helper.inventory_ledger import Owned
@@ -144,6 +146,10 @@ NO_CARD_SLEEP_CAP_S = 0.1
 TRIGGER_RECHECK_S = 1.0
 # Seconds between looks for the Collections screen (BLUEPRINTS tab) while IDLE
 COLLECTIONS_CHECK_S = 2.0
+# The greyed blueprint icon in each empty Collections cell: its alpha, and its
+# inset inside the cell as a share of the cell's size, clear of the border
+COLLECTIONS_ICON_ALPHA = 0.35
+COLLECTIONS_ICON_INSET = 0.12
 # ACTIVE ends on a lost trigger only once the rechecks have missed for this
 # many seconds in a row (and on at least two rechecks). One hit resets it
 TRIGGER_LOST_S = 2.0
@@ -2176,6 +2182,14 @@ class Scanner:
     # while ACTIVE through the inventory trigger. None turns them off
     stash: StashBadges | None = None
 
+    # The badge surface, shared with the stash badges. The stash draws on it
+    # only while ACTIVE and is cleared on every way out of ACTIVE, the
+    # Collections icons only while IDLE and are cleared on every way into
+    # it. None turns the icons off. The icons come from icon_cache_dir
+    # (None for the configured one) and are never downloaded here
+    badge_surface: BadgeSurface | None = None
+    icon_cache_dir: Path | None = None
+
     # Cooldown tracking
     _last_shown_item: str = ""
     _last_shown_time: float = 0
@@ -2226,6 +2240,10 @@ class Scanner:
     _collections_cells: list[CollectionsCell] = field(default_factory=list)
     _collections_hover: tuple[int, str] | None = None
     _collections_catalog: dict[str, Blueprint] | None = None
+    # The greyed icons drawn in the empty cells now, and whether this scanner
+    # has started the badge surface
+    _collections_icons: list[Icon] = field(default_factory=list)
+    _badge_surface_started: bool = False
 
     # Thread control
     _running: bool = False
@@ -2256,6 +2274,7 @@ class Scanner:
             self.state = ScannerState.STOPPED
             self._hide_card_windows()
         self._clear_stash("stopped")
+        self._clear_collections_icons()
         if self._scan_thread:
             self._scan_thread.join(timeout=2.0)
         self.hotkey.stop()
@@ -2269,6 +2288,7 @@ class Scanner:
             if was_active:
                 self._hide_card_windows()
         self._clear_stash("paused")
+        self._clear_collections_icons()
 
     def resume(self) -> None:
         """Resume scanning."""
@@ -2299,6 +2319,7 @@ class Scanner:
                         # Hotkey pressed - enter active mode via override
                         self._hotkey_override = True
                         self._end_collections_hover()
+                        self._clear_collections_icons()
                         self.state = ScannerState.ACTIVE
                         self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=hotkey")
@@ -2310,6 +2331,7 @@ class Scanner:
                         # Trigger detected! Switch to active mode
                         self._hotkey_override = False
                         self._end_collections_hover()
+                        self._clear_collections_icons()
                         self.state = ScannerState.ACTIVE
                         self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=inventory_trigger")
@@ -2398,10 +2420,13 @@ class Scanner:
             self._collections_cells = []
             self._collections_catalog = None
             self._end_collections_hover()
+            self._clear_collections_icons()
             return
         self._collections_open = True
         if read.consistent or not self._collections_cells:
             self._collections_cells = read.cells
+        if read.consistent:
+            self._show_collections_icons(read.cells)
         if self._collections_recorded:
             return
         if not read.consistent:
@@ -2459,13 +2484,74 @@ class Scanner:
 
     def _blueprint_card_for(self, grid_index: int) -> BlueprintCard:
         """The blueprint card for an empty cell, from the catalog (scan thread)."""
+        name = self.db.blueprint_at(grid_index)
+        info = self._catalog().get(name.casefold()) if name else None
+        return build_blueprint_card(grid_index, name, info)
+
+    def _catalog(self) -> dict[str, Blueprint]:
+        """The blueprint catalog by casefolded name, loaded once a visit."""
         if self._collections_catalog is None:
             self._collections_catalog = {
                 row.name.casefold(): row for row in self.db.blueprint_catalog()
             }
-        name = self.db.blueprint_at(grid_index)
-        info = self._collections_catalog.get(name.casefold()) if name else None
-        return build_blueprint_card(grid_index, name, info)
+        return self._collections_catalog
+
+    def _collections_icon_badges(self, cells: list[CollectionsCell]) -> list[Icon]:
+        """A greyed icon for each empty named cell whose icon is cached.
+
+        Found cells, unnamed slots and blueprints without an item id or a
+        cached icon get none. Only the cache is looked at, nothing downloads.
+        """
+        icons = []
+        for cell in cells:
+            if cell.found:
+                continue
+            name = self.db.blueprint_at(cell.grid_index)
+            info = self._catalog().get(name.casefold()) if name else None
+            path = cached_blueprint_icon(
+                info.item_id if info is not None else None, self.icon_cache_dir
+            )
+            if path is None:
+                continue
+            rect = cell.rect
+            icons.append(
+                Icon(
+                    (rect.left, rect.top, rect.right, rect.bottom),
+                    str(path),
+                    alpha=COLLECTIONS_ICON_ALPHA,
+                    inset=COLLECTIONS_ICON_INSET,
+                )
+            )
+        return icons
+
+    def _show_collections_icons(self, cells: list[CollectionsCell]) -> None:
+        """Draw the empty cells' greyed icons, once for each read that changes them.
+
+        Called only while IDLE, when the stash badges have nothing drawn. A
+        read whose icons match those drawn sends nothing.
+        """
+        if self.badge_surface is None or self.state != ScannerState.IDLE:
+            return
+        icons = self._collections_icon_badges(cells)
+        if icons == self._collections_icons:
+            return
+        if not icons:
+            self._clear_collections_icons()
+            return
+        if not self._badge_surface_started:
+            self._badge_surface_started = True
+            self.badge_surface.start()
+        self._collections_icons = icons
+        self.badge_surface.draw(list(icons))
+        logger.debug("collections icons drawn icons=%d", len(icons))
+
+    def _clear_collections_icons(self) -> None:
+        """Remove the Collections icons if any are drawn. Stash badges are left alone."""
+        if not self._collections_icons or self.badge_surface is None:
+            return
+        self._collections_icons = []
+        self.badge_surface.clear()
+        logger.debug("collections icons cleared")
 
     def _end_collections_hover(self) -> None:
         """Hide the assist's card if it shows one. Item cards are left alone."""
@@ -3095,7 +3181,9 @@ class Application:
         self.ui_queue: queue.Queue[tuple] = queue.Queue()
         # Last status applied, so the debug log names only status changes
         self._last_status: str | None = None
-        self.stash = self._make_stash()
+        # One badge surface for the stash badges and the Collections icons
+        self.badge_surface = BadgeSurface()
+        self.stash = self._make_stash(self.badge_surface)
         self.scanner = Scanner(
             root=self.root,
             overlay=self.overlay,
@@ -3104,6 +3192,8 @@ class Application:
             ui_queue=self.ui_queue,
             advice_card=self.advice is not None,
             stash=self.stash,
+            badge_surface=self.badge_surface,
+            icon_cache_dir=self.settings.icon_cache_dir,
         )
         self.overlay_rects = self.scanner.overlay_rects
 
@@ -3120,8 +3210,8 @@ class Application:
             return None
         return StatusWindow(self.root, on_quit=self.quit)
 
-    def _make_stash(self) -> StashBadges | None:
-        """The stash badges per STASH_BADGES, None when turned off."""
+    def _make_stash(self, surface: BadgeSurface) -> StashBadges | None:
+        """The stash badges per STASH_BADGES on surface, None when turned off."""
         overlay = self.settings.overlay
         if not overlay.stash_badges:
             return None
@@ -3137,7 +3227,7 @@ class Application:
                 lambda: get_settings().show_ended_projects,
                 ledger.owned if ledger else None,
             ),
-            BadgeSurface(),
+            surface,
             keep_border=overlay.stash_badge_keep_border,
             ledger=ledger,
         )
@@ -3462,6 +3552,7 @@ class Application:
         self.scanner.stop()
         if self.stash is not None:
             self.stash.stop()
+        self.badge_surface.stop()
         from arc_helper.screen import reset_backend
 
         reset_backend()  # release the portal session / PipeWire stream
