@@ -507,8 +507,9 @@ Done:
 Ahead, in order:
 
 3. Hover assist. With the cursor over an empty cell, the advice card shows
-   the blueprint's name and the best places to find it.
+   the blueprint's name and the best places to find it. Underway 18 Oct.
 4. Greyed icons in the empty cells. Drawn on the overlay surface (phase 4).
+   Underway 18 Oct.
 
 ## Phase 5. ARLO knows what you own. Started 15 Oct, 80 percent, 4 of 5 steps. Moved up 15 Oct
 
@@ -559,6 +560,7 @@ Ahead, in order:
 4. Use it. Use it on the advice card: You have N and keep N more, from the
    same totals the tags use. Added 15 Oct. Changed 18 Oct: the have and need
    tags already use the totals (step 3), the advice card is what is left.
+   Underway 18 Oct.
 5. An unsure flag. When the ledger disagrees with the headers, say so
    instead of showing wrong numbers. The stored map already falls back to
    on-screen counts when it disagrees with the header, what is left is
