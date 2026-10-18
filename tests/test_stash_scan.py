@@ -5,12 +5,17 @@ run without the model or Tesseract.
 """
 
 import itertools
+import math
 
 import numpy as np
 import pytest
 
 from arc_helper import stash_scan
 from arc_helper.database import Item
+from arc_helper.grid import ARLO_GOLDS
+from arc_helper.grid import GOLD_TOLERANCE
+from arc_helper.grid import RED_TOLERANCE
+from arc_helper.grid import SHORT_RED
 from arc_helper.grid import Slot
 from arc_helper.icon_embed import EmbedCandidate
 from arc_helper.icon_embed import EmbedGallery
@@ -226,8 +231,8 @@ def test_square_slot_with_icon_box_gets_a_patch_in_screen_px():
             "rect": [103, 78, 187, 98],
             "icon_right": 120,
             "patch_right": 100 + _bar().patch_right,
-            "colour": [0x38, 0x38, 0x38],
-            "fg": "#f9eedf",
+            "colour": [0xF1, 0xB8, 0x00],
+            "fg": "#111111",
             "text": "Φ 810",
             "radius": 6,
             "kind": "patch",
@@ -268,52 +273,96 @@ def _contrast(first: str, second: str) -> float:
     return (light + 0.05) / (dark + 0.05)
 
 
+DARK = "#111111"
+
+
 @pytest.mark.parametrize(
     ("worth", "colours"),
     [
-        (0, ("#1a1a1a", "#8c8c8c")),
-        (stash_scan.WORTH_LOW - 1, ("#1a1a1a", "#8c8c8c")),
-        (stash_scan.WORTH_LOW, ("#1a1a1a", "#f9eedf")),
-        (1000, ("#3e3e3e", "#f9eedf")),
-        (stash_scan.WORTH_HIGH - 1, ("#6d6d6d", "#f9eedf")),
-        (stash_scan.WORTH_HIGH, ("#ffffff", "#111111")),
-        (1_000_000, ("#ffffff", "#111111")),
+        (0, ("#f43b20", DARK)),
+        (stash_scan.WORTH_LOW - 1, ("#f43b20", DARK)),
+        (stash_scan.WORTH_LOW, ("#f43b20", DARK)),
+        (500, ("#f28f00", DARK)),
+        (1118, ("#e8d44a", DARK)),
+        (2000, ("#b3ca3b", DARK)),
+        (stash_scan.WORTH_HIGH - 1, ("#3fb950", DARK)),
+        (stash_scan.WORTH_HIGH, ("#ad7500", DARK)),
+        (1_000_000, ("#ad7500", DARK)),
     ],
 )
 def test_worth_colours_at_the_thresholds(worth, colours):
     assert worth_colours(worth) == colours
 
 
-def test_worth_fill_never_darkens_as_worth_grows():
-    greys = [int(worth_colours(w)[0][1:3], 16) for w in range(100_001)]
-    assert all(a <= b for a, b in itertools.pairwise(greys))
-    assert greys[stash_scan.WORTH_HIGH] == 255
+def test_worth_fill_moves_from_red_toward_green_then_gold():
+    hues = [
+        stash_scan.oklch(worth_colours(w)[0])[2]
+        for w in range(stash_scan.WORTH_LOW, stash_scan.WORTH_HIGH)
+    ]
+    # Rounding to 8 bits where blue is near 0 can turn a hue back a little
+    assert all(b > a - 0.5 for a, b in itertools.pairwise(hues))
+    assert all(b > a for a, b in itertools.pairwise(hues[::50]))
+    middle = hues[1118 - stash_scan.WORTH_LOW]
+    assert (hues[0] < 40, 90 < middle < 110, hues[-1] > 140) == (True, True, True)
+    below = {worth_colours(w)[0] for w in range(stash_scan.WORTH_LOW)}
+    above = {worth_colours(w)[0] for w in range(stash_scan.WORTH_HIGH, 100_001)}
+    assert (below, above) == ({stash_scan.WORTH_RED}, {stash_scan.WORTH_GOLD})
 
 
-def test_ramp_top_is_the_lightest_grey_the_cream_text_reads_on():
-    top = stash_scan.WORTH_RAMP_TOP
-    lighter = "#" + f"{int(top[1:3], 16) + 1:02x}" * 3
-    assert _contrast(stash_scan.WORTH_RAMP_TEXT, top) >= 4.5
-    assert _contrast(stash_scan.WORTH_RAMP_TEXT, lighter) < 4.5
+def _rgb_of(colour: str) -> list[int]:
+    return [int(colour[i : i + 2], 16) for i in (1, 3, 5)]
+
+
+def _channel_gap(colour: str, rgb: tuple[int, int, int]) -> int:
+    """The largest per-channel difference of a '#rrggbb' colour from rgb."""
+    return max(abs(a - b) for a, b in zip(_rgb_of(colour), rgb, strict=True))
+
+
+def _oklab_gap(first: str, second: str) -> float:
+    points = []
+    for colour in (first, second):
+        lightness, chroma, hue = stash_scan.oklch(colour)
+        angle = math.radians(hue)
+        points.append((lightness, chroma * math.cos(angle), chroma * math.sin(angle)))
+    return math.dist(*points)
+
+
+def test_gold_stays_apart_from_arlo_golds_and_from_the_yellow():
+    gold = stash_scan.WORTH_GOLD
+    assert all(_channel_gap(gold, g) > 3 * GOLD_TOLERANCE for g in ARLO_GOLDS)
+    yellow, green = stash_scan.WORTH_YELLOW, stash_scan.WORTH_GREEN
+    assert _oklab_gap(gold, yellow) >= _oklab_gap(yellow, green)
+
+
+def test_red_stays_apart_from_the_short_stock_red():
+    assert _channel_gap(stash_scan.WORTH_RED, SHORT_RED) > 3 * RED_TOLERANCE
+
+
+def test_no_fill_on_the_scale_matches_the_grid_readers_colours():
+    for code in stash_scan.FILL_CODES:
+        fill = f"#{int(code):06x}"
+        assert _channel_gap(fill, SHORT_RED) > RED_TOLERANCE, fill
+        assert all(_channel_gap(fill, g) > GOLD_TOLERANCE for g in ARLO_GOLDS), fill
 
 
 def test_worth_text_reads_on_its_fill_from_1_to_100000():
     for worth in range(1, 100_001):
         fill, text = worth_colours(worth)
+        assert text in {stash_scan.WORTH_DARK_TEXT, stash_scan.WORTH_LIGHT_TEXT}
         assert _contrast(fill, text) >= 4.5, worth
 
 
-def test_a_stack_of_ten_600_coin_items_is_white_on_patch_and_pill():
+def test_a_stack_of_ten_600_coin_items_is_gold_on_patch_and_pill():
     item = Item(name="Gear", action="Sell", sell_price=600)
     square = _square(item, bar=_bar(), stack=10)
     wide = SlotItem(Rect(0, 10, 200, 100), "stash", item, None, 10, 0.9, 0.2, "x")
     patch, pill = badges_for([square, wide], lambda _s: Verdict("sell", "x"))
     assert (patch["text"], patch["colour"], patch["fg"]) == (
         "Φ 6k",
-        [255, 255, 255],
-        "#111111",
+        [0xAD, 0x75, 0x00],
+        DARK,
     )
-    assert (pill["text"], pill["bg"], pill["fg"]) == ("Φ 6k", "#ffffffff", "#111111")
+    assert (pill["text"], pill["bg"], pill["fg"]) == ("Φ 6k", "#ad7500ff", DARK)
 
 
 def test_a_cheaper_pill_keeps_the_tag_alpha():
@@ -334,7 +383,7 @@ def _tile_with_bar() -> np.ndarray:
 
 def test_unpatch_repaints_a_worth_patch_fill_in_the_bar_colour():
     crop = _tile_with_bar()
-    crop[141:181, 3:90] = (0x38, 0x38, 0x38)
+    crop[141:181, 3:90] = _rgb_of(worth_colours(2000)[0])
     crop[150:170, 15:40] = (0xF9, 0xEE, 0xDF)
     out = stash_scan.unpatch(crop)
     assert tuple(out[145, 60]) == (9, 12, 25)
@@ -343,9 +392,9 @@ def test_unpatch_repaints_a_worth_patch_fill_in_the_bar_colour():
     assert (out[:141] == crop[:141]).all()
 
 
-def test_unpatch_leaves_flat_grey_art_above_the_bar_alone():
+def test_unpatch_leaves_flat_art_in_a_scale_colour_above_the_bar_alone():
     crop = _tile_with_bar()
-    crop[113:143, 2:29] = (0x6C, 0x6C, 0x6C)
+    crop[113:143, 2:29] = _rgb_of(stash_scan.WORTH_YELLOW)
     assert stash_scan.unpatch(crop) is crop
 
 
