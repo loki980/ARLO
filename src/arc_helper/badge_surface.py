@@ -76,11 +76,12 @@ class Tag:
 
 @dataclass(frozen=True)
 class Patch:
-    """An opaque bar-coloured fill on a tile's bottom bar, with the worth on it.
+    """An opaque fill on a tile's bottom bar, with the worth on it.
 
     rect is the bar in absolute physical px. The helper sizes the fill to the
     text, at least to icon_right + 4 and never past patch_right, and rounds
-    its bottom-left corner by radius. The text is drawn white.
+    its bottom-left corner by radius. The text is drawn in fg ('#rrggbb'),
+    in the game's cream count ink when fg is None.
     """
 
     rect: tuple[int, int, int, int]
@@ -89,6 +90,7 @@ class Patch:
     colour: tuple[int, int, int]
     text: str
     radius: int = 6
+    fg: str | None = None
     kind: str = "patch"
 
 

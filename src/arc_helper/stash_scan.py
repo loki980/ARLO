@@ -42,8 +42,9 @@ when the tier numeral settles which one it is.
 badges_for turns the identified slots into badge dicts in the badge
 surface's message format (badge_surface.encode_message): for every
 identified item with a sell price, a patch over the type icon of a square
-slot's bottom bar (a dark pill top left on wide slots) showing the stack's
-worth. For an item an unfinished goal still needs, a have/need tag top left,
+slot's bottom bar (a pill top left on wide slots) showing the stack's
+worth, both filled by worth_colours so the cheap slots and those worth
+WORTH_HIGH or more show at a glance. For an item an unfinished goal still needs, a have/need tag top left,
 red with a red tile outline while the stash is short, green with a check mark
 when it is enough.
 
@@ -54,6 +55,7 @@ frame has filled slots.
 import datetime
 import hashlib
 import json
+import math
 import re
 import threading
 import time
@@ -66,6 +68,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from .badge_helper import PATCH_TEXT_RGB
 from .badge_helper import TAG_TEXT_MAX
 from .badge_helper import TAG_TEXT_MIN
 from .badge_helper import TAG_TEXT_SHARE
@@ -85,6 +88,7 @@ from .slot_marks import _RIGHT_HALF
 from .slot_marks import BarGeometry
 from .slot_marks import _Bar
 from .slot_marks import _luminance
+from .slot_marks import _runs
 from .slot_marks import _word_box
 from .slot_marks import _words
 from .slot_marks import bar_geometry
@@ -146,8 +150,50 @@ TAG_CORNER = "bl"
 # price goes top left there. A slot is wide from this width to height ratio
 TAG_CORNER_WIDE = "tl"
 WIDE_ASPECT = 1.25
-TAG_FG = "#ffffff"
 TAG_BG = "#141414d9"
+# The wide-slot price pill's alpha below WORTH_HIGH, TAG_BG's own
+TAG_ALPHA = "d9"
+# The pill is fully opaque from WORTH_HIGH, so the white stands out
+TAG_ALPHA_HIGH = "ff"
+
+# Worth at a glance: the price patch and pill are filled by the stack's worth.
+# Greys only, so a value colour is never taken for a rarity (grey, green,
+# blue, purple, pink, gold) or for HOVER_GOLD and SHORT_RED. Below WORTH_LOW
+# a slot is cheap enough to drop first
+WORTH_LOW = 250
+# From WORTH_HIGH a slot must stand out
+WORTH_HIGH = 5000
+# The fill of a cheap slot, near black
+WORTH_CHEAP_FILL = "#1a1a1a"
+# The text of a cheap slot, a dim grey with 5.2:1 on WORTH_CHEAP_FILL
+WORTH_CHEAP_TEXT = "#8c8c8c"
+# The ramp from WORTH_LOW to WORTH_HIGH starts at WORTH_CHEAP_FILL and ends at
+# the lightest grey on which the cream patch text still has 4.5:1 (4.52:1),
+# well short of white, so the jump to white at WORTH_HIGH stays sharp
+WORTH_RAMP_TOP = "#6d6d6d"
+# The ramp's text, the game's own count ink as badge_helper draws it
+WORTH_RAMP_TEXT = "#" + "".join(f"{round(c * 255):02x}" for c in PATCH_TEXT_RGB)
+# The fill and text from WORTH_HIGH up
+WORTH_HIGH_FILL = "#ffffff"
+WORTH_HIGH_TEXT = "#111111"
+
+# The passes run on captures that show ARLO's own patches, and a grey or
+# white fill hides the bar from slot_marks (the bar is darker, about 15).
+# unpatch repaints a patch's fill in the bar's colour first. A patch is the
+# largest run of columns, starting in the left PATCH_START_MAX of a square
+# crop's rows from PATCH_TOP share of its height down, where one exact grey
+# level of the worth scale appears in PATCH_MIN_ROWS rows or more, with
+# PATCH_MIN_SHARE of the crop area or more of that level. Gaps under
+# PATCH_BRIDGE columns (the text) are bridged. The fill must start below
+# the first of those rows and reach PATCH_BOTTOM_MIN of the height, as the
+# bar does (bar tops at 0.734 to 0.758, bottoms about 0.94), which leaves
+# out flat grey item art above the bar
+PATCH_TOP = 0.7
+PATCH_BOTTOM_MIN = 0.85
+PATCH_MIN_SHARE = 0.01
+PATCH_MIN_ROWS = 3
+PATCH_BRIDGE = 4
+PATCH_START_MAX = 0.3
 
 
 class SlotItem(NamedTuple):
@@ -803,6 +849,12 @@ def _resolve(
     return lookup(name), tier, lead
 
 
+def _slot_crop(rgb: np.ndarray, rect: Rect) -> np.ndarray:
+    """A slot's crop of the frame, unpatched when it is square."""
+    crop = rgb[rect.top : rect.bottom, rect.left : rect.right]
+    return crop if is_wide(rect) else unpatch(crop)
+
+
 def identify_slots(
     rgb: np.ndarray,
     gallery: EmbedGallery,
@@ -830,9 +882,7 @@ def identify_slots(
     filled = [s for s in slots if s.filled]
     if not filled or len(gallery) == 0:
         return []
-    crops = [
-        rgb[s.rect.top : s.rect.bottom, s.rect.left : s.rect.right] for s in filled
-    ]
+    crops = [_slot_crop(rgb, s.rect) for s in filled]
     bars = [
         None if is_wide(slot.rect) else bar_geometry(crop)
         for slot, crop in zip(filled, crops, strict=True)
@@ -909,7 +959,7 @@ def peek_slots(
         if not slot.filled:
             continue
         r = slot.rect
-        crop = rgb[r.top : r.bottom, r.left : r.right]
+        crop = _slot_crop(rgb, r)
         bar = None if is_wide(r) else bar_geometry(crop)
         box = bar.bar_rect if bar is not None else None
         entry = cache.peek((read_stacks, *slot_signature(crop, box)))
@@ -1014,12 +1064,107 @@ def _rgb(hex_colour: str) -> list[int]:
     return [int(hex_colour[i : i + 2], 16) for i in (1, 3, 5)]
 
 
+def _lightness(grey: int) -> float:
+    """CIE L* of an sRGB grey level 0..255."""
+    c = grey / 255
+    y = c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return 116 * y ** (1 / 3) - 16 if y > (6 / 29) ** 3 else y * (29 / 3) ** 3
+
+
+def _grey_of(lightness: float) -> int:
+    """The sRGB grey level 0..255 nearest a CIE L*."""
+    f = (lightness + 16) / 116
+    y = f**3 if f > 6 / 29 else lightness * (3 / 29) ** 3
+    c = 12.92 * y if y <= 0.0031308 else 1.055 * y ** (1 / 2.4) - 0.055
+    return max(0, min(255, round(c * 255)))
+
+
+def _fill_levels() -> frozenset[int]:
+    """Every grey level worth_colours fills with."""
+    low = int(WORTH_CHEAP_FILL[1:3], 16)
+    top = int(WORTH_RAMP_TOP[1:3], 16)
+    return frozenset({*range(low, top + 1), int(WORTH_HIGH_FILL[1:3], 16)})
+
+
+# The grey levels unpatch looks for
+_FILL_LEVELS = _fill_levels()
+
+
+def unpatch(crop: np.ndarray) -> np.ndarray:
+    """A square slot crop with ARLO's price patch fill in the bar's colour.
+
+    The fill is found as the comment above PATCH_MIN_SHARE says and its
+    pixels take the per-channel median of the other pixels of its rows that
+    are not ink, mostly the bar right of it. The text stays, as it did on patches drawn in the bar's
+    colour. A crop without a patch comes back as it is, the same array.
+    """
+    height, width = crop.shape[:2]
+    top = round(PATCH_TOP * height)
+    lower = np.asarray(crop[top:, :, :3])
+    grey = lower[..., 0]
+    neutral = (grey == lower[..., 1]) & (grey == lower[..., 2])
+    counts = np.bincount(grey[neutral], minlength=256)
+    level = max(_FILL_LEVELS, key=lambda v: counts[v])
+    if counts[level] < PATCH_MIN_SHARE * height * width:
+        return crop
+    fill = neutral & (grey == level)
+    runs = [
+        run
+        for run in _runs(fill.sum(axis=0) >= PATCH_MIN_ROWS, PATCH_BRIDGE)
+        if run[0] < PATCH_START_MAX * width
+    ]
+    if not runs:
+        return crop
+    begin, end = max(runs, key=lambda run: fill[:, run[0] : run[1]].sum())
+    rows = np.flatnonzero(fill[:, begin:end].any(axis=1))
+    first, last = int(rows[0]), int(rows[-1]) + 1
+    if first == 0 or top + last < PATCH_BOTTOM_MIN * height:
+        return crop
+    region = np.zeros_like(fill)
+    region[first:last, begin:end] = fill[first:last, begin:end]
+    rest = np.zeros_like(fill)
+    rest[first:last] = True
+    rest[first:last, begin:end] = False
+    if not rest.any():
+        return crop
+    # Ink (the count or numeral, the red outline) stays out of the median
+    lum = _luminance(lower)
+    plain = rest & (lum <= float(np.median(lum[rest])) + _INK_ABOVE)
+    out = np.array(crop, copy=True)
+    colour = np.median(lower[plain], axis=0).round().astype(np.uint8)
+    out[top:, :, :3][region] = colour
+    return out
+
+
+def worth_colours(worth: int) -> tuple[str, str]:
+    """The (fill, text) of a price patch or pill for a stack's worth, as '#rrggbb'.
+
+    Below WORTH_LOW the cheap near black with dim text. From WORTH_LOW to
+    WORTH_HIGH a grey ramp from WORTH_CHEAP_FILL to WORTH_RAMP_TOP, even
+    steps in log worth being even steps in lightness (CIE L*), with cream
+    text. From WORTH_HIGH white with near black text.
+    """
+    if worth >= WORTH_HIGH:
+        return WORTH_HIGH_FILL, WORTH_HIGH_TEXT
+    if worth < WORTH_LOW:
+        return WORTH_CHEAP_FILL, WORTH_CHEAP_TEXT
+    share = math.log(worth / WORTH_LOW) / math.log(WORTH_HIGH / WORTH_LOW)
+    low = _lightness(int(WORTH_CHEAP_FILL[1:3], 16))
+    top_grey = int(WORTH_RAMP_TOP[1:3], 16)
+    grey = min(top_grey, _grey_of(low + share * (_lightness(top_grey) - low)))
+    return f"#{grey:02x}{grey:02x}{grey:02x}", WORTH_RAMP_TEXT
+
+
 def patch_badge(slot: SlotItem, worth: int) -> dict | None:
-    """The patch over a square slot's type icon, None when there is no icon box."""
+    """The patch over a square slot's type icon, None when there is no icon box.
+
+    It is filled and its text coloured by worth_colours.
+    """
     bar = slot.bar
     if bar is None or bar.icon_box is None:
         return None
     left, top = slot.rect.left, slot.rect.top
+    fill, text = worth_colours(worth)
     return {
         "rect": [
             left + bar.bar_rect.left,
@@ -1029,7 +1174,8 @@ def patch_badge(slot: SlotItem, worth: int) -> dict | None:
         ],
         "icon_right": left + bar.icon_box.right,
         "patch_right": left + bar.patch_right,
-        "colour": list(bar.colour),
+        "colour": _rgb(fill),
+        "fg": text,
         "text": PRICE_PREFIX + format_price(worth),
         "radius": PATCH_RADIUS,
         "kind": "patch",
@@ -1045,8 +1191,8 @@ def badges_for(
 
     Every identified item with a sell price gets its stack's worth (the unit
     price times the stack, 1 when unread): a patch on a square slot with a
-    type icon, a dark pill top left on a wide slot (top right when the slot
-    also has a need tag), and nothing on a square slot without a type icon.
+    type icon, a pill top left on a wide slot (top right when the slot
+    also has a need tag), both coloured by worth_colours, and nothing on a square slot without a type icon.
     An item with active needs (a verdict with sources) gets a have/need tag
     top left, have from owned (item name to count, for example the stored
     stash map plus the loadout) when given, else from owned_totals of these
@@ -1085,13 +1231,15 @@ def badges_for(
             continue
         worth = item.sell_price * (slot.stack if slot.stack is not None else 1)
         if is_wide(slot.rect):
+            fill, text = worth_colours(worth)
+            alpha = TAG_ALPHA_HIGH if worth >= WORTH_HIGH else TAG_ALPHA
             badges.append(
                 {
                     "rect": rect,
                     "text": PRICE_PREFIX + format_price(worth),
                     "corner": "tr" if need else TAG_CORNER_WIDE,
-                    "fg": TAG_FG,
-                    "bg": TAG_BG,
+                    "fg": text,
+                    "bg": fill + alpha,
                     "kind": "tag",
                 }
             )

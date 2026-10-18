@@ -119,6 +119,7 @@ def test_patch_message_round_trips_through_the_helper_parser():
             "colour": [20, 25, 35],
             "text": "1.3k",
             "radius": 6,
+            "fg": None,
         }
     ]
 
@@ -144,6 +145,22 @@ def test_patch_fills_to_its_text_and_stops_at_the_computed_edge(tmp_path):
     assert 8 <= edge - (max(cream) + 1) <= 11
     # Nothing above the bar
     assert image.getpixel((20, 150))[3] == 0
+
+
+def test_patch_text_is_drawn_in_fg_when_given(tmp_path):
+    patch = Patch(
+        BAR,
+        icon_right=40,
+        patch_right=120,
+        colour=(255, 255, 255),
+        text="6k",
+        fg="#111111",
+    )
+    image = _render(tmp_path, [patch])
+    pixels = {image.getpixel((x, y)) for x in range(200) for y in range(152, 190)}
+    assert (0x11, 0x11, 0x11, 255) in pixels
+    assert (0xF9, 0xEE, 0xDF, 255) not in pixels
+    assert image.getpixel((2, 154)) == (255, 255, 255, 255)
 
 
 def test_short_patch_text_fills_to_the_icon_gap(tmp_path):

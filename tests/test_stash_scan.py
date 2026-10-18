@@ -4,6 +4,8 @@ The embedder, the crop step and the slot mark readers are stubbed, so these
 run without the model or Tesseract.
 """
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -20,6 +22,7 @@ from arc_helper.stash_scan import distinct_gallery
 from arc_helper.stash_scan import format_price
 from arc_helper.stash_scan import identify_slots
 from arc_helper.stash_scan import owned_totals
+from arc_helper.stash_scan import worth_colours
 from arc_helper.tooltip_layout import Rect
 from arc_helper.verdict import Verdict
 
@@ -223,7 +226,8 @@ def test_square_slot_with_icon_box_gets_a_patch_in_screen_px():
             "rect": [103, 78, 187, 98],
             "icon_right": 120,
             "patch_right": 100 + _bar().patch_right,
-            "colour": [40, 90, 120],
+            "colour": [0x38, 0x38, 0x38],
+            "fg": "#f9eedf",
             "text": "Φ 810",
             "radius": 6,
             "kind": "patch",
@@ -248,6 +252,101 @@ def test_patch_text_is_the_stacks_worth():
         [_square(item, bar=_bar(), stack=3)], lambda _s: Verdict("sell", "x")
     )
     assert patch["text"] == "Φ 2.4k"
+
+
+def _contrast(first: str, second: str) -> float:
+    """The WCAG contrast ratio of two '#rrggbb' colours."""
+
+    def luminance(colour: str) -> float:
+        lin = []
+        for i in (1, 3, 5):
+            c = int(colour[i : i + 2], 16) / 255
+            lin.append(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+    dark, light = sorted([luminance(first), luminance(second)])
+    return (light + 0.05) / (dark + 0.05)
+
+
+@pytest.mark.parametrize(
+    ("worth", "colours"),
+    [
+        (0, ("#1a1a1a", "#8c8c8c")),
+        (stash_scan.WORTH_LOW - 1, ("#1a1a1a", "#8c8c8c")),
+        (stash_scan.WORTH_LOW, ("#1a1a1a", "#f9eedf")),
+        (1000, ("#3e3e3e", "#f9eedf")),
+        (stash_scan.WORTH_HIGH - 1, ("#6d6d6d", "#f9eedf")),
+        (stash_scan.WORTH_HIGH, ("#ffffff", "#111111")),
+        (1_000_000, ("#ffffff", "#111111")),
+    ],
+)
+def test_worth_colours_at_the_thresholds(worth, colours):
+    assert worth_colours(worth) == colours
+
+
+def test_worth_fill_never_darkens_as_worth_grows():
+    greys = [int(worth_colours(w)[0][1:3], 16) for w in range(100_001)]
+    assert all(a <= b for a, b in itertools.pairwise(greys))
+    assert greys[stash_scan.WORTH_HIGH] == 255
+
+
+def test_ramp_top_is_the_lightest_grey_the_cream_text_reads_on():
+    top = stash_scan.WORTH_RAMP_TOP
+    lighter = "#" + f"{int(top[1:3], 16) + 1:02x}" * 3
+    assert _contrast(stash_scan.WORTH_RAMP_TEXT, top) >= 4.5
+    assert _contrast(stash_scan.WORTH_RAMP_TEXT, lighter) < 4.5
+
+
+def test_worth_text_reads_on_its_fill_from_1_to_100000():
+    for worth in range(1, 100_001):
+        fill, text = worth_colours(worth)
+        assert _contrast(fill, text) >= 4.5, worth
+
+
+def test_a_stack_of_ten_600_coin_items_is_white_on_patch_and_pill():
+    item = Item(name="Gear", action="Sell", sell_price=600)
+    square = _square(item, bar=_bar(), stack=10)
+    wide = SlotItem(Rect(0, 10, 200, 100), "stash", item, None, 10, 0.9, 0.2, "x")
+    patch, pill = badges_for([square, wide], lambda _s: Verdict("sell", "x"))
+    assert (patch["text"], patch["colour"], patch["fg"]) == (
+        "Φ 6k",
+        [255, 255, 255],
+        "#111111",
+    )
+    assert (pill["text"], pill["bg"], pill["fg"]) == ("Φ 6k", "#ffffffff", "#111111")
+
+
+def test_a_cheaper_pill_keeps_the_tag_alpha():
+    item = Item(name="Gear", action="Sell", sell_price=600)
+    wide = SlotItem(Rect(0, 10, 200, 100), "stash", item, None, 1, 0.9, 0.2, "x")
+    (pill,) = badges_for([wide], lambda _s: Verdict("sell", "x"))
+    fill, text = worth_colours(600)
+    assert (pill["bg"], pill["fg"]) == (fill + "d9", text)
+
+
+def _tile_with_bar() -> np.ndarray:
+    """A 192 px square crop: slate body, a dark bar at rows 141 to 181, a count."""
+    crop = np.full((192, 192, 3), (17, 28, 45), dtype=np.uint8)
+    crop[141:181, 3:189] = (9, 12, 25)
+    crop[150:170, 160:175] = (230, 230, 230)
+    return crop
+
+
+def test_unpatch_repaints_a_worth_patch_fill_in_the_bar_colour():
+    crop = _tile_with_bar()
+    crop[141:181, 3:90] = (0x38, 0x38, 0x38)
+    crop[150:170, 15:40] = (0xF9, 0xEE, 0xDF)
+    out = stash_scan.unpatch(crop)
+    assert tuple(out[145, 60]) == (9, 12, 25)
+    assert tuple(out[160, 20]) == (0xF9, 0xEE, 0xDF)
+    assert tuple(out[160, 165]) == (230, 230, 230)
+    assert (out[:141] == crop[:141]).all()
+
+
+def test_unpatch_leaves_flat_grey_art_above_the_bar_alone():
+    crop = _tile_with_bar()
+    crop[113:143, 2:29] = (0x6C, 0x6C, 0x6C)
+    assert stash_scan.unpatch(crop) is crop
 
 
 def test_need_tag_is_red_while_short_and_green_when_enough():
