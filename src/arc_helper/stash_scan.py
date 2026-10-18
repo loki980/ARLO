@@ -1037,6 +1037,7 @@ def patch_badge(slot: SlotItem, worth: int) -> dict | None:
 def badges_for(
     slot_items: Iterable[SlotItem],
     verdict_of: Callable[[SlotItem], Verdict],
+    owned: Mapping[str, int] | None = None,
 ) -> list[dict]:
     """Badge dicts for the identified slots, in the badge surface's format.
 
@@ -1045,13 +1046,16 @@ def badges_for(
     type icon, a dark pill top left on a wide slot (top right when the slot
     also has a need tag), and nothing on a square slot without a type icon.
     An item with active needs (a verdict with sources) gets a have/need tag
-    top left, have from owned_totals and need the sum of the sources. Short
+    top left, have from owned (item name to count, for example the stored
+    stash map plus the loadout) when given, else from owned_totals of these
+    slots, and need the sum of the sources. Short
     stock is red with a red tile outline, enough is green with a check mark
     and no outline. Unidentified slots get no badge. verdict_of gives a
     slot's verdict, for example verdicts_for(db).
     """
     slots = list(slot_items)
-    owned = owned_totals(slots)
+    if owned is None:
+        owned = owned_totals(slots)
     badges: list[dict] = []
     for slot in slots:
         item = slot.item

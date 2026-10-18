@@ -947,3 +947,13 @@ def test_an_oversized_number_skips_only_its_row(tmp_path):
 
 def _encode(key: tuple) -> str:
     return stash_scan._encode_key(key)  # noqa: SLF001
+
+
+def test_need_tag_have_comes_from_the_given_owned_totals():
+    sources = (("Gunsmith II", 10),)
+    slot = _square(Item(name="Metal Parts", action="Keep"), 0, stack=2)
+    verdict = lambda _s: Verdict("keep", "x", 10, sources)  # noqa: E731
+    (tag,) = badges_for([slot], verdict, {"Metal Parts": 12})
+    assert (tag["text"], tag["check"]) == ("12/10", True)
+    shown = [b for b in badges_for([slot], verdict) if b["kind"] == "tag"]
+    assert [t["text"] for t in shown] == ["2/10"]
