@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 76 percent of the whole roadmap, weighted by effort: 62 of 69 steps
+About 75 percent of the whole roadmap, weighted by effort: 62 of 70 steps
 done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
@@ -511,7 +511,7 @@ Ahead, in order:
 4. Greyed icons in the empty cells. Drawn on the overlay surface (phase 4).
    Underway 18 Oct.
 
-## Phase 5. ARLO knows what you own. Started 15 Oct, 80 percent, 4 of 5 steps. Moved up 15 Oct
+## Phase 5. ARLO knows what you own. Started 15 Oct, 65 percent, 4 of 6 steps. Moved up 15 Oct
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start
 watching and updating a local database of my inventory?" Decided 11 Oct.
@@ -570,6 +570,12 @@ Ahead, in order:
    used, so the tags fell back to the loadout alone. Now a partial map still
    counts, and the tag shows "52+/73" until a full scroll makes it sure.
    Done 18 Oct, reviewed: a tag never shows less than the slots on screen.
+6. The map keeps building after a restart. Jeffrey, 18 Oct, after a full
+   scroll of his stash from the top: "I still see 2+/3 on rusted bolts, for
+   example". None of his 42 frames placed: after a restart ARLO has no
+   last frame, and its saved looks no longer match because its own tags and
+   patches changed on the tiles. Fix: anchor on the top of the stash and
+   leave ARLO's own drawings out of the looks. Underway 18 Oct. Added 18 Oct.
 
 ## Phase 6. It reads your progress too. Planned, after phases 2 and 5
 
