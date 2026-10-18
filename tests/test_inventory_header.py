@@ -151,3 +151,23 @@ def test_loadout_header_none_when_card_starts_between_value_digits():
 def test_loadout_header_none_when_whole_row_is_covered():
     frame = _cover(_frame(FULL), 1500, 2200)
     assert read_loadout_header(frame, _slots(EQUIPMENT, FULL_EQUIPMENT_LEFT)) is None
+
+
+# Rows 250 to 480 and columns 0 to 1000 of one of Jeffrey's frames from a
+# scrolled stash (STASH 275/304, 884,938). Its topmost visible slot is at y 704
+# where the stash rests at 544.
+SCROLLED = FIXTURES / "inventory_header_scrolled.png"
+SCROLLED_SLOT_TOP = 704
+
+
+def test_stash_header_read_while_the_stash_is_scrolled():
+    band = np.array(Image.open(SCROLLED).convert("RGB"))
+    frame = np.zeros((2160, 3840, 3), dtype=np.uint8)
+    frame[BAND_TOP : BAND_TOP + band.shape[0], : band.shape[1]] = band
+    slots = _slots(STASH, 304, SCROLLED_SLOT_TOP)
+    assert read_stash_header(frame, slots) == StashHeader(275, 304, 884938)
+
+
+def test_stash_header_none_without_the_title_when_scrolled():
+    frame = np.zeros((2160, 3840, 3), dtype=np.uint8)
+    assert read_stash_header(frame, _slots(STASH, 304, SCROLLED_SLOT_TOP)) is None

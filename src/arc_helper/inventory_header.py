@@ -35,6 +35,11 @@ STASH_TEXT_LEFT = 40 / 2160
 STASH_TEXT_RIGHT = 540 / 2160
 LOADOUT_TEXT_LEFT = 215 / 2160
 LOADOUT_TEXT_RIGHT = 680 / 2160
+# The stash grid scrolls under a fixed header, so the topmost visible slot is
+# no anchor for it. The slot column's left edge does not scroll, and the
+# resting top of the first slot row is a fixed screen height: 544 px on a
+# 2160 px frame in the base layout, 48 px lower in raid. Both are tried.
+STASH_REST_TOPS = (544 / FRAME_HEIGHT_4K, 592 / FRAME_HEIGHT_4K)
 UPSCALE = 2
 # The loadout counts row is read larger: at 2 the soft strokes of /90.0 in a
 # base screenshot read as /190.0
@@ -163,14 +168,24 @@ def _int(text: str) -> int:
 def read_stash_header(rgb: np.ndarray, stash_slots: list[Slot]) -> StashHeader | None:
     """Used and capacity slots and total value from the STASH header.
 
-    None when no stash slots are given, the STASH title is not above them (a
-    CONTAINER view), or any of the three numbers cannot be read. A stash
+    The header is found from the slots' left edge and the stash's resting
+    top, so it reads whatever the scroll. None when no stash slots are given,
+    the STASH title is not there (a CONTAINER view), or any of the three numbers cannot be read. A stash
     filtered by category shows no capacity, which is also None.
     """
     anchor = _anchor(stash_slots)
     if anchor is None:
         return None
-    left, top = anchor
+    left = anchor[0]
+    for rest_top in STASH_REST_TOPS:
+        header = _read_stash_block(rgb, left, round(rest_top * rgb.shape[0]))
+        if header is not None:
+            return header
+    return None
+
+
+def _read_stash_block(rgb: np.ndarray, left: int, top: int) -> StashHeader | None:
+    """The STASH title and counts rows above a first slot row resting at top."""
     block = _row_rect(
         rgb.shape[0],
         left,
