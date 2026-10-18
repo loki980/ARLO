@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 75 percent of the whole roadmap, weighted by effort: 62 of 70 steps
+About 77 percent of the whole roadmap, weighted by effort: 63 of 70 steps
 done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
@@ -468,7 +468,7 @@ Done:
     captures). The gold is a deep gold (#ad7500), kept apart from ARLO's
     hover frame gold, closest in look to the orange at about 500.
 
-## Phase 4b. Blueprint tracker. Started 11 Oct, 50 percent, 2 of 4 steps. Added 11 Oct
+## Phase 4b. Blueprint tracker. Started 11 Oct, 75 percent, 3 of 4 steps. Added 11 Oct
 
 Jeffrey's words, 11 Oct, after the weapon rule said "more until you own the
 blueprint": "We should build in some kind of blueprint tracker assist, too.
@@ -507,7 +507,10 @@ Done:
 Ahead, in order:
 
 3. Hover assist. With the cursor over an empty cell, the advice card shows
-   the blueprint's name and the best places to find it. Underway 18 Oct.
+   the blueprint's name and the best places to find it. Done 18 Oct,
+   reviewed: the card names the blueprint, its map and condition, the
+   container types, whether it is scavengable and a quest or trials reward,
+   and says plainly when a slot is unnamed in the public data.
 4. Greyed icons in the empty cells. Drawn on the overlay surface (phase 4).
    Underway 18 Oct.
 
