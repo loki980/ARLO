@@ -248,7 +248,7 @@ Done:
    untracked database so the weekly refresh never conflicts with it. Done
    11 Oct.
 
-6. A big KEEP on the item and readable text. Readable popup text and a big
+6. Readable text in a game-style font. Readable popup text and a big
    verdict word. Jeffrey, 14 Oct: "At least
    a big \"KEEP\" on the popup card." Found 14 Oct: uv's Python bundles a Tk
    with only the bitmap font "fixed", so on Linux every popup font size is
