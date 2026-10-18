@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import arc_helper.main as main_module
+from arc_helper.badge_surface import Icon
 from arc_helper.collections_screen import CollectionsCell
 from arc_helper.collections_screen import CollectionsRead
 from arc_helper.config import get_settings
@@ -283,3 +284,115 @@ def test_hover_needs_the_advice_card(hover):
     hover.advice_card = False
     hover.frames = [GRID]
     assert _tick(hover, 0.0, ANVIL) == []
+
+
+class _FakeSurface:
+    """The badge surface, recording what the scanner sends."""
+
+    def __init__(self):
+        self.sent = []
+        self.starts = 0
+
+    def start(self):
+        self.starts += 1
+        return True
+
+    def draw(self, badges):
+        self.sent.append(("draw", badges))
+
+    def clear(self):
+        self.sent.append(("clear",))
+
+
+@pytest.fixture
+def icons(scanner, monkeypatch, tmp_path):
+    """The scanner with a badge surface and Anvil's and Banjo's icons cached.
+
+    Anvil (slot 1) is empty, Banjo (slot 2) found and slot 3 unnamed in GRID.
+    """
+    scanner.badge_surface = _FakeSurface()
+    scanner.icon_cache_dir = tmp_path
+    for item_id in ("anvil_blueprint", "banjo_blueprint"):
+        (tmp_path / f"{item_id}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    where = ("All", "Any", "Yes", "Raider Containers", "No", "Yes")
+    catalog = [
+        Blueprint("Anvil Blueprint", "anvil_blueprint", None, None, *where),
+        Blueprint("Banjo Blueprint", "banjo_blueprint", None, None, *where),
+    ]
+    monkeypatch.setattr(scanner.db, "blueprint_catalog", lambda: catalog)
+    return scanner
+
+
+def _looks(scanner, frames):
+    scanner.frames = list(frames)
+    for i in range(len(frames)):
+        scanner._check_collections(i * COLLECTIONS_CHECK_S)  # noqa: SLF001
+
+
+def test_icons_only_on_empty_named_cells(icons, tmp_path):
+    _looks(icons, [GRID])
+    assert icons.badge_surface.starts == 1
+    assert icons.badge_surface.sent == [
+        (
+            "draw",
+            [
+                Icon(
+                    (0, 0, 100, 100),
+                    str(tmp_path / "anvil_blueprint.png"),
+                    alpha=0.35,
+                    inset=0.12,
+                )
+            ],
+        )
+    ]
+
+
+def test_no_icon_without_a_cached_file(icons, tmp_path):
+    (tmp_path / "anvil_blueprint.png").unlink()
+    _looks(icons, [GRID])
+    assert icons.badge_surface.sent == []
+    assert icons.badge_surface.starts == 0
+
+
+def test_icons_wait_for_a_consistent_read(icons):
+    # The tooltip read draws nothing, the clean one draws Banjo in empty slot 2
+    icons.frames = [TOOLTIP, CLEAN]
+    icons._check_collections(0.0)  # noqa: SLF001
+    assert icons.badge_surface.sent == []
+    icons._check_collections(COLLECTIONS_CHECK_S)  # noqa: SLF001
+    [(op, badges)] = icons.badge_surface.sent
+    assert op == "draw"
+    assert [b.path.endswith("banjo_blueprint.png") for b in badges] == [True]
+
+
+def test_icons_sent_once_per_read_not_every_round(icons):
+    icons.frames = [GRID, GRID]
+    # IDLE rounds every 0.5 s: looks at 0 and 2 s only, the second read
+    # finds the same icons and sends nothing
+    for now in (0.0, 0.5, 1.0, 1.5, 2.0, 2.5):
+        icons._check_collections(now)  # noqa: SLF001
+    assert icons.grabs == 2
+    assert [m[0] for m in icons.badge_surface.sent] == ["draw"]
+
+
+def test_icons_cleared_on_leaving_the_screen(icons):
+    _looks(icons, [GRID, OTHER, OTHER])
+    assert [m[0] for m in icons.badge_surface.sent] == ["draw", "clear"]
+
+
+def test_icons_cleared_on_entering_active(icons, monkeypatch):
+    ocr = _FakeOcr(icons, [False, True])
+    monkeypatch.setattr(main_module, "get_ocr_engine", lambda: ocr)
+    monkeypatch.setattr(main_module.time, "sleep", [].append)
+    icons.frames = [GRID]
+    icons._running = True  # noqa: SLF001
+    icons._scan_loop()  # noqa: SLF001
+    assert icons.state == ScannerState.ACTIVE
+    assert [m[0] for m in icons.badge_surface.sent] == ["draw", "clear"]
+
+
+def test_icons_never_drawn_outside_idle(icons):
+    # Outside IDLE the stash badges own the surface
+    icons.state = ScannerState.ACTIVE
+    icons._show_collections_icons(READS[GRID].cells)  # noqa: SLF001
+    assert icons.badge_surface.sent == []
