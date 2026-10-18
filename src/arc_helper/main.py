@@ -2029,7 +2029,8 @@ class Scanner:
 
     root: tk.Tk
     overlay: OverlayWindow
-    status: StatusWindow
+    # None unless SHOW_STATUS_WINDOW is on
+    status: StatusWindow | None
     db: Database = field(default_factory=get_database)
     state: ScannerState = ScannerState.IDLE
     stats: ScannerStats = field(default_factory=ScannerStats)
@@ -2886,7 +2887,7 @@ class Application:
         self._popup_corner = Point(self.overlay.overlay_x, self.overlay.overlay_y)
         self._popup_spot = POPUP_HOME
         self._place_popup()
-        self.status = StatusWindow(self.root, on_quit=self.quit)
+        self.status = self._make_status()
         self.chips = (
             TooltipChips(self.root) if self.settings.overlay.tooltip_chips else None
         )
@@ -2920,6 +2921,16 @@ class Application:
         # Bind close handler
         self.root.protocol("WM_DELETE_WINDOW", self.quit)
 
+    def _make_status(self) -> StatusWindow | None:
+        """The scanning and inventory indicator, None unless SHOW_STATUS_WINDOW.
+
+        It is a debug aid, so it is off by default and nothing creates or
+        maps it then.
+        """
+        if not self.settings.show_status_window:
+            return None
+        return StatusWindow(self.root, on_quit=self.quit)
+
     def _make_stash(self) -> StashBadges | None:
         """The stash badges per STASH_BADGES, None when turned off."""
         overlay = self.settings.overlay
@@ -2934,6 +2945,8 @@ class Application:
 
     def _apply_status(self, status: str) -> None:
         """Apply a status update to the StatusWindow (main thread only)."""
+        if self.status is None:
+            return
         if status == "scanning":
             self.status.set_scanning()
         elif status == "active":
@@ -3167,7 +3180,9 @@ class Application:
         tk_scale = get_backend().tk_scale
         rects: list[Rect] = []
         labelled: dict[str, Rect] = {}
-        windows = [(STATUS, self.status.window)]
+        windows: list[tuple[str, tk.Toplevel]] = []
+        if self.status is not None:
+            windows.append((STATUS, self.status.window))
         if self.advice is None:
             windows.insert(0, (POPUP, self.overlay.window))
         else:

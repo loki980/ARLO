@@ -365,6 +365,10 @@ class Settings(BaseSettings):
     show_capture_area: bool = Field(
         default=False, description="Show red overlay for capture area"
     )
+    # The small scanning, inventory and hotkey status window in the corner
+    show_status_window: bool = Field(
+        default=False, description="Show the scanner status window"
+    )
 
     # Capture library: save raw tooltip captures for offline OCR evaluation.
     # Turned on only for one run by the --capture flag, never from the
@@ -441,6 +445,7 @@ class Settings(BaseSettings):
             "# Debug settings",
             f"DEBUG_MODE={str(self.debug_mode).lower()}",
             f"SHOW_CAPTURE_AREA={str(self.show_capture_area).lower()}",
+            f"SHOW_STATUS_WINDOW={str(self.show_status_window).lower()}",
             f"CAPTURE_LIBRARY_DIR={self.capture_library_dir}",
             f"ICON_CACHE_DIR={self.icon_cache_dir}",
             "",
