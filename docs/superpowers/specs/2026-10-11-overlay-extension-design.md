@@ -110,6 +110,16 @@ As described in findings: guided stash scroll anchored on the header total, delt
 | 5 | Inventory ledger | 3 |
 | 6 | Progress readers | 2, 5, screenshots of the project and workshop pages |
 
+## Blueprint data (findings of 11 Oct, folded in 18 Oct)
+
+Three public sources were checked: arctracker.io, MetaForge and the Arc Raiders Wiki.
+
+- **Catalog.** arctracker `/api/items` has exactly 91 records with `type == "Blueprint"`, matching the game's FOUND: x/91. Each has a 256 px PNG icon (91 of 91 fetch with status 200). Match on the type, never on the name, since a few trinkets contain "blueprint". MetaForge also lists 91, but its ids have typos, so join on the English name.
+- **Grid order.** The wiki's Blueprints page lists the grid in game order. The Collections grid has 17 columns (the first plan said 18, which does not fit 91 slots in a 6-cell last row). Read as 17 columns, the wiki order matched all 20 found cells of Jeffrey's screenshot by icon. Slots 26, 40 and 56 are unnamed on the wiki. They are Banjo, Stiletto and Tether Launcher in an unknown arrangement, to be settled on screen.
+- **Where found.** arctracker and MetaForge item fields are empty for blueprints. The wiki table gives map, condition, container category, quest and trials for 84 of the 91. MetaForge has an undocumented player-vote endpoint (container, map and event counts) that covers 87. Its terms ask projects to attribute and to ask first, which is an open decision for Jeffrey.
+- **Drop chances.** No source has them.
+- **Not used.** arctracker's per-user blueprint endpoint needs an app key and a user key, and is player status, not catalog data. ARLO reads ownership from the Collections screen instead.
+
 ## Testing
 
 - Unit tests for every pure function in `tooltip_layout.py` with synthetic arrays and fake word boxes, including: cream rect on a dark frame, no cream at all, a label with an OCR typo, a tooltip at the right screen edge (clamping), and a missing label.
