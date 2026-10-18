@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 67 percent of the whole roadmap, weighted by effort: 55 of 70 steps
-done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
+About 65 percent of the whole roadmap, weighted by effort: 54 of 70 steps
+done, 2 of 8 phases done (17 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
 entire roadmap". Added 15 Oct.
@@ -198,6 +198,11 @@ Ahead, in order:
     showed reads such as "CRACKED BIOSCANNER ;MER:;{JC:..." and "IUST'". A
     catalog name followed by junk now resolves to that name, and a read
     that matches nothing shows no advice. Done 15 Oct, reviewed. Added 15 Oct.
+20. A tidier card. Jeffrey, 17 Oct: "I think the \"sells for\" overlay can
+    be removed. It's already on the card. It'd be nice if the \"Home only\"
+    badge lined up." Then "I think the \"keep/use/recycle/sell\" should go
+    away too", and "get rid of the \"scanning\" and \"inventory\" -- these
+    are almost like debug msgs". Underway 17 Oct. Added 17 Oct.
 
 ## Phase 2. Advice with a reason. Underway from 11 Oct, about 89 percent
 
@@ -417,7 +422,9 @@ since they need every cell read (phase 3). Changed 14 Oct.
     possible to make this faster?" His log: badges hid 2.2 s after the
     inventory closed and came 2.1 s after it opened. The overlay now hides
     the moment the grid leaves the screen and shows known items on the
-    first frame. Underway 17 Oct. Added 17 Oct.
+    first frame. Done 17 Oct, reviewed. The log showed the badges already
+    cleared about 230 ms after closing, so the slow part left is the hover
+    card (about 360 ms to show). Added 17 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
@@ -481,14 +488,18 @@ be useful without this, you know?" Moved up 15 Oct.
    Howeveer, upon seeing it, you can update your saved values." Part 2a,
    known items remembered across restarts, and part 2b, the stash map
    saved and updated whenever rows are seen and checked against the
-   header, underway 17 Oct. Then the scanner wiring. Then: the scrollbar position and the
+   header, both done 17 Oct, reviewed: a restart's first pass takes 78 ms
+   instead of 845 ms, and the saved map rebuilds the same 275 cells. The
+   stash header now reads while scrolled too. Then: the scrollbar position and the
    overlap with the last frame give each visible row its absolute place.
    Needs a capture session scrolling the whole stash, waiting on Jeffrey's
    screen recording (the capture library only saves frames when a card is
    read). Must also handle the category filter tabs, since old captures
    only show filtered stash headers. Added 15 Oct.
 3. The ledger: stash plus backpack, quick use, safe pocket and equipment
-   in one local store, updated from every still frame. Part 1, the loadout
+   in one local store, updated from every still frame. Part 2, the map fed
+   from every pass and the combined totals in the have/need tags, underway
+   17 Oct. Part 1, the loadout
    panels counted from one frame, checked against the LOADOUT header's
    value and saved locally, done 15 Oct, reviewed. It found the header
    reader failing in raid and next to a card, and small stacks unread.
