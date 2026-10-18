@@ -7,6 +7,7 @@ from arc_helper.grid import EQUIPMENT
 from arc_helper.grid import SAFE_POCKET
 from arc_helper.grid import STASH
 from arc_helper.inventory_header import LoadoutHeader
+from arc_helper.inventory_ledger import Owned
 from arc_helper.inventory_ledger import loadout_tally
 from arc_helper.inventory_ledger import owned_counts
 from arc_helper.stash_map import StoredCell
@@ -119,10 +120,21 @@ def test_owned_counts_add_the_map_and_the_loadout_when_sure():
         ("Light Ammo", 40, True), ("Light Ammo", None, True), (None, None, True)
     )
     owned = owned_counts(stored, {"Light Ammo": 82, "Stitcher I": 1}, sure=True)
-    assert owned == {"Light Ammo": 123, "Stitcher I": 1}
+    assert owned == Owned({"Light Ammo": 123, "Stitcher I": 1}, sure=True)
 
 
-def test_owned_counts_fall_back_when_unsure_or_missing():
+def test_owned_counts_say_when_the_map_is_sure():
     stored = _stored(("Light Ammo", 40, True))
-    assert owned_counts(stored, {"Light Ammo": 82}, sure=False) is None
+    owned = owned_counts(stored, {"Light Ammo": 82}, sure=True)
+    assert owned == Owned({"Light Ammo": 122}, sure=True)
+
+
+def test_owned_counts_use_an_unsure_map_and_flag_it():
+    stored = _stored(("Light Ammo", 40, True))
+    owned = owned_counts(stored, {"Light Ammo": 82, "Stitcher I": 1}, sure=False)
+    assert owned == Owned({"Light Ammo": 122, "Stitcher I": 1}, sure=False)
+
+
+def test_owned_counts_are_none_without_a_stored_map():
     assert owned_counts(None, {"Light Ammo": 82}, sure=True) is None
+    assert owned_counts(None, {"Light Ammo": 82}, sure=False) is None

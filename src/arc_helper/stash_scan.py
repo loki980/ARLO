@@ -1186,6 +1186,8 @@ def badges_for(
     slot_items: Iterable[SlotItem],
     verdict_of: Callable[[SlotItem], Verdict],
     owned: Mapping[str, int] | None = None,
+    *,
+    sure: bool = True,
 ) -> list[dict]:
     """Badge dicts for the identified slots, in the badge surface's format.
 
@@ -1196,14 +1198,17 @@ def badges_for(
     An item with active needs (a verdict with sources) gets a have/need tag
     top left, have from owned (item name to count, for example the stored
     stash map plus the loadout) when given, else from owned_totals of these
-    slots, and need the sum of the sources. Short
+    slots, and need the sum of the sources. While sure is False (the map
+    behind owned is partial) have is the larger of owned and the slots on
+    screen, and the tag reads N+/M, a lower bound. Short
     stock is red, enough is green with a check mark. No tile outline: Jeffrey
     found the tag enough (17 Oct). Unidentified slots get no badge. verdict_of gives a
     slot's verdict, for example verdicts_for(db).
     """
     slots = list(slot_items)
+    visible = owned_totals(slots)
     if owned is None:
-        owned = owned_totals(slots)
+        owned, sure = visible, True
     badges: list[dict] = []
     for slot in slots:
         item = slot.item
@@ -1213,12 +1218,14 @@ def badges_for(
         need = sum(qty for _, qty in verdict_of(slot).sources)
         if need:
             have = owned.get(item.name, 0)
+            if not sure:
+                have = max(have, visible.get(item.name, 0))
             short = have < need
             colour = SHORT_RED if short else ENOUGH_GREEN
             badges.append(
                 {
                     "rect": rect,
-                    "text": f"{have}/{need}",
+                    "text": f"{have}{'' if sure else '+'}/{need}",
                     "corner": NEED_CORNER,
                     "fg": colour,
                     "bg": TAG_BG,
