@@ -342,7 +342,7 @@ class Shift(NamedTuple):
     contra: int
 
 
-def _pairs(
+def look_pairs(
     a: Sequence[Observation], b: Sequence[Observation], pitch: float
 ) -> tuple[np.ndarray, np.ndarray]:
     """Top differences (b less a) and look differences of same-column textured pairs."""
@@ -391,7 +391,7 @@ def look_offset(
     shift_wrong, and beats every proposal a half pitch or more away. None
     otherwise.
     """
-    tops, diff = _pairs(a, b, pitch)
+    tops, diff = look_pairs(a, b, pitch)
     if tops.size == 0:
         return None
     tol = LOOK_TOLERANCE * scale
@@ -417,7 +417,7 @@ def offset_checked(
     pitch: float,
     scale: float,
 ) -> bool:
-    tops, diff = _pairs(a, b, pitch)
+    tops, diff = look_pairs(a, b, pitch)
     if tops.size == 0:
         return True
     return not shift_wrong(judge_offset(tops, diff, offset, LOOK_TOLERANCE * scale))
