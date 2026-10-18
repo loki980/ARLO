@@ -11,6 +11,8 @@ import pytest
 from arc_helper import grid
 from arc_helper import main
 from arc_helper import stash_scan
+from arc_helper.database import Item
+from arc_helper.database import Need
 from arc_helper.grid import STILL_MEAN
 from arc_helper.grid import Slot
 from arc_helper.icon_embed import EmbedGallery
@@ -1363,3 +1365,159 @@ def test_changed_loadout_counts_save_at_once(monkeypatch):
 def test_unchanged_loadout_counts_save_again_after_the_throttle(monkeypatch):
     saved = _loadout_run(monkeypatch, [(0.0, 2), (main.LOADOUT_SAVE_S, 2)])
     assert saved == [{"Metal Parts": 2}] * 2
+
+
+# The owned count reaching the verdict and the advice card of a hovered item
+_CLOTH = Item(name="Durable Cloth", action="Keep", sell_price=100, category="Basic")
+
+
+class _OwnedDb:
+    """A database whose one item is needed 6 times by a quest."""
+
+    def __init__(self):
+        self.need = Need("Durable Cloth", "quest", "Tailoring", None, 6, None, None)
+
+    def lookup(self, name, tier_vote=None):  # noqa: ARG002, PLR6301
+        return _CLOTH if name == "Durable Cloth" else None
+
+    def recycle_outputs(self, name):  # noqa: ARG002, PLR6301
+        return []
+
+    def needs_for(self, name):
+        return [self.need] if name == "Durable Cloth" else []
+
+    def progress_map(self):  # noqa: PLR6301
+        return {}
+
+    def blueprint_for(self, name):  # noqa: ARG002, PLR6301
+        return None
+
+    def owned_blueprints(self):  # noqa: PLR6301
+        return set()
+
+    def log_missing_item(self, name):
+        pass
+
+
+class _Ledger:
+    def __init__(self, owned):
+        self._owned = owned
+        self.reads = 0
+
+    def owned(self):
+        self.reads += 1
+        return self._owned
+
+
+class _OwnedOcr:
+    last_tier_vote = None
+    _last_capture = None
+
+
+def _owned_scanner(monkeypatch, ledger, stack=None):
+    """A scanner on the fake ledger whose hovered slot reads this stack."""
+    settings = SimpleNamespace(
+        overlay=SimpleNamespace(display_time=1.0, cooldown=60.0, tooltip_chips=False),
+        show_ended_projects=False,
+    )
+    monkeypatch.setattr(main, "get_settings", lambda: settings)
+    monkeypatch.setattr(main, "get_ocr_engine", _OwnedOcr)
+    monkeypatch.setattr(
+        main,
+        "hovered_slot_on_screen",
+        lambda *_a, **_k: main.HoveredSlot(None, None, stack),
+    )
+    scanner = main.Scanner(
+        root=None, overlay=None, status=None, db=_OwnedDb(), hotkey=None
+    )
+    scanner.ledger = ledger
+    scanner._running = True  # noqa: SLF001
+    scanner.state = main.ScannerState.ACTIVE
+    shown = []
+    monkeypatch.setattr(scanner, "_show_overlay", lambda *args: shown.append(args))
+    return scanner, shown
+
+
+def _hover(scanner, shown):
+    scanner._handle_detected_item("Durable Cloth")  # noqa: SLF001
+    _name, rec, verdict, *owned = shown[-1]
+    card = scanner._advice_card_for(rec, verdict, *owned)  # noqa: SLF001
+    return verdict, card
+
+
+def test_a_sure_map_count_reaches_the_verdict_and_the_card(monkeypatch):
+    ledger = _Ledger(Owned({"Durable Cloth": 4}, sure=True))
+    scanner, shown = _owned_scanner(monkeypatch, ledger)
+    verdict, card = _hover(scanner, shown)
+    assert (verdict.kind, card.owned, card.owned_sure) == ("keep", 4, True)
+    assert card.title == "Keep all 6: 2 more needed"
+    # one ledger read for the item, shared by the verdict and the card
+    assert ledger.reads == 1
+
+
+def test_keep_turns_keep_some_when_the_count_covers_it(monkeypatch):
+    ledger = _Ledger(Owned({"Durable Cloth": 6}, sure=True))
+    scanner, shown = _owned_scanner(monkeypatch, ledger)
+    verdict, card = _hover(scanner, shown)
+    assert verdict.kind == "keep_some"
+    assert card.title == "Keep 6"
+
+
+def test_an_unsure_lower_bound_is_shown_as_one(monkeypatch):
+    ledger = _Ledger(Owned({"Durable Cloth": 4}, sure=False))
+    scanner, shown = _owned_scanner(monkeypatch, ledger)
+    verdict, card = _hover(scanner, shown)
+    assert verdict.kind == "keep"
+    assert (card.owned, card.owned_sure) == (4, False)
+    assert card.title == "Keep all 6: up to 2 more needed"
+    # an unsure bound that covers the count still gives keep_some
+    ledger = _Ledger(Owned({"Durable Cloth": 7}, sure=False))
+    scanner, shown = _owned_scanner(monkeypatch, ledger)
+    assert _hover(scanner, shown)[0].kind == "keep_some"
+
+
+def test_an_unsure_count_is_never_less_than_the_hovered_stack(monkeypatch):
+    # The map has not seen the stack under the cursor (0 in the map, x5 read)
+    ledger = _Ledger(Owned({}, sure=False))
+    scanner, shown = _owned_scanner(monkeypatch, ledger, stack=5)
+    _, card = _hover(scanner, shown)
+    assert (card.owned, card.owned_sure) == (5, False)
+    # A larger ledger count wins over a smaller stack
+    ledger = _Ledger(Owned({"Durable Cloth": 9}, sure=False))
+    scanner, shown = _owned_scanner(monkeypatch, ledger, stack=5)
+    assert _hover(scanner, shown)[1].owned == 9
+    # A sure map is not raised by the stack
+    ledger = _Ledger(Owned({"Durable Cloth": 2}, sure=True))
+    scanner, shown = _owned_scanner(monkeypatch, ledger, stack=5)
+    assert _hover(scanner, shown)[1].owned == 2
+
+
+def test_no_ledger_or_no_map_gives_no_count(monkeypatch):
+    for ledger in (None, _Ledger(None)):
+        scanner, shown = _owned_scanner(monkeypatch, ledger, stack=5)
+        verdict, card = _hover(scanner, shown)
+        assert (verdict.kind, card.owned) == ("keep", None)
+        assert card.title == "Keep 6"
+
+
+def test_the_hovered_slot_reads_its_stack_only_when_asked(monkeypatch):
+    from PIL import Image
+
+    ring = Rect(10, 10, 60, 60)
+    slot = SimpleNamespace(rect=Rect(8, 8, 62, 62))
+    monkeypatch.setattr(main, "find_hovered_cell", lambda *_a: ring)
+    monkeypatch.setattr(main, "find_slots", lambda _rgb: [slot])
+    monkeypatch.setattr(main, "snap_to_slot", lambda _cell, slots: slots[0])
+    crops = []
+
+    def read(crop):
+        crops.append(crop.shape)
+        return 17
+
+    monkeypatch.setattr(main, "read_stack", read)
+    capture = Image.new("RGB", (200, 100))
+    args = (capture, Point(0, 0), Rect(100, 0, 200, 100), [])
+    assert main.hovered_slot_on_screen(*args).stack is None
+    assert crops == []
+    assert main.hovered_slot_on_screen(*args, read_count=True).stack == 17
+    assert crops == [(54, 54, 3)]

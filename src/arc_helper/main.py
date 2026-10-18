@@ -94,6 +94,7 @@ from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 from arc_helper.screen import get_backend
 from arc_helper.slot_marks import learned_check
+from arc_helper.slot_marks import read_stack
 from arc_helper.stash_map import FIRST
 from arc_helper.stash_map import LOOKS
 from arc_helper.stash_map import SCROLL
@@ -363,14 +364,29 @@ class HoveredSlot(NamedTuple):
 
     frame is None when no hovered cell was found. learned is the learned
     blueprint check read on the snapped slot (slot_marks.learned_check),
-    None when it was not read or could not be judged.
+    None when it was not read or could not be judged. stack is the xN count
+    read from the snapped slot (slot_marks.read_stack), None when it was not
+    read or the slot shows none.
     """
 
     frame: Rect | None
     learned: bool | None
+    stack: int | None = None
 
 
 NO_HOVERED_SLOT = HoveredSlot(None, None)
+
+
+class OwnedCount(NamedTuple):
+    """The owned count of one item for the verdict and the advice card.
+
+    sure is False when the count is a lower bound (the stash map is partial).
+    """
+
+    count: int
+    sure: bool
+
+
 # _queue_chips locates the frame itself when no frame is passed
 LOCATE_FRAME = object()
 
@@ -382,6 +398,7 @@ def hovered_slot_on_screen(
     ignore_phys: Sequence[Rect],
     *,
     read_check: bool = False,
+    read_count: bool = False,
 ) -> HoveredSlot:
     """Find the hovered slot in a cursor capture, framed in physical screen px.
 
@@ -391,8 +408,8 @@ def hovered_slot_on_screen(
     to the slot under it among grid.find_slots in the same capture
     (hovered_cell.snap_to_slot), so the frame covers the whole slot, and
     the ring box stays without a matching slot. With read_check the
-    snapped slot's learned blueprint check is read. Runs on the scan
-    thread.
+    snapped slot's learned blueprint check is read, and with read_count its
+    stack count, from the capture already taken. Runs on the scan thread.
     """
     if capture is None or origin is None or card is None:
         return NO_HOVERED_SLOT
@@ -403,6 +420,10 @@ def hovered_slot_on_screen(
     learned = None
     if read_check and slot is not None:
         learned = learned_check(rgb, slot.rect)
+    stack = None
+    if read_count and slot is not None:
+        r = slot.rect
+        stack = read_stack(rgb[r.top : r.bottom, r.left : r.right])
     logger.debug(
         "border search found=%s slot=%s learned=%s duration=%.1f ms",
         "yes" if cell is not None else "no",
@@ -413,7 +434,7 @@ def hovered_slot_on_screen(
     if cell is None:
         return NO_HOVERED_SLOT
     frame = slot.rect if slot is not None else cell
-    return HoveredSlot(to_screen(frame, origin), learned)
+    return HoveredSlot(to_screen(frame, origin), learned, stack)
 
 
 def hovered_cell_on_screen(
@@ -2171,6 +2192,10 @@ class Scanner:
     # while ACTIVE through the inventory trigger. None turns them off
     stash: StashBadges | None = None
 
+    # The stash ledger behind the stash badges, read for the owned count of
+    # the hovered item. None without STASH_BADGES, the owned count stays None
+    ledger: StashLedger | None = None
+
     # Cooldown tracking
     _last_shown_item: str = ""
     _last_shown_time: float = 0
@@ -2731,12 +2756,19 @@ class Scanner:
         # The slot under the cursor is found once per shown card. Its frame
         # goes to the chips and its learned check to the verdict
         hovered = self._locate_hovered_slot(recommendation)
+        owned = self._owned_for(recommendation, hovered)
         verdict = self._verdict_for(
-            recommendation, settings.show_ended_projects, hovered.learned
+            recommendation,
+            settings.show_ended_projects,
+            hovered.learned,
+            owned.count if owned else None,
         )
 
         # Show overlay (must be done on main thread)
-        self._show_overlay(shown_name, recommendation, verdict)
+        if owned is None:
+            self._show_overlay(shown_name, recommendation, verdict)
+        else:
+            self._show_overlay(shown_name, recommendation, verdict, owned)
 
         if settings.overlay.tooltip_chips:
             self._queue_chips(
@@ -2789,23 +2821,45 @@ class Scanner:
             getattr(engine, "_last_card", None),
             self.overlay_rects.snapshot(),
             read_check=is_blueprint(recommendation),
+            read_count=self.ledger is not None,
         )
         if hovered.learned is not None:
             self.db.set_blueprint_owned(recommendation.name, owned=hovered.learned)
         return hovered
+
+    def _owned_for(
+        self, recommendation: Item | None, hovered: HoveredSlot
+    ) -> OwnedCount | None:
+        """The owned count of the item for its verdict and card, one ledger read.
+
+        None without a ledger, a stored stash map or an item. The count is
+        the stored map plus the loadout by item name. While the map is not
+        sure the count is a lower bound, and the stack read under the cursor
+        raises it when larger (the same rule as the stash tags).
+        """
+        if recommendation is None or self.ledger is None:
+            return None
+        totals = self.ledger.owned()
+        if totals is None:
+            return None
+        count = totals.counts.get(recommendation.name, 0)
+        if not totals.sure and hovered.stack is not None:
+            count = max(count, hovered.stack)
+        return OwnedCount(count, totals.sure)
 
     def _verdict_for(
         self,
         recommendation: Item | None,
         show_ended: bool,  # noqa: FBT001
         learned: bool | None = None,  # noqa: FBT001
+        owned: int | None = None,
     ) -> Verdict:
         """Advice for the item from its needs and the recorded progress.
 
-        The owned count is unknown until the stash ledger exists. Project end
-        dates compare against the local date. learned is the hovered slot's
-        learned blueprint check, and without a read a blueprint falls back to
-        the blueprints recorded as owned.
+        owned is the item's owned count from the stash ledger, None when
+        unknown. Project end dates compare against the local date. learned is
+        the hovered slot's learned blueprint check, and without a read a
+        blueprint falls back to the blueprints recorded as owned.
         """
         today = datetime.datetime.now().astimezone().date()
         if recommendation is None:
@@ -2823,7 +2877,7 @@ class Scanner:
             recommendation,
             self.db.needs_for(recommendation.name),
             self.db.progress_map(),
-            None,
+            owned,
             today,
             show_ended,
             blueprint=self.db.blueprint_for(recommendation.name),
@@ -2834,7 +2888,11 @@ class Scanner:
         )
 
     def _show_overlay(
-        self, item_name: str, recommendation: Item | None, verdict: Verdict
+        self,
+        item_name: str,
+        recommendation: Item | None,
+        verdict: Verdict,
+        owned: OwnedCount | None = None,
     ) -> None:
         """Queue an overlay update for the main (GUI) thread to apply.
 
@@ -2842,7 +2900,7 @@ class Scanner:
         and only rendered and shown on the Tk thread.
         """
         if self.advice_card:
-            card = self._advice_card_for(recommendation, verdict)
+            card = self._advice_card_for(recommendation, verdict, owned)
             self.ui_queue.put(("advice", item_name, card, self._hold_ms))
             return
         self.ui_queue.put(
@@ -2850,13 +2908,16 @@ class Scanner:
         )
 
     def _advice_card_for(
-        self, recommendation: Item | None, verdict: Verdict
+        self,
+        recommendation: Item | None,
+        verdict: Verdict,
+        owned: OwnedCount | None = None,
     ) -> AdviceCard:
         """The advice card for an item and its verdict (scan thread).
 
         A home recycle output counts as still needed when its own verdict is
-        keep or keep_some. The owned count stays None until the stash ledger
-        exists.
+        keep or keep_some. owned is the item's count from the stash ledger,
+        None leaves the card without one.
         """
         if recommendation is None:
             return build_advice_card(verdict, [])
@@ -2874,9 +2935,10 @@ class Scanner:
         return build_advice_card(
             verdict,
             self.db.needs_for(recommendation.name),
-            None,
+            owned.count if owned else None,
             home,
             needed_parts(home, self.db.needs_for, is_needed),
+            owned_sure=owned.sure if owned else True,
         )
 
     def _queue_chips(
@@ -3023,6 +3085,7 @@ class Application:
         self.ui_queue: queue.Queue[tuple] = queue.Queue()
         # Last status applied, so the debug log names only status changes
         self._last_status: str | None = None
+        self.ledger: StashLedger | None = None
         self.stash = self._make_stash()
         self.scanner = Scanner(
             root=self.root,
@@ -3032,6 +3095,7 @@ class Application:
             ui_queue=self.ui_queue,
             advice_card=self.advice is not None,
             stash=self.stash,
+            ledger=self.ledger,
         )
         self.overlay_rects = self.scanner.overlay_rects
 
@@ -3055,6 +3119,7 @@ class Application:
             return None
         try:
             ledger = StashLedger(self.db)
+            self.ledger = ledger
         except Exception:  # noqa: BLE001 - without it the tags count the slots on screen
             logger.warning("stash ledger off", exc_info=True)
             ledger = None

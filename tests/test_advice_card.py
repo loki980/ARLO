@@ -1,7 +1,9 @@
 """Tests for the advice card model and renderer."""
 
+from arc_helper.advice_card import _Canvas  # noqa: PLC2701
 from arc_helper.advice_card import build_advice_card
 from arc_helper.advice_card import needed_parts
+from arc_helper.advice_card import owned_text
 from arc_helper.advice_card import render_advice_card
 from arc_helper.database import Need
 from arc_helper.database import RecycleOutput
@@ -204,3 +206,25 @@ def test_known_blueprint_keep_card_adds_the_needs_line_after():
 def test_plain_sell_card_is_unchanged():
     card = build_advice_card(Verdict("sell", "Sell"), [])
     assert card.subtitle == "Nothing you track needs it"
+
+
+def test_a_lower_bound_says_so_in_the_title_and_the_line(monkeypatch):
+    card = build_advice_card(KEEP, NEEDS, owned=2, owned_sure=False)
+    assert card.title == "Keep all 7: up to 5 more needed"
+    assert (card.owned, card.owned_sure) == (2, False)
+    assert owned_text(2, sure=False) == "2+"
+    assert owned_text(2, sure=True) == "2"
+    shown = []
+    real = _Canvas.text
+
+    def record(self, x, y, text, *args):
+        shown.append(text)
+        return real(self, x, y, text, *args)
+
+    monkeypatch.setattr(_Canvas, "text", record)
+    render_advice_card(card)
+    assert "2+ of 7" in shown
+    assert "You have 2+" in shown
+    shown.clear()
+    render_advice_card(build_advice_card(KEEP, NEEDS, owned=2))
+    assert "2 of 7" in shown

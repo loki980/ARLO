@@ -82,7 +82,8 @@ class AdviceCard(NamedTuple):
     """What the card shows.
 
     kind is a verdict kind. owned is the stack count, None when unknown.
-    rows are (kind label, name, quantity) per source. needed_total is the
+    owned_sure is False when owned is a lower bound (the stash map is
+    partial), and the card then shows it as N+. rows are (kind label, name, quantity) per source. needed_total is the
     count to keep, None when the verdict gave no count.
     """
 
@@ -92,6 +93,12 @@ class AdviceCard(NamedTuple):
     needed_total: int | None
     owned: int | None
     rows: tuple[tuple[str, str, int], ...]
+    owned_sure: bool = True
+
+
+def owned_text(owned: int, sure: bool) -> str:  # noqa: FBT001
+    """The owned count as shown, '52' when sure and '52+' for a lower bound."""
+    return str(owned) if sure else f"{owned}+"
 
 
 def _row_name(need: Need) -> str:
@@ -121,11 +128,14 @@ def _rows(verdict: Verdict, needs: Iterable[Need]) -> tuple[tuple[str, str, int]
     return tuple(rows)
 
 
-def _keep_title(count: int | None, owned: int | None) -> str:
+def _keep_title(count: int | None, owned: int | None, sure: bool = True) -> str:  # noqa: FBT001, FBT002
     if count is None:
         return "Keep"
     if owned is not None:
-        return f"Keep all {count}: {max(0, count - owned)} more needed"
+        more = max(0, count - owned)
+        if not sure:
+            return f"Keep all {count}: up to {more} more needed"
+        return f"Keep all {count}: {more} more needed"
     return f"Keep {count}"
 
 
@@ -191,6 +201,7 @@ def build_advice_card(
     owned: int | None = None,
     recycle_outputs: Iterable[RecycleOutput] = (),
     needed_parts: frozenset[str] = frozenset(),
+    owned_sure: bool = True,  # noqa: FBT001, FBT002
 ) -> AdviceCard:
     """The card model for a verdict. Rows exist for keep and keep_some only.
 
@@ -205,7 +216,7 @@ def build_advice_card(
     rows: tuple[tuple[str, str, int], ...] = ()
     total = verdict.keep_count
     if kind == KEEP:
-        title = _keep_title(total, owned)
+        title = _keep_title(total, owned, owned_sure)
         rows = _rows(verdict, needs)
         subtitle = _keep_reason(verdict, rows)
     elif kind == KEEP_SOME:
@@ -226,7 +237,7 @@ def build_advice_card(
         title, total = "Not in the database", None
     if kind != LEARN and verdict.reason.startswith(KNOWN_BLUEPRINT_REASON):
         subtitle = _known_subtitle(kind, subtitle)
-    return AdviceCard(kind, title, subtitle, total, owned, rows)
+    return AdviceCard(kind, title, subtitle, total, owned, rows, owned_sure)
 
 
 class _Fonts:
@@ -407,7 +418,7 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
             total = sum(q for _, _, q in card.rows)
         canvas.text(body_left, y, "Needed for", BODY_SIZE, REGULAR, MUTED)
         amount = (
-            f"{card.owned} of {total}"
+            f"{owned_text(card.owned, card.owned_sure)} of {total}"
             if card.owned is not None
             else f"{total} in total"
         )
@@ -444,10 +455,9 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
     if card.owned is not None:
         canvas.rect((body_left, y, body_right, y + max(1, s(1))), DIVIDER)
         y += max(1, s(1)) + s(14)
-        canvas.text(body_left, y, f"You have {card.owned}", BODY_SIZE, BOLD, WHITE)
-        canvas.text(
-            body_right, y, f"{card.owned} in stash", BODY_SIZE, REGULAR, MUTED, "r"
-        )
+        shown = owned_text(card.owned, card.owned_sure)
+        canvas.text(body_left, y, f"You have {shown}", BODY_SIZE, BOLD, WHITE)
+        canvas.text(body_right, y, f"{shown} in stash", BODY_SIZE, REGULAR, MUTED, "r")
         y += bold_h + s(PAD - 4)
     elif not card.rows:
         y = header_bottom
