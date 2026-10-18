@@ -10,21 +10,29 @@ eval_stash_scan.py stash_scan.csv), read from --captures.
 Composite check: each capture gets the stash pass (identify_slots, uncached,
 with stacks, on the stash gallery), its badges are drawn over it with the
 badge helper's PNG mode and the pass runs again on that composite. This is
-done twice, once with the badges as they were before the worth colours
-(patches in the bar's colour with cream text, pills in TAG_BG with white
-text) and once with the worth colours. Each composite is compared with the
-original, slot by slot.
+done three ways: bar (the badges before any worth scale, patches in the
+bar's colour with cream text, pills in TAG_BG with white text), grey (step
+21's grey scale, with unpatch looking for its greys) and new (the colour
+scale of worth_colours). Each composite is compared with the original, slot
+by slot.
+
+unpatch is also run on every filled square slot of every capture in
+--captures and the --extra frames, none of which show ARLO's patches, and
+the slots it changed are counted.
 
 Demo images: the new badges over four of the captures (the most slots worth
 WORTH_HIGH or more, the most under WORTH_LOW, then the most identified) and
 every --extra frame, full size and half size, in OUT/demo, with
-OUT/demo/scale.png showing a patch at each of SCALE_WORTHS.
+OUT/demo/scale.png showing a patch at each of SCALE_WORTHS and
+OUT/demo/scale-grey-vs-colour.png the grey strip above the colour one.
 
 The report goes to stdout and to OUT/real-data.txt.
 """
 
 import argparse
+import contextlib
 import csv
+import math
 import sys
 from operator import itemgetter
 from pathlib import Path
@@ -34,6 +42,7 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
+from arc_helper import stash_scan
 from arc_helper.badge_surface import Patch
 from arc_helper.badge_surface import render_png
 from arc_helper.config import get_settings
@@ -51,7 +60,7 @@ from arc_helper.stash_scan import identify_slots
 from arc_helper.stash_scan import is_wide
 from arc_helper.stash_scan import unpatch
 from arc_helper.stash_scan import verdicts_for
-from arc_helper.stash_scan import worth_colours
+from arc_helper.stash_scan import worth_colours as colour_scale
 
 DEMO_CAPTURES = 4
 # Slots in the original and the composite are the same slot when their
@@ -62,6 +71,57 @@ SCALE_WORTHS = (50, 250, 500, 1000, 2000, 3000, 4999, 5000, 20000)
 SCALE_BAR = (30, 34, 40)
 # The pills' text before the worth colours
 OLD_TAG_FG = "#ffffff"
+# Step 21's grey scale, as it was merged
+GREY_CHEAP = ("#1a1a1a", "#8c8c8c")
+GREY_RAMP_LOW, GREY_RAMP_TOP = 0x1A, 0x6D
+GREY_RAMP_TEXT = "#f9eedf"
+GREY_HIGH = ("#ffffff", "#111111")
+STYLES = ("bar", "grey", "new")
+
+
+def _lightness(grey: int) -> float:
+    c = grey / 255
+    y = c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return 116 * y ** (1 / 3) - 16 if y > (6 / 29) ** 3 else y * (29 / 3) ** 3
+
+
+def _grey_of(lightness: float) -> int:
+    f = (lightness + 16) / 116
+    y = f**3 if f > 6 / 29 else lightness * (3 / 29) ** 3
+    c = 12.92 * y if y <= 0.0031308 else 1.055 * y ** (1 / 2.4) - 0.055
+    return max(0, min(255, round(c * 255)))
+
+
+def grey_scale(worth: int) -> tuple[str, str]:
+    """Step 21's worth_colours: near black, a grey ramp, then white."""
+    if worth >= WORTH_HIGH:
+        return GREY_HIGH
+    if worth < WORTH_LOW:
+        return GREY_CHEAP
+    share = math.log(worth / WORTH_LOW) / math.log(WORTH_HIGH / WORTH_LOW)
+    low, top = _lightness(GREY_RAMP_LOW), _lightness(GREY_RAMP_TOP)
+    grey = min(GREY_RAMP_TOP, _grey_of(low + share * (top - low)))
+    return f"#{grey:02x}{grey:02x}{grey:02x}", GREY_RAMP_TEXT
+
+
+GREY_CODES = np.array(
+    sorted(
+        {int(grey_scale(w)[0][1:], 16) for w in (0, *range(WORTH_LOW, WORTH_HIGH + 1))}
+    ),
+    dtype=np.int32,
+)
+NEW_CODES = stash_scan.FILL_CODES
+
+
+@contextlib.contextmanager
+def scale(colours, codes):
+    """badges_for drawing with colours and unpatch looking for codes."""
+    kept = stash_scan.worth_colours, stash_scan.FILL_CODES
+    stash_scan.worth_colours, stash_scan.FILL_CODES = colours, codes
+    try:
+        yield
+    finally:
+        stash_scan.worth_colours, stash_scan.FILL_CODES = kept
 
 
 def worth_of(slot) -> int:
@@ -193,7 +253,7 @@ def slot_lines(slots) -> list[str]:
         if slot.item is None:
             continue
         worth = worth_of(slot)
-        fill, text = worth_colours(worth) if worth else ("-", "-")
+        fill, text = colour_scale(worth) if worth else ("-", "-")
         lines.append(
             f"  {slot.panel:9} {tuple(slot.rect)} {slot.item.name[:30]:30} "
             f"stack={slot.stack} worth={worth} fill={fill} text={text}"
@@ -201,14 +261,14 @@ def slot_lines(slots) -> list[str]:
     return lines
 
 
-def scale_strip(out: Path) -> None:
+def scale_strip(out: Path, colours=colour_scale) -> None:
     """A patch at each of SCALE_WORTHS on a common bar, labelled below."""
     tile, gap = 220, 12
     width = len(SCALE_WORTHS) * (tile + gap) + gap
     patches = []
     for n, worth in enumerate(SCALE_WORTHS):
         x = gap + n * (tile + gap)
-        fill, text = worth_colours(worth)
+        fill, text = colours(worth)
         patches.append(
             Patch(
                 (x, 20, x + tile, 64),
@@ -240,7 +300,7 @@ def scale_strip(out: Path) -> None:
         x = gap + n * (tile + gap)
         draw.text(
             (x, 76),
-            f"{worth:,}  {worth_colours(worth)[0]}",
+            f"{worth:,}  {colours(worth)[0]}",
             fill=(220, 220, 220),
             font=font,
         )
@@ -272,31 +332,32 @@ def main() -> int:
 
     report = [
         "Composite check: the stash pass on each capture, then again on the capture",
-        "with its badges drawn over it. old = bar-coloured patches (before),",
-        "new = worth colours. slots and items are original/composite. lost = slots",
-        "not found again, item = identified item changed, colour = bar colour read",
-        "changed, icon = type icon box moved, stack = stack read changed.",
+        "with its badges drawn over it. bar = bar-coloured patches (before step",
+        "21), grey = step 21's greys, new = the colour scale. slots and items are",
+        "original/composite. lost = slots not found again, item = identified item",
+        "changed, colour = bar colour read changed, icon = type icon box moved,",
+        "stack = stack read changed.",
         "",
         HEADER,
     ]
     details = []
-    totals = {"old": {}, "new": {}}
+    totals = {style: {} for style in STYLES}
     kept = []
-    untouched = [0, 0]
     for name in names:
         rgb = np.asarray(Image.open(args.captures / name).convert("RGB"))
-        for slot in find_slots(rgb):
-            r = slot.rect
-            if slot.filled and not is_wide(r):
-                crop = rgb[r.top : r.bottom, r.left : r.right]
-                untouched[0] += 1
-                untouched[1] += unpatch(crop) is crop
         slots = stash_pass(rgb)
         badges = badges_for(slots, verdict_of)
+        with scale(grey_scale, GREY_CODES):
+            greys = badges_for(slots, verdict_of)
         results = {}
-        for style, drawn in (("old", old_style(badges, slots)), ("new", badges)):
+        for style, drawn, codes in (
+            ("bar", old_style(badges, slots), NEW_CODES),
+            ("grey", greys, GREY_CODES),
+            ("new", badges, NEW_CODES),
+        ):
             shown = composite(rgb, drawn, scratch)
-            results[style] = compare(slots, stash_pass(shown))
+            with scale(colour_scale, codes):
+                results[style] = compare(slots, stash_pass(shown))
             report.append(row(name, style, results[style]))
             details += (
                 [f"{name} {style}:", *results[style]["details"]]
@@ -320,24 +381,47 @@ def main() -> int:
                 sum(s.item is not None for s in slots),
             )
         )
-        print(report[-2], report[-1], sep="\n", flush=True)
+        print(*report[-3:], sep="\n", flush=True)
+    report.append("")
     report += [
-        "",
-        (
-            f"unpatch on the captures without badges: {untouched[1]} of "
-            f"{untouched[0]} filled square slots left as they are"
-        ),
-    ]
-    report += [
-        row("TOTAL", style, {**totals[style], "details": []})
-        for style in ("old", "new")
+        row("TOTAL", style, {**totals[style], "details": []}) for style in STYLES
     ]
     worse = [
         key
-        for key in ("unmatched", "item", "colour", "icon", "stack")
-        if totals["new"][key] > totals["old"][key]
+        for key in ("unmatched", "item", "stack")
+        if totals["new"][key] > totals["grey"][key]
     ]
-    report.append(f"new worse than old on: {', '.join(worse) or 'nothing'} (totals)")
+    if totals["new"]["items"][1] < totals["grey"]["items"][1]:
+        worse.append("items")
+    report.append(
+        "new worse than grey on slots, items, item or stack changes: "
+        f"{', '.join(worse) or 'nothing'} (totals). Bar colour changes: "
+        f"bar {totals['bar']['colour']}, grey {totals['grey']['colour']}, "
+        f"new {totals['new']['colour']}"
+    )
+    clean = [*sorted(args.captures.glob("*.png")), *args.extra]
+    untouched = [0, 0]
+    changed = []
+    for path in clean:
+        rgb = np.asarray(Image.open(path).convert("RGB"))
+        for slot in find_slots(rgb):
+            r = slot.rect
+            if slot.filled and not is_wide(r):
+                crop = rgb[r.top : r.bottom, r.left : r.right]
+                untouched[0] += 1
+                if unpatch(crop) is crop:
+                    untouched[1] += 1
+                else:
+                    changed.append(f"  {path.name} {tuple(r)}")
+    report += [
+        "",
+        (
+            f"unpatch on {len(clean)} frames without ARLO's patches: "
+            f"{untouched[0] - untouched[1]} of {untouched[0]} filled square slots "
+            "changed"
+        ),
+        *changed,
+    ]
     report += ["", "Differences, slot by slot:", *(details or ["  none"])]
 
     picks: list[str] = []
@@ -365,9 +449,20 @@ def main() -> int:
         )
         report += slot_lines(slots)
     scale_strip(demo / "scale.png")
-    report += ["", "Scale strip: demo/scale.png"]
+    grey_strip = demo / "scale-grey.tmp.png"
+    scale_strip(grey_strip, grey_scale)
+    with Image.open(grey_strip) as top, Image.open(demo / "scale.png") as bottom:
+        both = Image.new("RGB", (top.width, top.height + bottom.height), (12, 12, 14))
+        both.paste(top, (0, 0))
+        both.paste(bottom, (0, top.height))
+    both.save(demo / "scale-grey-vs-colour.png")
+    grey_strip.unlink()
     report += [
-        f"  {w:>6,}: fill {worth_colours(w)[0]} text {worth_colours(w)[1]}"
+        "",
+        "Scale strips: demo/scale.png, demo/scale-grey-vs-colour.png (grey above)",
+    ]
+    report += [
+        f"  {w:>6,}: fill {colour_scale(w)[0]} text {colour_scale(w)[1]}"
         for w in SCALE_WORTHS
     ]
     text = "\n".join(report) + "\n"
