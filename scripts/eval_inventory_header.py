@@ -3,7 +3,7 @@
 
 Usage: uv run python scripts/eval_inventory_header.py --out <folder>
            --expected <csv> --captures <folder> [fixture.png ...]
-           [--old <csv>]
+           [--old <csv>] [--grid-frames <glob> ...] [--grid-expected 275/304/884938]
 
 Runs read_stash_header and read_loadout_header on every file named in the
 expected CSV (columns file, stash, loadout, written as used/capacity/value,
@@ -14,6 +14,11 @@ and are matched by file name, fixtures have none. Writes real-data.txt in the
 output folder with one line per file (old, new and expected for each reader)
 and the match counts. The two fixtures are checked against FIXTURE_EXPECTED.
 The captures folder is only read.
+
+--grid-frames adds a mode for scrolled stash frames: each glob is expanded and
+every matching frame is read with read_stash_header and checked against the one
+shared --grid-expected stash header (used/capacity/value, or none), with one
+line per frame and a count of frames matching.
 """
 
 import argparse
@@ -70,6 +75,8 @@ def main() -> None:
     parser.add_argument("--expected", type=Path, required=True)
     parser.add_argument("--captures", type=Path, required=True)
     parser.add_argument("--old", type=Path, default=OLD_READS)
+    parser.add_argument("--grid-frames", nargs="*", default=[])
+    parser.add_argument("--grid-expected", default="none")
     parser.add_argument("fixtures", nargs="*", type=Path)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -116,6 +123,19 @@ def main() -> None:
             f"frames {len(times)}, median ms {statistics.median(times):.0f}",
         ]
     )
+    patterns = [Path(p) for p in args.grid_frames]
+    grid = sorted(f for p in patterns for f in p.parent.glob(p.name))
+    if grid:
+        lines.append("grid frames, expected stash " + args.grid_expected)
+        hits = 0
+        for path in grid:
+            rgb = np.array(Image.open(path).convert("RGB"))
+            slots = [s for s in find_slots(rgb) if s.panel == STASH]
+            got = _text(read_stash_header(rgb, slots))
+            hits += got == args.grid_expected
+            mark = "MATCH" if got == args.grid_expected else "DIFFERS"
+            lines.append(f"  {path.name} slots {len(slots)} stash {got}  {mark}")
+        lines.append(f"grid frames matching {hits} of {len(grid)}")
     report = "\n".join(lines)
     (args.out / "real-data.txt").write_text(report + "\n")
     print(report)

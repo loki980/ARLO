@@ -11,7 +11,7 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 68 percent of the whole roadmap, weighted by effort: 55 of 69 steps
+About 67 percent of the whole roadmap, weighted by effort: 55 of 70 steps
 done, 2 of 8 phases done (15 Oct). Weights: phase 0 counts 1, phases 2 and
 4b count 2, every other phase 3. Phase 6 counts its 3 planned items as
 steps. Jeffrey, 15 Oct: "the roadmap should show overall progress for the
@@ -412,6 +412,12 @@ since they need every cell read (phase 3). Changed 14 Oct.
 19. Tell a blueprint tile from its item: the blue grid background settles
     19 right guesses that a blueprint twin blocked. Done 15 Oct, reviewed:
     283 right instead of 269 on the captures, still 7 wrong. Added 15 Oct.
+20. The overlay keeps up with the inventory. Jeffrey, 17 Oct: "there's
+    still a noticible delay both showing and hiding the overlay. Is it
+    possible to make this faster?" His log: badges hid 2.2 s after the
+    inventory closed and came 2.1 s after it opened. The overlay now hides
+    the moment the grid leaves the screen and shows known items on the
+    first frame. Underway 17 Oct. Added 17 Oct.
 
 ## Phase 4b. Blueprint tracker. Next, after phases 3 and 4. Added 11 Oct
 
@@ -469,7 +475,13 @@ be useful without this, you know?" Moved up 15 Oct.
    15 Oct, reviewed. His scroll run saved 67 frames (header 275 of 304).
    Part 1, stitching those frames offline into one stash map, done 15 Oct,
    reviewed: rows 0 to 71, 275 filled slots, the header says 275. Part 2
-   stitches live from the scanner. Then: the scrollbar position and the
+   stitches live from the scanner. Jeffrey, 17 Oct: "is it possible to do
+   this once and update as we go and stored between sesssions? Sometimes
+   it'll be hard to see that I, for example, copy things to my stash.
+   Howeveer, upon seeing it, you can update your saved values." Part 2a,
+   known items remembered across restarts, and part 2b, the stash map
+   saved and updated whenever rows are seen and checked against the
+   header, underway 17 Oct. Then the scanner wiring. Then: the scrollbar position and the
    overlap with the last frame give each visible row its absolute place.
    Needs a capture session scrolling the whole stash, waiting on Jeffrey's
    screen recording (the capture library only saves frames when a card is
