@@ -352,7 +352,7 @@ class SlotCache:
                     cache.keep_bar_box(_decode_key(key, entry=False), _rect(value))
                 else:
                     skipped += 1
-            except (ValueError, TypeError, KeyError, IndexError):
+            except (ValueError, TypeError, KeyError, IndexError, OverflowError):
                 skipped += 1
         if skipped:
             logger.debug("slot cache: skipped %d unreadable rows", skipped)
@@ -531,7 +531,9 @@ class SlotCacheSaver:
     for the write. A newer snapshot queued before the thread took the
     older one replaces it. flush queues what is still unsaved, throttle or not, and waits a
     bounded time for the queued saves. save gets SlotCacheSnapshot.rows.
-    A failed save is logged, never raised.
+    A failed save is logged, never raised, and its entries count as unsaved
+    again: the next pass after interval_s, or flush, queues them anew. The
+    writer never retries on its own.
     """
 
     def __init__(
@@ -548,7 +550,10 @@ class SlotCacheSaver:
         self._pending: SlotCacheSnapshot | None = None
         self._busy = False
         self._cache: SlotCache | None = None
+        # added of the last snapshot queued and of the last one written
         self._queued_added = 0
+        self._saved_added = 0
+        self._failed = False
         self._queued_at: float | None = None
         threading.Thread(
             target=self._write, name="slot-cache-save", daemon=True
@@ -560,8 +565,9 @@ class SlotCacheSaver:
         True when one was queued.
         """
         self._cache = cache
-        if cache.added == self._queued_added:
-            return False
+        with self._done:
+            if cache.added == self._queued_added:
+                return False
         now = self._clock()
         if self._queued_at is not None and now - self._queued_at < self._interval_s:
             return False
@@ -571,10 +577,13 @@ class SlotCacheSaver:
     def flush(self, timeout: float = SLOT_CACHE_STOP_WAIT_S) -> bool:
         """Queue what is unsaved and wait up to timeout s for every queued save.
 
-        True when nothing is left to save or write when it returns.
+        True when the queued saves were written when it returns, False when
+        one is still running or the last one failed.
         """
         cache = self._cache
-        if cache is not None and cache.added != self._queued_added:
+        with self._done:
+            unsaved = cache is not None and cache.added != self._queued_added
+        if unsaved:
             self._queue(cache)
         deadline = time.monotonic() + timeout
         with self._done:
@@ -584,7 +593,7 @@ class SlotCacheSaver:
                     logger.warning("slot cache: last save still running at stop")
                     return False
                 self._done.wait(left)
-        return True
+            return not self._failed
 
     def _queue(self, cache: SlotCache) -> bool:
         try:
@@ -593,8 +602,8 @@ class SlotCacheSaver:
             # Changed by a pass while copied (only from flush at stop)
             logger.warning("slot cache: changed while copied, not saved")
             return False
-        self._queued_added = snapshot.added
         with self._done:
+            self._queued_added = snapshot.added
             self._pending = snapshot
             self._busy = True
             self._done.notify_all()
@@ -614,7 +623,15 @@ class SlotCacheSaver:
                 self._save(rows)
             except Exception:  # noqa: BLE001 - a lost save only costs one slow pass
                 logger.warning("slot cache: saving failed", exc_info=True)
+                with self._done:
+                    self._failed = True
+                    if self._pending is None:
+                        # Unsaved again, for the next pass or flush to queue
+                        self._queued_added = self._saved_added
                 continue
+            with self._done:
+                self._failed = False
+                self._saved_added = snapshot.added
             logger.debug(
                 "slot cache: saved %d rows in %.0f ms",
                 len(rows),

@@ -871,7 +871,8 @@ def test_a_failed_save_is_logged_and_a_stuck_one_bounds_the_flush(caplog):
     cache.put(_key(1), _entry("1"))
     with caplog.at_level("WARNING", logger="arc_helper"):
         assert saver.after_pass(cache)
-        assert saver.flush(timeout=5)
+        # flush queues the unsaved entries again, which fail again
+        assert not saver.flush(timeout=5)
     assert "slot cache: saving failed" in caplog.text
     release = threading.Event()
     stuck = stash_scan.SlotCacheSaver(lambda _rows: release.wait(5), clock=lambda: 0.0)
@@ -879,3 +880,70 @@ def test_a_failed_save_is_logged_and_a_stuck_one_bounds_the_flush(caplog):
     assert not stuck.flush(timeout=0.05)
     release.set()
     assert stuck.flush(timeout=5)
+
+
+def _fail_once(saves: list):
+    def save(rows):
+        saves.append(rows)
+        if len(saves) == 1:
+            msg = "database is locked"
+            raise OSError(msg)
+
+    return save
+
+
+def _idle(saver) -> None:
+    """Wait for the saver's thread to finish what was queued, without flushing."""
+    with saver._done:  # noqa: SLF001
+        assert saver._done.wait_for(lambda: not saver._busy, 5)  # noqa: SLF001
+
+
+def test_a_failed_save_is_retried_by_a_later_pass_after_the_interval():
+    now = [0.0]
+    saves: list[list] = []
+    saver = stash_scan.SlotCacheSaver(_fail_once(saves), clock=lambda: now[0])
+    cache = stash_scan.SlotCache()
+    cache.put(_key(1), _entry("1"))
+    assert saver.after_pass(cache)
+    _idle(saver)
+    # Later passes only hit kept entries: nothing new, but still unsaved
+    now[0] = 10.0
+    assert not saver.after_pass(cache)
+    now[0] = 31.0
+    assert saver.after_pass(cache)
+    _idle(saver)
+    assert [len(rows) for rows in saves] == [1, 1]
+    assert saver.flush(timeout=5)
+    assert len(saves) == 2
+
+
+def test_stop_flush_retries_a_failed_save():
+    saves: list[list] = []
+    saver = stash_scan.SlotCacheSaver(_fail_once(saves), clock=lambda: 0.0)
+    cache = stash_scan.SlotCache()
+    cache.put(_key(1), _entry("1"))
+    assert saver.after_pass(cache)
+    _idle(saver)
+    assert saver.flush(timeout=5)
+    assert [len(rows) for rows in saves] == [1, 1]
+
+
+def test_an_oversized_number_skips_only_its_row(tmp_path):
+    cache = stash_scan.SlotCache()
+    cache.put(_key(1), _entry("1"))
+    cache.put(_key(2), _entry("2"))
+    rows = cache.snapshot().rows()
+    huge = rows[0][2].replace('"confidence": 0.5', '"confidence": 1' + "0" * 400)
+    assert huge != rows[0][2]
+    rows[1:1] = [("entry", _encode(_key(3)), huge)]
+    db = _user_db(tmp_path)
+    db.save_slot_cache(FINGERPRINT, rows)
+    loaded = stash_scan.load_slot_cache(db, FINGERPRINT)
+    assert len(loaded) == 2
+    assert loaded.peek(_key(1)) == _entry("1")
+    assert loaded.peek(_key(2)) == _entry("2")
+    assert _key(3) not in loaded
+
+
+def _encode(key: tuple) -> str:
+    return stash_scan._encode_key(key)  # noqa: SLF001
