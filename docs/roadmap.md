@@ -559,7 +559,12 @@ Ahead, in order:
 5. An unsure flag. When the ledger disagrees with the headers, say so
    instead of showing wrong numbers. The stored map already falls back to
    on-screen counts when it disagrees with the header, what is left is
-   saying so on screen. Added 15 Oct. Changed 18 Oct.
+   saying so on screen. Added 15 Oct. Changed 18 Oct. Brought forward 18 Oct
+   after Jeffrey's raid screenshot: "in-game, my inventoryu doesn't take
+   into account the items in my stash". His map had 51 cells against 281
+   used, so the tags fell back to the loadout alone. Now a partial map still
+   counts, and the tag shows "52+/73" until a full scroll makes it sure.
+   Underway 18 Oct.
 
 ## Phase 6. It reads your progress too. Planned, after phases 2 and 5
 
