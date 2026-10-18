@@ -423,6 +423,13 @@ STASH_TICK_S = 0.1
 # itself, a scroll or tab switch) to clear every badge. Fewer changed slots
 # only hide the badges on them.
 BIG_CHANGE_FRACTION = 0.4
+# Share of the slots found on one frame only (lone) that clears every badge
+# on its own, a changed slot set. Fewer lone slots only hide their own badges,
+# find_slots loses a few slots on a still grid now and then
+LONE_BIG_FRACTION = 0.25
+# A frame with fewer slots than this share of the last frame with a grid has
+# no inventory grid: the inventory closed, and the badges clear at once
+GRID_GONE_FRACTION = 0.25
 # The panels that scroll on their own. A big change inside one of them only,
 # by a measured vertical offset, moves its badges with it instead of clearing
 SCROLL_PANELS = (STASH, BACKPACK)
@@ -709,10 +716,11 @@ def stash_changes(
     half a STILL_SCALE cell. A matched slot changed when its own mean
     difference outside ignore reaches STILL_MEAN (grid.slot_diffs). A slot
     found on one frame only changed too, unless ignore covers all of it and
-    it may only be hidden. The change is big when such a slot looks the same
-    on both frames, so the slot set itself changed (a scroll, a tab switch,
-    the inventory layout) and not just the slot's look, or when at least
-    BIG_CHANGE_FRACTION of the slots changed. Without a slot on either frame, or with an
+    it may only be hidden. The change is big when at least
+    BIG_CHANGE_FRACTION of the slots changed (lone ones included), or when at
+    least LONE_BIG_FRACTION of the slots are lone, so the slot set itself
+    changed (a scroll, a tab switch, the inventory layout). Fewer lone slots
+    are only changed slots. Without a slot on either frame, or with an
     injected still other than frames_still, the whole compare of
     stash_still decides: not still is big. gray, when given, returns the
     grey copy of a frame (a cached grid.still_gray).
@@ -735,15 +743,15 @@ def stash_changes(
         if m is not None and m >= STILL_MEAN
     ]
     # A lone slot wholly under ignore rects may only be covered on one frame.
-    # One whose look changed was missed for that (find_slots loses a darkened
-    # or lit slot), one that looks the same means the slot set changed
+    # Others changed: find_slots lost a darkened or lit slot, or a few slots
+    # on a still grid, or the slot set changed when many are lone
     seen = slot_diffs(a, b, alone, ignore)
-    lone = [(r, m) for r, m in zip(alone, seen, strict=True) if m is not None]
-    changed += [r for r, _m in lone]
+    lone = [r for r, m in zip(alone, seen, strict=True) if m is not None]
+    changed += lone
     total = len(pairs) + len(alone)
     return GridChange(
-        big=any(m < STILL_MEAN for _r, m in lone)
-        or len(changed) >= BIG_CHANGE_FRACTION * total,
+        big=len(changed) >= BIG_CHANGE_FRACTION * total
+        or len(lone) >= LONE_BIG_FRACTION * total,
         changed=tuple(changed),
         slots=total,
         lone=len(lone),
@@ -921,6 +929,15 @@ class StashBadges:
     cache and their badges are drawn at once. The pass then replaces them
     with its own.
 
+    A frame with no inventory grid (find_slots finds fewer than
+    GRID_GONE_FRACTION of the slots of the last frame with one) clears at
+    once, without the one-frame wait ("grid_gone"), and the frames after it
+    are skipped until the grid is back. On the first frame with a grid at
+    the start, after a grid_gone clear or after a clear from outside (the
+    inventory closed), the known slots are drawn from peek on that frame
+    itself, without waiting for a still pair. The pass on the next still
+    pair confirms them as after any clear.
+
     After the pass that follows a clear or a slot hide, one DEBUG line
     "stash latency" gives, on clock, the time from the last changed frame
     fed to the first still one (moved_to_still), the pass's identify and
@@ -1002,6 +1019,13 @@ class StashBadges:
         self._drawn = False
         # Set by a clear: the next still frame draws the known slots first
         self._peek_due = False
+        # Set at the start and by a clear other than grid_moved: the next
+        # frame with a grid draws the known slots at once
+        self._open_due = True
+        # The slot count of the last frame with a grid (0 for none since the
+        # last such clear), and whether the grid has left since
+        self._grid_slots = 0
+        self._grid_left = False
         # The viewport of each panel followed since the last clear
         self._viewports: dict[str, Rect] = {}
         # Slots a peek after a scroll looked at since the last pass, moved with it
@@ -1045,12 +1069,19 @@ class StashBadges:
                     thread.start()
         self._wake.set()
 
-    def clear(self, reason: str, detail: str = "") -> None:
+    def clear(self, reason: str, detail: str = "", *, opened: bool = True) -> None:
         """Remove the badges at once and drop every pass and compare so far.
 
-        detail is added to the log line after the reason.
+        detail is added to the log line after the reason. With opened (a
+        clear from outside, or the grid gone) the next frame with a grid
+        draws the known slots at once. Without it (a big change of a grid
+        still in view) they wait for a still pair.
         """
         with self._lock:
+            if opened:
+                self._open_due = True
+                self._grid_slots = 0
+                self._grid_left = False
             busy = self._drawn or self._have_result or self._pass_running
             self._generation += 1
             self._latest = self._prev = self._newest = self._ref = None
@@ -1201,6 +1232,8 @@ class StashBadges:
             if generation != self._generation:
                 return
             self._prev = (rgb, frame)
+        if self._grid_round(generation, rgb, frame):
+            return
         if prev is None:
             return
         if pending is not None:
@@ -1246,6 +1279,7 @@ class StashBadges:
             self.clear(
                 "grid_moved",
                 f" changed={len(pair.changed)} slots={pair.slots} lone={pair.lone}",
+                opened=False,
             )
             with self._lock:
                 self._prev = (rgb, frame)
@@ -1321,6 +1355,44 @@ class StashBadges:
         if unknown:
             self._renew_slots(generation, rgb, frame, unknown)
         self._refresh()
+
+    def _grid_round(self, generation: int, rgb: np.ndarray, frame: StashFrame) -> bool:
+        """Clear when the grid left, draw the known slots when it is back.
+
+        A frame with fewer than GRID_GONE_FRACTION of the slots of the last
+        frame with a grid clears at once, the first time, and is not
+        compared: True, the round ends here. The first frame with a grid
+        after a clear that opened draws the known slots. Only with
+        frames_still, an injected still compares whole frames.
+        """
+        if self._still is not frames_still:
+            return False
+        found = len(self._found_of(rgb))
+        with self._lock:
+            if generation != self._generation:
+                return True
+            had = self._grid_slots
+            gone = had > 0 and found < GRID_GONE_FRACTION * had
+            left = self._grid_left
+            if gone:
+                # The first frame with the grid back is not compared with this
+                self._prev = None
+            elif found:
+                self._grid_slots = found
+                self._grid_left = False
+            opening = not gone and found > 0 and self._open_due
+            if opening:
+                self._open_due = self._peek_due = False
+        if gone:
+            if not left:
+                self.clear("grid_gone", f" slots={found} last={had}")
+                with self._lock:
+                    self._grid_left = True
+                    self._grid_slots = had
+            return True
+        if opening:
+            self._draw_known(generation, rgb, frame)
+        return False
 
     def _renew_slots(
         self, generation: int, rgb: np.ndarray, frame: StashFrame, slots: list[Rect]
