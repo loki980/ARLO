@@ -1,8 +1,13 @@
 """Tests for the advice card model and renderer."""
 
+from arc_helper.advice_card import NO_PUBLIC_DATA
+from arc_helper.advice_card import NOT_FOUND_YET
+from arc_helper.advice_card import UNNAMED_SLOT
 from arc_helper.advice_card import build_advice_card
+from arc_helper.advice_card import build_blueprint_card
 from arc_helper.advice_card import needed_parts
 from arc_helper.advice_card import render_advice_card
+from arc_helper.database import Blueprint
 from arc_helper.database import Need
 from arc_helper.database import RecycleOutput
 from arc_helper.verdict import Verdict
@@ -204,3 +209,74 @@ def test_known_blueprint_keep_card_adds_the_needs_line_after():
 def test_plain_sell_card_is_unchanged():
     card = build_advice_card(Verdict("sell", "Sell"), [])
     assert card.subtitle == "Nothing you track needs it"
+
+
+def _blueprint(**where):
+    fields = dict.fromkeys(Blueprint._fields[4:], "")
+    fields.update(where)
+    return Blueprint("Bobcat Blueprint", "bobcat_blueprint", "Bobcat", None, **fields)
+
+
+def test_blueprint_card_with_full_where_found_data():
+    info = _blueprint(
+        map="Condition Only",
+        map_condition="Locked Gate, Hurricane",
+        scavengable="Yes",
+        containers="Anywhere, First Wave Cache",
+        quest_reward="Yes, Sparks Fly",
+        trials_reward="Trophy Only",
+    )
+    card = build_blueprint_card(12, "Bobcat Blueprint", info)
+    assert (card.kind, card.title, card.subtitle) == (
+        "learn",
+        "Bobcat Blueprint",
+        NOT_FOUND_YET,
+    )
+    assert card.rows == (
+        ("Map", "Only during a map condition"),
+        ("Condition", "Locked Gate, Hurricane"),
+        ("Containers", "Anywhere, First Wave Cache"),
+        ("Scavengable", "Yes"),
+        ("Quest reward", "Sparks Fly"),
+        ("Trials reward", "Trophy Only"),
+    )
+    render_advice_card(card)
+
+
+def test_blueprint_card_with_partial_data_shows_only_what_is_known():
+    # Burletta's row: N/A and ? are unknown, a No reward is no place to look
+    info = _blueprint(
+        map="N/A",
+        map_condition="?",
+        scavengable="No",
+        containers="N/A",
+        quest_reward="Yes, Industrial Espionage",
+        trials_reward="No",
+    )
+    card = build_blueprint_card(12, "Bobcat Blueprint", info)
+    assert card.subtitle == NOT_FOUND_YET
+    assert card.rows == (
+        ("Scavengable", "No"),
+        ("Quest reward", "Industrial Espionage"),
+    )
+
+
+def test_blueprint_card_with_no_where_found_data():
+    for info in (_blueprint(), None):
+        card = build_blueprint_card(12, "Bobcat Blueprint", info)
+        assert (card.title, card.subtitle, card.rows) == (
+            "Bobcat Blueprint",
+            NO_PUBLIC_DATA,
+            (),
+        )
+    assert render_advice_card(card).size[0] == 560
+
+
+def test_blueprint_card_for_an_unnamed_slot():
+    card = build_blueprint_card(26, None, None)
+    assert (card.title, card.subtitle, card.rows) == (
+        "Blueprint slot 26",
+        UNNAMED_SLOT,
+        (),
+    )
+    assert UNNAMED_SLOT == "Unnamed slot, not in the public data"

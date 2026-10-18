@@ -1,7 +1,9 @@
 """The advice card: a dark game-style panel drawn as an image.
 
 build_advice_card turns a verdict and the needs behind it into a small data
-model, render_advice_card draws that model with Pillow. The look is the ARC
+model, render_advice_card draws that model with Pillow. build_blueprint_card
+is the card for an empty Collections cell: the blueprint's name and where the
+public data says it is found, drawn by the same render_advice_card. The look is the ARC
 Tracker card idea (header block with a colour stripe, a Needed for section
 with a progress track, one row per source) drawn from scratch with the
 bundled Barlow Semi Condensed. Nothing here touches Tk or the database.
@@ -16,6 +18,7 @@ from PIL import ImageDraw
 from PIL import ImageFont
 
 from .database import HOME
+from .database import Blueprint
 from .database import Need
 from .database import RecycleOutput
 from .textrender import _load_font
@@ -76,6 +79,13 @@ SUPERSAMPLE = 4
 ELLIPSIS = "…"
 BOLD = "bold"
 REGULAR = "regular"
+# The blueprint card's label column, wide enough for "Quest reward"
+LABEL_COLUMN = 124
+# Where-found values that say nothing is known
+UNKNOWN_VALUES = frozenset({"", "?", "N/A"})
+UNNAMED_SLOT = "Unnamed slot, not in the public data"
+NOT_FOUND_YET = "Not found yet"
+NO_PUBLIC_DATA = "Not found yet. No public data on where to find it"
 
 
 class AdviceCard(NamedTuple):
@@ -92,6 +102,18 @@ class AdviceCard(NamedTuple):
     needed_total: int | None
     owned: int | None
     rows: tuple[tuple[str, str, int], ...]
+
+
+class BlueprintCard(NamedTuple):
+    """The card for an empty Collections cell.
+
+    rows are (label, value) per where-found fact, only the known ones.
+    """
+
+    kind: str
+    title: str
+    subtitle: str
+    rows: tuple[tuple[str, str], ...]
 
 
 def _row_name(need: Need) -> str:
@@ -229,6 +251,58 @@ def build_advice_card(
     return AdviceCard(kind, title, subtitle, total, owned, rows)
 
 
+def _known(value: str | None) -> str | None:
+    """The stripped value, None when empty or an unknown marker (?, N/A)."""
+    value = (value or "").strip()
+    return None if value in UNKNOWN_VALUES else value
+
+
+def _where_found(info: Blueprint) -> tuple[tuple[str, str], ...]:
+    """The known where-found facts of a blueprint as (label, value) rows.
+
+    A No for a quest or trials reward is no place to look, so it gives no
+    row. Scavengable shows Yes or No.
+    """
+    rows: list[tuple[str, str]] = []
+    map_name = _known(info.map)
+    if map_name == "All":
+        rows.append(("Map", "All maps"))
+    elif map_name == "Condition Only":
+        rows.append(("Map", "Only during a map condition"))
+    elif map_name is not None:
+        rows.append(("Map", map_name))
+    if (condition := _known(info.map_condition)) is not None:
+        rows.append(("Condition", condition))
+    if (containers := _known(info.containers)) is not None:
+        rows.append(("Containers", containers))
+    if (scavengable := _known(info.scavengable)) is not None:
+        rows.append(("Scavengable", scavengable))
+    quest = _known(info.quest_reward)
+    if quest is not None and quest.casefold() != "no":
+        # "Yes, Sparks Fly" names the quest
+        _, _, name = quest.partition(",")
+        rows.append(("Quest reward", name.strip() or quest))
+    trials = _known(info.trials_reward)
+    if trials is not None and trials.casefold() != "no":
+        rows.append(("Trials reward", trials))
+    return tuple(rows)
+
+
+def build_blueprint_card(
+    grid_index: int, name: str | None, info: Blueprint | None
+) -> BlueprintCard:
+    """The card for the empty Collections cell at grid_index (from 1).
+
+    name is the blueprint in that slot, None for a slot without a public
+    name. info is its catalog row, None when the catalog has none.
+    """
+    if name is None:
+        return BlueprintCard(LEARN, f"Blueprint slot {grid_index}", UNNAMED_SLOT, ())
+    rows = _where_found(info) if info is not None else ()
+    subtitle = NOT_FOUND_YET if rows else NO_PUBLIC_DATA
+    return BlueprintCard(LEARN, name, subtitle, rows)
+
+
 class _Fonts:
     """The card's faces at one scale, with the sans fallback for odd glyphs."""
 
@@ -337,8 +411,12 @@ def _line_height(fonts: _Fonts, size: int, bold: str) -> int:
     return ascent + descent
 
 
-def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
+def render_advice_card(
+    card: AdviceCard | BlueprintCard, scale: float = 1.0
+) -> Image.Image:
     """Draw the card as an RGBA image, 560 px wide at scale 1.0."""
+    if isinstance(card, BlueprintCard):
+        return render_blueprint_card(card, scale)
     fonts = _Fonts(scale)
     s = fonts.px
     canvas = _Canvas(fonts)
@@ -466,3 +544,87 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
     base.alpha_composite(panel.resize((width, height), Image.LANCZOS))
     base.alpha_composite(body)
     return base
+
+
+def _draw_header(
+    canvas: _Canvas, title: str, subtitle: str | None, accent: str, width: int
+) -> int:
+    """The header block with its colour stripe. Returns the block's bottom."""
+    fonts = canvas.fonts
+    s = fonts.px
+    inner_left = s(MARGIN)
+    inner_right = width - s(MARGIN)
+    text_left = inner_left + s(STRIPE + PAD)
+    limit = inner_right - s(PAD) - text_left
+    y = header_top = s(MARGIN)
+    y += s(16)
+    title_h = _line_height(fonts, TITLE_SIZE, BOLD)
+    for line in _wrap(fonts, title, TITLE_SIZE, BOLD, limit):
+        canvas.text(text_left, y, line, TITLE_SIZE, BOLD, WHITE)
+        y += title_h
+    if subtitle:
+        y += s(2)
+        sub_h = _line_height(fonts, SUBTITLE_SIZE, REGULAR)
+        lines = _wrap(fonts, subtitle, SUBTITLE_SIZE, REGULAR, limit)
+        if len(lines) > SUBTITLE_MAX_LINES:
+            keep = SUBTITLE_MAX_LINES - 1
+            tail = fonts.fit(" ".join(lines[keep:]), SUBTITLE_SIZE, REGULAR, limit)
+            lines = [*lines[:keep], tail]
+        for line in lines:
+            canvas.text(text_left, y, line, SUBTITLE_SIZE, REGULAR, MUTED)
+            y += sub_h
+    y += s(16)
+    canvas.rect((inner_left, header_top, inner_right, y), HEADER_BG, s(HEADER_RADIUS))
+    # Stripe with the header's rounded left corners
+    stripe_right = inner_left + s(HEADER_RADIUS * 2)
+    canvas.rect((inner_left, header_top, stripe_right, y), accent, s(HEADER_RADIUS))
+    canvas.rect((inner_left + s(STRIPE), header_top, stripe_right + 1, y), HEADER_BG)
+    return y
+
+
+def _on_panel(canvas: _Canvas, width: int, height: int) -> Image.Image:
+    """The canvas drawn on the rounded card panel."""
+    s = canvas.fonts.px
+    body = canvas.render(width, height)
+    base = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    k = SUPERSAMPLE
+    panel = Image.new("RGBA", (width * k, height * k), (0, 0, 0, 0))
+    ImageDraw.Draw(panel).rounded_rectangle(
+        (0, 0, width * k - 1, height * k - 1),
+        s(RADIUS) * k,
+        fill=PANEL,
+        outline=PANEL_BORDER,
+        width=max(1, s(1)) * k,
+    )
+    base.alpha_composite(panel.resize((width, height), Image.LANCZOS))
+    base.alpha_composite(body)
+    return base
+
+
+def render_blueprint_card(card: BlueprintCard, scale: float = 1.0) -> Image.Image:
+    """Draw the blueprint card as an RGBA image, 560 px wide at scale 1.0.
+
+    The header is the advice card's, below it one row per where-found fact:
+    the label in the left column, the value wrapped beside it.
+    """
+    fonts = _Fonts(scale)
+    s = fonts.px
+    canvas = _Canvas(fonts)
+    width = s(WIDTH)
+    accent = KIND_COLORS.get(card.kind, GREY)
+    y = _draw_header(canvas, card.title, card.subtitle, accent, width)
+    if card.rows:
+        body_left = s(MARGIN + PAD)
+        body_right = width - s(MARGIN + PAD)
+        value_left = body_left + s(LABEL_COLUMN)
+        body_h = _line_height(fonts, BODY_SIZE, REGULAR)
+        y += s(PAD)
+        for label, value in card.rows:
+            canvas.text(body_left, y, label, BODY_SIZE, REGULAR, MUTED)
+            limit = body_right - value_left
+            for line in _wrap(fonts, value, BODY_SIZE, REGULAR, limit):
+                canvas.text(value_left, y, line, BODY_SIZE, REGULAR, WHITE)
+                y += body_h
+            y += s(ROW_GAP)
+        y += s(PAD - 4 - ROW_GAP)
+    return _on_panel(canvas, width, y + s(MARGIN))

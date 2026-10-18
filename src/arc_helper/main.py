@@ -30,7 +30,9 @@ from dotenv import load_dotenv
 
 from arc_helper import layout_home
 from arc_helper.advice_card import AdviceCard
+from arc_helper.advice_card import BlueprintCard
 from arc_helper.advice_card import build_advice_card
+from arc_helper.advice_card import build_blueprint_card
 from arc_helper.advice_card import needed_parts
 from arc_helper.advice_window import AdviceWindow
 from arc_helper.badge_surface import Badge
@@ -40,6 +42,8 @@ from arc_helper.badge_surface import Patch
 from arc_helper.badge_surface import Tag
 from arc_helper.cell_border import CellBorder
 from arc_helper.clickthrough import make_click_through
+from arc_helper.collections_screen import CollectionsCell
+from arc_helper.collections_screen import cell_at
 from arc_helper.collections_screen import read_collections
 from arc_helper.collections_screen import record_collections
 from arc_helper.config import APP_DIR
@@ -51,6 +55,7 @@ from arc_helper.config import get_settings
 from arc_helper.config import logger
 from arc_helper.database import FIELD
 from arc_helper.database import HOME
+from arc_helper.database import Blueprint
 from arc_helper.database import Database
 from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
@@ -2214,6 +2219,13 @@ class Scanner:
     _collections_open: bool = False
     _collections_recorded: bool = False
     _collections_warned: bool = False
+    # The hover assist: the cells of this visit's last consistent read (the
+    # latest read until one is), the grid index and card title of the empty
+    # cell whose card the assist shows, and the blueprint catalog by name,
+    # loaded once a visit
+    _collections_cells: list[CollectionsCell] = field(default_factory=list)
+    _collections_hover: tuple[int, str] | None = None
+    _collections_catalog: dict[str, Blueprint] | None = None
 
     # Thread control
     _running: bool = False
@@ -2286,6 +2298,7 @@ class Scanner:
                     if hotkey_now:
                         # Hotkey pressed - enter active mode via override
                         self._hotkey_override = True
+                        self._end_collections_hover()
                         self.state = ScannerState.ACTIVE
                         self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=hotkey")
@@ -2296,6 +2309,7 @@ class Scanner:
                     ):
                         # Trigger detected! Switch to active mode
                         self._hotkey_override = False
+                        self._end_collections_hover()
                         self.state = ScannerState.ACTIVE
                         self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=inventory_trigger")
@@ -2304,9 +2318,11 @@ class Scanner:
                     else:
                         # Look for the Collections screen at most every
                         # COLLECTIONS_CHECK_S, inside the wait before the next
-                        # trigger scan so the trigger keeps its timing
+                        # trigger scan so the trigger keeps its timing. The
+                        # hover assist looks at the cursor on every round
                         began = time.monotonic()
                         self._check_collections(began)
+                        self._check_collections_hover()
                         spent = time.monotonic() - began
                         time.sleep(
                             max(0.0, settings.scan.trigger_scan_interval - spent)
@@ -2379,8 +2395,13 @@ class Scanner:
             self._collections_open = False
             self._collections_recorded = False
             self._collections_warned = False
+            self._collections_cells = []
+            self._collections_catalog = None
+            self._end_collections_hover()
             return
         self._collections_open = True
+        if read.consistent or not self._collections_cells:
+            self._collections_cells = read.cells
         if self._collections_recorded:
             return
         if not read.consistent:
@@ -2402,6 +2423,57 @@ class Scanner:
             recorded,
             unknown,
         )
+
+    def _check_collections_hover(self) -> None:
+        """Show the blueprint card while the cursor is over an empty cell.
+
+        Runs on every IDLE round. Only the cursor is read: it is matched to
+        the cells of the last read, so the hover costs no capture or OCR.
+        Over an empty cell the advice card shows that blueprint and where to
+        find it, and is touched on later rounds to stay up. Over a found
+        cell, between cells, off the grid or off the screen the assist's
+        card hides. Needs the advice card (ADVICE_CARD on).
+        """
+        if not self.advice_card:
+            return
+        if not self._collections_open or not self._collections_cells:
+            self._end_collections_hover()
+            return
+        try:
+            at = get_backend().cursor_position()
+        except Exception:  # noqa: BLE001 - no cursor this round, try the next
+            return
+        cell = cell_at(self._collections_cells, Point(at.x, at.y))
+        if cell is None or cell.found:
+            self._end_collections_hover()
+            return
+        if self._collections_hover is not None:
+            shown, title = self._collections_hover
+            if shown == cell.grid_index:
+                self.ui_queue.put(("touch", title, self._hold_ms))
+                return
+        card = self._blueprint_card_for(cell.grid_index)
+        self._collections_hover = (cell.grid_index, card.title)
+        logger.debug("collections hover slot=%d %s", cell.grid_index, card.title)
+        self.ui_queue.put(("advice", card.title, card, self._hold_ms))
+
+    def _blueprint_card_for(self, grid_index: int) -> BlueprintCard:
+        """The blueprint card for an empty cell, from the catalog (scan thread)."""
+        if self._collections_catalog is None:
+            self._collections_catalog = {
+                row.name.casefold(): row for row in self.db.blueprint_catalog()
+            }
+        name = self.db.blueprint_at(grid_index)
+        info = self._collections_catalog.get(name.casefold()) if name else None
+        return build_blueprint_card(grid_index, name, info)
+
+    def _end_collections_hover(self) -> None:
+        """Hide the assist's card if it shows one. Item cards are left alone."""
+        if self._collections_hover is None:
+            return
+        logger.debug("collections hover end slot=%d", self._collections_hover[0])
+        self._collections_hover = None
+        self.ui_queue.put(("hide",))
 
     def _reset_scan_timing(self) -> None:
         """Forget scan timing and the shown card on entry to ACTIVE.
