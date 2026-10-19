@@ -158,6 +158,10 @@ def test_loadout_header_none_when_whole_row_is_covered():
 # where the stash rests at 544.
 SCROLLED = FIXTURES / "inventory_header_scrolled.png"
 SCROLLED_SLOT_TOP = 704
+# Jeffrey's 18 Oct capture, where OCR reads the grid icon before the counts
+# as a stray digit ("2 284/304 911,770")
+ICON_DIGIT = FIXTURES / "inventory_header_icon_digit.png"
+ICON_DIGIT_SLOT_TOP = 592
 
 
 def test_stash_header_read_while_the_stash_is_scrolled():
@@ -171,3 +175,11 @@ def test_stash_header_read_while_the_stash_is_scrolled():
 def test_stash_header_none_without_the_title_when_scrolled():
     frame = np.zeros((2160, 3840, 3), dtype=np.uint8)
     assert read_stash_header(frame, _slots(STASH, 304, SCROLLED_SLOT_TOP)) is None
+
+
+def test_stash_header_read_with_the_grid_icon_read_as_a_digit():
+    band = np.array(Image.open(ICON_DIGIT).convert("RGB"))
+    frame = np.zeros((2160, 3840, 3), dtype=np.uint8)
+    frame[BAND_TOP : BAND_TOP + band.shape[0], : band.shape[1]] = band
+    slots = _slots(STASH, 304, ICON_DIGIT_SLOT_TOP)
+    assert read_stash_header(frame, slots) == StashHeader(284, 304, 911770)

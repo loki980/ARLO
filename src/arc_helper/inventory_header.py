@@ -70,7 +70,9 @@ TWO_LINES = "--psm 6 --oem 1"
 _WHOLE_NUMBER = re.compile(r"\d{1,3}(?:[.,]\d{3})+$")
 
 # Between the numbers sits the coin glyph, which Tesseract reads as junk
-_STASH = re.compile(r"^\D*?(\d+)\s*/\s*(\d+)\D+?(\d[\d.,]*)\s*$")
+# Searched, not matched from the start: OCR can read the grid icon in front
+# of the counts as a stray digit ("2 284/304 911,770")
+_STASH = re.compile(r"(\d+)\s*/\s*(\d+)\D+?(\d[\d.,]*)\s*$")
 _LOADOUT = re.compile(r"^\D*?(\d+\.\d)\s*/\s*(\d+\.\d)\D+?(\d[\d.,]*)\s*$")
 
 
@@ -198,7 +200,7 @@ def _read_stash_block(rgb: np.ndarray, left: int, top: int) -> StashHeader | Non
     lines = [ln for ln in _read_row(rgb, block, TWO_LINES).splitlines() if ln.strip()]
     if len(lines) < 2 or "STASH" not in lines[0].upper():
         return None
-    match = _STASH.match(lines[-1].strip())
+    match = _STASH.search(lines[-1].strip())
     if not match:
         return None
     used, capacity = int(match.group(1)), int(match.group(2))
