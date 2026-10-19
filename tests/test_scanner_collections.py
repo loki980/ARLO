@@ -97,6 +97,13 @@ def scanner(monkeypatch):
     monkeypatch.setattr(
         main_module, "read_collections", lambda rgb: READS[int(rgb[0, 0, 0])]
     )
+    # No cursor unless a test installs one, so the icon hide never reads the
+    # machine's real pointer
+
+    def no_cursor():
+        raise OSError
+
+    monkeypatch.setattr(main_module, "get_backend", no_cursor)
     scanner.records = 0
     real_record = main_module.record_collections
 
@@ -395,4 +402,125 @@ def test_icons_never_drawn_outside_idle(icons):
     # Outside IDLE the stash badges own the surface
     icons.state = ScannerState.ACTIVE
     icons._show_collections_icons(READS[GRID].cells)  # noqa: SLF001
+    assert icons.badge_surface.sent == []
+
+
+def _round(scanner, now, cursor):
+    """One IDLE round as the scan loop runs it: the look, then both hover checks."""
+    scanner.cursor = cursor
+    scanner._check_collections(now)  # noqa: SLF001
+    scanner._check_collections_hover()  # noqa: SLF001
+    scanner._check_collections_icons_hover()  # noqa: SLF001
+
+
+@pytest.fixture
+def icon_hover(icons, monkeypatch):
+    """The icons scanner with a cursor the test moves (found cell: BANJO)."""
+    icons.cursor = ANVIL
+
+    class _Backend:
+        def cursor_position(self):  # noqa: PLR6301
+            return icons.cursor
+
+    monkeypatch.setattr(main_module, "get_backend", _Backend)
+    return icons
+
+
+def test_icons_clear_on_a_found_cell_and_return_after_leaving(icon_hover):
+    icon_hover.frames = [GRID]
+    ops = lambda: [m[0] for m in icon_hover.badge_surface.sent]  # noqa: E731
+    _round(icon_hover, 0.0, ANVIL)
+    assert ops() == ["draw"]
+    # Banjo (slot 2) is found: the game shows its tooltip, the icons go
+    _round(icon_hover, 0.5, BANJO)
+    assert ops() == ["draw", "clear"]
+    _round(icon_hover, 1.0, BANJO)
+    assert ops() == ["draw", "clear"]
+    # Off the found cell they return within the round, with no new screen read
+    _round(icon_hover, 1.5, GAP)
+    assert ops() == ["draw", "clear", "draw"]
+    assert icon_hover.grabs == 1
+
+
+def test_icons_hover_check_needs_no_advice_card(icon_hover):
+    icon_hover.advice_card = False
+    icon_hover.frames = [GRID]
+    _round(icon_hover, 0.0, BANJO)
+    assert [m[0] for m in icon_hover.badge_surface.sent] == []
+    _round(icon_hover, 0.5, ANVIL)
+    assert [m[0] for m in icon_hover.badge_surface.sent] == ["draw"]
+
+
+def test_collections_icons_setting_on_draws(icons):
+    icons.collections_icons = True
+    _looks(icons, [GRID])
+    assert icons.badge_surface.starts == 1
+    assert [m[0] for m in icons.badge_surface.sent] == ["draw"]
+
+
+def test_collections_icons_setting_off_never_starts_the_surface(icons):
+    icons.collections_icons = False
+    _looks(icons, [GRID])
+    assert icons.badge_surface.starts == 0
+    assert icons.badge_surface.sent == []
+
+
+def test_collections_icons_setting_reads_env(monkeypatch):
+    from arc_helper.config import OverlaySettings
+
+    monkeypatch.delenv("COLLECTIONS_ICONS", raising=False)
+    monkeypatch.delenv("STASH_BADGES", raising=False)
+    assert OverlaySettings(_env_file=None).collections_icons is True
+    monkeypatch.setenv("COLLECTIONS_ICONS", "false")
+    off = OverlaySettings(_env_file=None)
+    assert off.collections_icons is False
+    assert off.stash_badges is True
+    monkeypatch.setenv("COLLECTIONS_ICONS", "true")
+    monkeypatch.setenv("STASH_BADGES", "false")
+    assert OverlaySettings(_env_file=None).collections_icons is True
+
+
+@pytest.mark.parametrize("way_out", ["pause", "stop"])
+def test_a_draw_finishing_after_pause_or_stop_leaves_nothing_drawn(icons, way_out):
+    """The draw starts, pause (or stop) clears, the draw ends: nothing stays up."""
+    import threading
+
+    surface = icons.badge_surface
+    drawing, release = threading.Event(), threading.Event()
+    real_draw = surface.draw
+
+    def slow_draw(badges):
+        drawing.set()
+        release.wait(5)
+        real_draw(badges)
+
+    surface.draw = slow_draw
+    icons.state = ScannerState.IDLE
+    icons.frames = [GRID]
+    scan = threading.Thread(target=icons._check_collections, args=(0.0,))  # noqa: SLF001
+    scan.start()
+    assert drawing.wait(5)
+    ui = threading.Thread(target=getattr(icons, way_out))
+    ui.start()
+    # The UI thread has set its state and waits on the lock, then the draw ends
+    ui.join(0.2)
+    release.set()
+    scan.join(5)
+    ui.join(5)
+    assert not scan.is_alive()
+    assert not ui.is_alive()
+    drawn = None
+    for op in surface.sent:
+        drawn = op[1] if op[0] == "draw" else None
+    assert drawn is None
+    assert icons._collections_icons == []  # noqa: SLF001
+
+
+def test_no_icon_drawn_when_state_changes_before_the_draw(icons):
+    # The state flips to PAUSED after the read, before the draw
+    icons.state = ScannerState.PAUSED
+    icons._collections_icons_wanted = icons._collections_icon_badges(  # noqa: SLF001
+        READS[GRID].cells
+    )
+    icons._sync_collections_icons()  # noqa: SLF001
     assert icons.badge_surface.sent == []

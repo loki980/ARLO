@@ -2213,6 +2213,8 @@ class Scanner:
     # (None for the configured one) and are never downloaded here
     badge_surface: BadgeSurface | None = None
     icon_cache_dir: Path | None = None
+    # COLLECTIONS_ICONS. False never starts the surface for the Collections screen
+    collections_icons: bool = True
 
     # Cooldown tracking
     _last_shown_item: str = ""
@@ -2266,8 +2268,15 @@ class Scanner:
     _collections_catalog: dict[str, Blueprint] | None = None
     # The greyed icons drawn in the empty cells now, and whether this scanner
     # has started the badge surface
+    # (drawn), the icons the last consistent read wants (wanted), and whether
+    # the cursor is on a found cell, where the game's own tooltip shows and the
+    # icons are hidden. Guarded by _icons_lock: the scan thread draws, the UI
+    # thread clears on pause and stop.
     _collections_icons: list[Icon] = field(default_factory=list)
+    _collections_icons_wanted: list[Icon] = field(default_factory=list)
+    _icons_hidden: bool = False
     _badge_surface_started: bool = False
+    _icons_lock: threading.Lock = field(default_factory=threading.Lock)
 
     # Thread control
     _running: bool = False
@@ -2369,6 +2378,7 @@ class Scanner:
                         began = time.monotonic()
                         self._check_collections(began)
                         self._check_collections_hover()
+                        self._check_collections_icons_hover()
                         spent = time.monotonic() - began
                         time.sleep(
                             max(0.0, settings.scan.trigger_scan_interval - spent)
@@ -2444,6 +2454,7 @@ class Scanner:
             self._collections_cells = []
             self._collections_catalog = None
             self._end_collections_hover()
+            self._icons_hidden = False
             self._clear_collections_icons()
             return
         self._collections_open = True
@@ -2552,29 +2563,81 @@ class Scanner:
         """Draw the empty cells' greyed icons, once for each read that changes them.
 
         Called only while IDLE, when the stash badges have nothing drawn. A
-        read whose icons match those drawn sends nothing.
+        read whose icons match those drawn sends nothing. Needs COLLECTIONS_ICONS.
         """
-        if self.badge_surface is None or self.state != ScannerState.IDLE:
+        if not self.collections_icons or self.badge_surface is None:
             return
-        icons = self._collections_icon_badges(cells)
-        if icons == self._collections_icons:
+        if self.state != ScannerState.IDLE:
             return
-        if not icons:
-            self._clear_collections_icons()
+        self._collections_icons_wanted = self._collections_icon_badges(cells)
+        self._update_icons_hidden()
+        self._sync_collections_icons()
+
+    def _sync_collections_icons(self) -> None:
+        """Make the drawn icons match the wanted ones, none while the cursor hides them.
+
+        The state check and the draw happen under _icons_lock. pause and stop
+        set their state first and then clear under the same lock, so a draw
+        either finishes before that clear or sees the state and draws nothing:
+        no icon stays up while paused or after stop.
+        """
+        surface = self.badge_surface
+        if surface is None or not self.collections_icons:
             return
-        if not self._badge_surface_started:
+        if (
+            self.state == ScannerState.IDLE
+            and self._collections_icons_wanted
+            and not self._badge_surface_started
+        ):
             self._badge_surface_started = True
-            self.badge_surface.start()
-        self._collections_icons = icons
-        self.badge_surface.draw(list(icons))
-        logger.debug("collections icons drawn icons=%d", len(icons))
+            surface.start()
+        with self._icons_lock:
+            want = []
+            if self.state == ScannerState.IDLE and not self._icons_hidden:
+                want = self._collections_icons_wanted
+            if want == self._collections_icons:
+                return
+            self._collections_icons = list(want)
+            if want:
+                surface.draw(list(want))
+                logger.debug("collections icons drawn icons=%d", len(want))
+            else:
+                surface.clear()
+                logger.debug("collections icons cleared")
+
+    def _check_collections_icons_hover(self) -> None:
+        """Hide the icons while the cursor is on a found cell, show them after.
+
+        Runs on every IDLE round against the cells of the last consistent
+        read, so it costs no capture or OCR. A found cell is where the game
+        shows its own tooltip. The icons go within one round (trigger scan
+        interval, 0.5 s) of the cursor arriving and come back within one round
+        of it leaving found cells.
+        """
+        if not self._collections_icons_wanted:
+            return
+        self._update_icons_hidden()
+        self._sync_collections_icons()
+
+    def _update_icons_hidden(self) -> None:
+        """Note whether the cursor is on a found cell. Kept as is without a cursor."""
+        try:
+            at = get_backend().cursor_position()
+        except Exception:  # noqa: BLE001 - no cursor this round, try the next
+            return
+        cell = cell_at(self._collections_cells, Point(at.x, at.y))
+        self._icons_hidden = cell is not None and cell.found
 
     def _clear_collections_icons(self) -> None:
-        """Remove the Collections icons if any are drawn. Stash badges are left alone."""
-        if not self._collections_icons or self.badge_surface is None:
+        """Forget the Collections icons and remove any drawn. Stash badges are left alone."""
+        self._collections_icons_wanted = []
+        if self.badge_surface is None:
             return
-        self._collections_icons = []
-        self.badge_surface.clear()
+        with self._icons_lock:
+            if not self._collections_icons:
+                return
+            self._collections_icons = []
+            self.badge_surface.clear()
         logger.debug("collections icons cleared")
 
     def _end_collections_hover(self) -> None:
@@ -3258,6 +3321,7 @@ class Application:
             ledger=self.ledger,
             badge_surface=self.badge_surface,
             icon_cache_dir=self.settings.icon_cache_dir,
+            collections_icons=self.settings.overlay.collections_icons,
         )
         self.overlay_rects = self.scanner.overlay_rects
 
