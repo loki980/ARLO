@@ -156,19 +156,19 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <h1>ARLO Overlay Roadmap</h1>
     <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 18 October 2026.</p>
   </div>
-  <div class="capacity"><b>5 / 8</b>phases done</div>
+  <div class="capacity"><b>6 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 82 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~82%</span></div>
-  <div class="track"><i style="width:82%"></i></div>
-  <small>65 of 70 steps done, 5 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 83 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~83%</span></div>
+  <div class="track"><i style="width:83%"></i></div>
+  <small>66 of 70 steps done, 6 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>5 / 8</b><span>phases done</span><small>phases 0, 1, 3, 4 and 4b done</small></div>
-  <div><b>65 / 70</b><span>steps done</span><small>across all eight phases</small></div>
-  <div><b>786</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>6 / 8</b><span>phases done</span><small>phases 0 to 4 and 4b done</small></div>
+  <div><b>66 / 70</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>787</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 56 of 56 after the reader bake-off (14 Oct)</small></div>
 </section>
 
@@ -231,38 +231,26 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase2">
-    <div class="slot">2</div>
+    <div class="slot done">2</div>
     <article class="card" data-tab="Phase 2">
-      <div class="tags"><span class="tag started">Started</span><span class="dates">from <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
+      <div class="tags"><span class="tag done">Done</span><span class="dates"><time datetime="2026-10-11" data-rel>11 Oct</time> to <time datetime="2026-10-18" data-rel>18 Oct</time></span></div>
       <h2>Advice with a reason</h2>
       <p>Instead of a bare "Keep", the advice card says "Keep 3 for Gunsmith IV, then sell". Every verdict names the quest, project, or bench level that wants the item. Weapons are never recycle or sell.</p>
-      <div class="gauge" aria-label="Phase 2 about 90 percent done">
-        <div class="bar"><i style="width:90%"></i></div>
-        <div class="read">~90%<small>9 of 10 steps</small></div>
-      </div>
-      
-      <div class="split">
-        <div>
-          <h3>Done</h3>
-          <ul class="steps">
-            <li class="done"><span class="tick">✓</span><span class="what">Step 1, The needs list<small>289 rows: every quest, project phase, and workshop level that wants items, all nine Frozen Trail quests and the Outpost included. Matches your cheatsheet where checked</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 2, The verdict engine, with the weapon rule<small>Active needs minus your progress, a reason naming the sources, keep at least one of every weapon. Radial Press reads "keep, 3 for Gunsmith IV, then sell"</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 3, Popup overhaul<small>Verdict word colored by the verdict, the catalog name instead of the raw read, home recycle outputs on the notes line</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 4, Manual progress file<small>Your bench levels, finished quests, and project phases, kept in a separate untracked database so updates never conflict</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 6, Readable text in a game-style font<small>The popup and chips drawn in the bundled game font. The KEEP chip it added was retired 17 Oct</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time> &middot; changed <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 7, A card that looks like part of the game<small>ARC Tracker's card in your LOADOUT box in place of the corner popup, with the recycle line naming parts you still need. In daily use, and your report on 15 Oct led to step 8</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time> &middot; changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 8, The advice card stays under your second gun<small>It went to the top-left corner when a card covered its spot and never came back. Home now comes from your weapon slots on screen</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 9, Learn or sell a blueprint<small>No check mark on the tile: learn it. A check mark: the usual advice, sell. Remembered for the weapon rule</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 10, Known blueprints in the advice<small>No more "until you own the blueprint" once ARLO has seen it learned, and the card says why a known blueprint is sell</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-          </ul>
-        </div>
-        <div>
-          <h3>Ahead, in order</h3>
-          <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">Step 5, Your decisions on ended projects and coin phases<small>Hidden by default until you say otherwise</small></span><span class="when"></span></li>
-          </ul>
-        </div>
-      </div>
+      <details>
+        <summary><span class="chev">▸</span><span class="show">Show the 10 steps</span><span class="hide">Hide the 10 steps</span></summary>
+        <ul class="steps">
+          <li class="done"><span class="tick">✓</span><span class="what">Step 1, The needs list<small>289 rows: every quest, project phase, and workshop level that wants items, all nine Frozen Trail quests and the Outpost included. Matches your cheatsheet where checked</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 2, The verdict engine, with the weapon rule<small>Active needs minus your progress, a reason naming the sources, keep at least one of every weapon. Radial Press reads "keep, 3 for Gunsmith IV, then sell"</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 3, Popup overhaul<small>Verdict word colored by the verdict, the catalog name instead of the raw read, home recycle outputs on the notes line</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 4, Manual progress file<small>Your bench levels, finished quests, and project phases, kept in a separate untracked database so updates never conflict</small></span><span class="when recent">done <time datetime="2026-10-11" data-rel>11 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 6, Readable text in a game-style font<small>The popup and chips drawn in the bundled game font. The KEEP chip it added was retired 17 Oct</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time> &middot; changed <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 7, A card that looks like part of the game<small>ARC Tracker's card in your LOADOUT box in place of the corner popup, with the recycle line naming parts you still need. In daily use, and your report on 15 Oct led to step 8</small></span><span class="when recent">done <time datetime="2026-10-14" data-rel>14 Oct</time> &middot; changed <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 8, The advice card stays under your second gun<small>It went to the top-left corner when a card covered its spot and never came back. Home now comes from your weapon slots on screen</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 9, Learn or sell a blueprint<small>No check mark on the tile: learn it. A check mark: the usual advice, sell. Remembered for the weapon rule</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 10, Known blueprints in the advice<small>No more "until you own the blueprint" once ARLO has seen it learned, and the card says why a known blueprint is sell</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 5, Your decisions on ended projects and coin phases<small>You kept both: ended projects hidden by default, coin phases skipped</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+        </ul>
+      </details>
     </article>
   </li>
 
@@ -395,8 +383,6 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
 
 <h2 class="section">Calls that are yours to make</h2>
 <ul class="plain">
-  <li><b>Expeditions 1 to 4 are over.</b> Show them, hide them, or hide anything ended by default? Hidden by default until you say.</li>
-  <li><b>Some project phases ask for coins, not items.</b> Skip them, or show "fund 50,000 &#8353;" as a line?</li>
   <li><b>One optional package.</b> Installing gtk4-layer-shell lets the overlay try the Wayland-native mode too. Only needed if X11 ever fails.</li>
   <li><b>Blueprint find locations.</b> MetaForge's terms ask for attribution and want paid projects to ask first. ARLO is free. Use their vote data with a credit in the README, or stick to the wiki table alone?</li>
   <li><b>Banjo's price.</b> It sells for 2,000 in ARLO and 1,000 in ARC Tracker. Check in game.</li>
@@ -451,6 +437,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: worth in colour (red to yellow to green, deep gold from 5,000) and the unsure flag (a partial stash map counts, shown as "52+/73"). Phase 4 is done. 738 tests.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: hover an empty Collections cell for the blueprint and where to find it, and the advice card's "You have N". Started: greyed blueprint icons, and the stash map that keeps building after a restart. 771 tests.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: greyed blueprint icons in the empty Collections cells. The blueprint tracker is done. 786 tests.</span></li>
+  <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>You kept ended projects hidden and coin phases skipped, so Phase 2 is done. The stash header reads again when the grid icon is read as a digit.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

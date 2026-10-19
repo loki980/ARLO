@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 82 percent of the whole roadmap, weighted by effort: 65 of 70 steps
-done, 5 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+About 83 percent of the whole roadmap, weighted by effort: 66 of 70 steps
+done, 6 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
 Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
@@ -218,7 +218,7 @@ Done (steps 8 to 10 were dropped 18 Oct):
     set, and HOME ONLY sits on the recycle icon row (4 of 4 test cards).
     Added 17 Oct.
 
-## Phase 2. Advice with a reason. Started 11 Oct, 90 percent, 9 of 10 steps
+## Phase 2. Advice with a reason. Done 18 Oct
 
 Jeffrey's words: "Keep until upgrade is complete; sell once done" is the kind
 of advice he wants, with the source named. And, after the popup told him to
@@ -297,7 +297,9 @@ Done:
 Ahead:
 
 5. Your decisions on ended projects and coin phases. Jeffrey's decisions: ended projects (Expedition 1 to 4) hidden by default
-   until he says otherwise, coin-funding phases produce no needs.
+   until he says otherwise, coin-funding phases produce no needs. Done 18
+   Oct: Jeffrey chose to keep both, ended projects hidden by default
+   (SHOW_ENDED_PROJECTS brings them back) and coin phases skipped.
 
 ## Phase 3. Read the grid. Done 14 Oct
 
@@ -599,9 +601,6 @@ Will contain:
 
 ## Open decisions for Jeffrey
 
-- Whether ended projects (Expedition 1 to 4) are shown, hidden, or hidden by
-  default. Hidden by default until he says.
-- Whether coin-funding project phases appear as a line.
 - Whether to install `gtk4-layer-shell` (`sudo pacman -S gtk4-layer-shell`)
   so the Wayland-native overlay mode can be tried alongside the X11 mode.
   Only needed if X11 ever fails.
