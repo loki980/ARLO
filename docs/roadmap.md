@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 83 percent of the whole roadmap, weighted by effort: 66 of 70 steps
-done, 6 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+About 85 percent of the whole roadmap, weighted by effort: 67 of 70 steps
+done, 7 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
 Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
@@ -517,7 +517,7 @@ Ahead, in order:
    Done 18 Oct, reviewed: 63 of the 66 empty cells on Jeffrey's screenshot
    show their blueprint in grey, the other 3 are the unnamed slots.
 
-## Phase 5. ARLO knows what you own. Started 15 Oct, 85 percent, 5 of 6 steps. Moved up 15 Oct
+## Phase 5. ARLO knows what you own. Done 18 Oct. Moved up 15 Oct
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start
 watching and updating a local database of my inventory?" Decided 11 Oct.
@@ -584,7 +584,13 @@ Ahead, in order:
    example". None of his 42 frames placed: after a restart ARLO has no
    last frame, and its saved looks no longer match because its own tags and
    patches changed on the tiles. Fix: anchor on the top of the stash and
-   leave ARLO's own drawings out of the looks. Underway 18 Oct. Added 18 Oct.
+   leave ARLO's own drawings out of the looks. Added 18 Oct. Done 18 Oct,
+   reviewed, reviewer items overruled: the cause was a map started partway
+   down the stash, so a restart froze it. A frame at the top of the stash
+   now places as row 0 on its own. On Jeffrey's 18 Oct capture 74 of 91
+   frames place and the map fills to 284, the header's count (none placed
+   before). The old 51-cell map is dropped, one scroll from the top rebuilds
+   it.
 
 ## Phase 6. It reads your progress too. Planned, after phases 2 and 5
 
