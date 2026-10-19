@@ -19,19 +19,22 @@ map compared with the map in memory.
         --db <user db copy> --frames '<glob>' --out <folder> [--before REV]
 
 The restart replay: the frames are identified once, then drawn over with
-ARLO's badges by the badge helper's PNG mode (as worth_colour_demo does) two
-ways. old is the overlay the stored map of 18 Oct was built under (have/need
-tags N/M, bar coloured price patches, the red short-stock outline). today is
-the overlay since (tags N+/M, patches coloured by worth, and the gold hover
-frame outside one tile). Each run starts a fresh StashMapStore, as after a
+ARLO's badges by the badge helper's PNG mode (as worth_colour_demo does)
+three ways. old is the overlay the stored map of 18 Oct was built under
+(have/need tags N/M, bar coloured price patches, the red short-stock
+outline). grey is step 21's grey patches with tags N/M. today is the overlay
+since (tags N+/M, patches coloured by worth, and the gold hover frame outside
+one tile). Each run starts a fresh StashMapStore, as after a
 restart, on a copy of a database (the given one is never written) and
 observes every frame in name order: the code before the fix (stash_map and
 stash_stitch at REV, loaded from git) and the code as it is now, from the
 copied database, from an empty one and from a map begun mid-stash under the
 old overlay (frames MID_FIRST to MID_LAST on an empty database with the code
 before the fix), on clean frames, with today's overlay, and with the overlay
-changing between frames. Writes real-data.txt: the look distances of every
-whole slot clean against both overlays (looks before and after the fix),
+changing between frames (old and today, or grey and today). With
+--captured only the frames as captured are used. Writes the report: the
+look distances of every whole slot clean against each overlay (looks
+before and after the fix),
 the per-frame placement table with the check that stopped each unplaced
 frame, and per run the frames placed, the map against the header and
 against the reference build (the code before the fix on clean frames from
@@ -51,8 +54,11 @@ from pathlib import Path
 import numpy as np
 from eval_stash_stitch import _Identify
 from PIL import Image
+from worth_colour_demo import GREY_CODES
 from worth_colour_demo import composite
+from worth_colour_demo import grey_scale
 from worth_colour_demo import old_style
+from worth_colour_demo import scale
 
 from arc_helper import stash_map
 from arc_helper import stash_stitch
@@ -456,6 +462,8 @@ class _Frames:
                 if b["kind"] == "tag" and b.get("fg") == SHORT_RED
             ]
             today = badges_for(found, verdict_of, owned, sure=False)
+            with scale(grey_scale, GREY_CODES):
+                grey = badges_for(found, verdict_of, owned, sure=True)
             named = [f for f in found if f.item is not None]
             if named:
                 left, top, right, bottom = named[index % len(named)].rect
@@ -469,7 +477,7 @@ class _Frames:
                         "kind": "border",
                     }
                 )
-            for style, badges in (("old", old), ("today", today)):
+            for style, badges in (("old", old), ("grey", grey), ("today", today)):
                 shown = composite(rgb, badges, scratch)
                 Image.fromarray(shown).save(self.folder / f"{style}-{index:03d}.png")
                 self.items[style, index] = _matched(shown, found)
@@ -478,6 +486,8 @@ class _Frames:
     def style_of(style: str, index: int) -> str:
         if style == "changing":
             return ("old", "today")[index % 2]
+        if style == "grey-colour":
+            return ("grey", "today")[index % 2]
         return style
 
     def get(self, style: str, index: int) -> tuple[np.ndarray, list]:
@@ -489,16 +499,21 @@ class _Frames:
         return rgb, self.items[style, index]
 
 
+PAIRS = (
+    ("clean", "old"),
+    ("clean", "grey"),
+    ("clean", "today"),
+    ("old", "today"),
+    ("grey", "today"),
+)
+
+
 def _look_lines(frames: _Frames, old_stitch) -> list[str]:
     """Look distances of every whole slot of the clean frames against both
     overlays, with the looks before and after the fix."""
-    pairs = {
-        (look, a, b): []
-        for look in ("before", "after")
-        for a, b in (("clean", "old"), ("clean", "today"), ("old", "today"))
-    }
+    pairs = {(look, a, b): [] for look in ("before", "after") for a, b in PAIRS}
     for index in range(len(frames.paths)):
-        shown = {s: frames.get(s, index)[0] for s in ("clean", "old", "today")}
+        shown = {s: frames.get(s, index)[0] for s in ("clean", "old", "grey", "today")}
         slots = whole_slots([s for s in find_slots(shown["clean"]) if s.panel == STASH])
         for slot in slots:
             r = slot.rect
@@ -510,7 +525,7 @@ def _look_lines(frames: _Frames, old_stitch) -> list[str]:
                     k: fn(v[r.top : r.bottom, r.left : r.right])
                     for k, v in shown.items()
                 }
-                for a, b in (("clean", "old"), ("clean", "today"), ("old", "today")):
+                for a, b in PAIRS:
                     la, lb = looks[a], looks[b]
                     if la is None or lb is None:
                         pairs[look, a, b].append((None, None))
@@ -690,6 +705,9 @@ PLAN = [
     ("a5", "after", "copy", "today"),
     ("a6", "after", "copy", "changing"),
     ("a7", "after", "mid", "today"),
+    ("b7", "before", "empty", "grey-colour"),
+    ("a8", "after", "empty", "grey-colour"),
+    ("a9", "after", "copy", "grey-colour"),
 ]
 # On frames as captured: no badges drawn over, no map begun mid-stash
 CAPTURED_PLAN = [
@@ -790,7 +808,9 @@ def restart_replay(args) -> int:
     lines += [
         "Runs (each a fresh store on its own copy, frames observed in name order).",
         "clean: the frames as captured. today: today's overlay. changing: old",
-        "overlay on even frames, today's on odd ones. empty: an empty database.",
+        "overlay on even frames, today's on odd ones. grey-colour: the grey",
+        "overlay (step 21's grey patches, tags N/M) on even frames, today's",
+        "(colour patches, tags N+/M) on odd ones. empty: an empty database.",
         "copy: the copied database. mid: the map begun mid-stash above.",
         f"{reference.key} is the reference the rows are counted in.",
         *(f"  {r.label}" for r in runs),
