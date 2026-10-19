@@ -49,6 +49,7 @@ OVERLAY_COOLDOWN=2.0             # Minimum time between showing same item (secon
 TOOLTIP_CHIPS=true               # Show the HOME ONLY chip (extra parts from the Speranza recycler) beside the game tooltip
 ADVICE_CARD=true                 # Show the advice card in the LOADOUT panel box (false = the older text popup)
 STASH_BADGES=true                # Draw the worth patch and have/need tag on every recognized stash slot
+COLLECTIONS_ICONS=true           # Draw a greyed icon in each empty Collections cell (independent of STASH_BADGES)
 STASH_BADGE_KEEP_BORDER=true     # Draw the gold frame badges (false keeps the patches and tags, drops the frames)
 SHOW_ENDED_PROJECTS=false        # Count needs from projects whose end date has passed
 
@@ -91,6 +92,7 @@ Settings the file does not list use the defaults shown above.
 - `TOOLTIP_CHIPS` controls one chip beside the game tooltip: **HOME ONLY**, shown when part of an item's recycle output comes only from the Speranza recycler. It is lined up with the game's own Recycles into icons. The sell price chip and the verdict chip were removed on 17 Oct, because the game shows the price and the advice card gives the advice.
 - `ADVICE_CARD` draws the advice card. Set it to `false` for the older text popup in the corner, which uses `OVERLAY_X`, `OVERLAY_Y` and `OVERLAY_DISPLAY_TIME`.
 - `STASH_BADGES` draws a patch on each recognized stash slot with the worth of its stack, coloured from red (cheap) through yellow and green to a deep gold from 5,000. Items a quest, project or bench wants also get a have/need tag, red when short and a green check when enough. While the saved stash map is partial the tag reads `N+/M`.
+- `COLLECTIONS_ICONS` draws a greyed icon of the blueprint in each empty cell of the Collections screen. It has no link to `STASH_BADGES`, so either can be on or off alone. The icons hide while the cursor is on a found cell, where the game shows its own tooltip, and come back when it leaves.
 - The saved stash map lives in `arlo_user.db` and fills from one stepwise scroll of the stash from the top. It is kept between sessions.
 - `SHOW_STATUS_WINDOW` is a debug aid and is off by default. Without it, quit with Ctrl+C in the terminal or `pkill -f arc-helper`.
 
