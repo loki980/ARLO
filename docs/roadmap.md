@@ -621,9 +621,9 @@ Will contain:
 
 ## Known follow-ups
 
-- The greyed Collections icons have no setting of their own (they draw with
-  STASH_BADGES off), can draw over a game tooltip for up to one 2 s look,
-  and a narrow race can leave them up after pause. Added 18 Oct.
+- Done 18 Oct: the greyed Collections icons have their own setting
+  (COLLECTIONS_ICONS), hide while the cursor is on a found cell where the
+  game shows its tooltip, and can no longer stay up after pause.
 
 - Done 18 Oct: docs/ITEMS.md says where KEEP SOME's owned count comes from.
 
