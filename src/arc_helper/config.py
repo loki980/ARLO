@@ -249,6 +249,13 @@ class OverlaySettings(BaseSettings):
         validation_alias="STASH_BADGES",
         description="Draw a price on every identified stash slot while the grid is still",
     )
+    # Read from COLLECTIONS_ICONS. False turns off the greyed icons in the empty
+    # Collections cells, whatever STASH_BADGES says
+    collections_icons: bool = Field(
+        default=True,
+        validation_alias="COLLECTIONS_ICONS",
+        description="Draw a greyed icon in each empty Collections cell",
+    )
     # Read from STASH_BADGE_KEEP_BORDER. False keeps the prices, drops the gold
     stash_badge_keep_border: bool = Field(
         default=True,
@@ -436,6 +443,7 @@ class Settings(BaseSettings):
             f"TOOLTIP_CHIPS={str(self.overlay.tooltip_chips).lower()}",
             f"ADVICE_CARD={str(self.overlay.advice_card).lower()}",
             f"STASH_BADGES={str(self.overlay.stash_badges).lower()}",
+            f"COLLECTIONS_ICONS={str(self.overlay.collections_icons).lower()}",
             f"STASH_BADGE_KEEP_BORDER={str(self.overlay.stash_badge_keep_border).lower()}",
             f"SHOW_ENDED_PROJECTS={str(self.show_ended_projects).lower()}",
             "",
