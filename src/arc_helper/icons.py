@@ -26,6 +26,20 @@ class IconDownloadError(RuntimeError):
     """A blueprint icon could not be downloaded or saved."""
 
 
+def cached_blueprint_icon(
+    item_id: str | None, cache_dir: Path | None = None
+) -> Path | None:
+    """Path of the cached icon for an arctracker item id, None when not cached.
+
+    Never downloads, so the scan thread may call it. A missing or malformed
+    id is None too. cache_dir defaults to the configured icon_cache_dir.
+    """
+    if not _ITEM_ID.fullmatch(item_id or ""):
+        return None
+    path = Path(cache_dir or get_settings().icon_cache_dir) / f"{item_id}.png"
+    return path if path.is_file() else None
+
+
 def blueprint_icon_path(item_id: str, cache_dir: Path | None = None) -> Path:
     """Path of the cached icon for an arctracker item id, downloading it once.
 

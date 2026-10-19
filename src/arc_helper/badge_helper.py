@@ -1,4 +1,4 @@
-"""Badge surface helper: draws gold borders, tags and bar patches over the game.
+"""Badge surface helper: draws gold borders, tags, bar patches and icons over the game.
 
 Runs under the system Python (it needs gi with GTK 3, cairo and python-xlib,
 which ARLO's own environment does not have), so it imports nothing from
@@ -20,6 +20,10 @@ translate moves every drawn badge whose rect's centre lies inside region
 down by dy px (up when negative), drops a moved badge that no longer meets
 the region and draws the rest clipped to it (translate_badges).
 
+An icon badge names a PNG file by its path. The helper loads it once, keeps
+it greyed in a cache by path and draws it under every other kind. A missing
+or unreadable file is skipped with one DEBUG line.
+
 PNG mode (--png OUT --size W H) reads the messages on stdin, applies them in
 order and draws the result with the same cairo code onto a transparent
 W x H PNG, with no display.
@@ -29,6 +33,7 @@ import argparse
 import ctypes
 import ctypes.util
 import json
+import logging
 import math
 import os
 import sys
@@ -66,10 +71,14 @@ PATCH_PAD = 8
 # where the game's count sits (9.5 px on the 44 px bar)
 PATCH_BASELINE_SHARE = 0.216
 PATCH_ICON_GAP = 4
-# Draw order: patches first, then tags, then borders on top
-DRAW_ORDER = {"patch": 0, "tag": 1, "border": 2}
+# Draw order: greyed icons first, then patches, then tags, then borders on top
+DRAW_ORDER = {"icon": -1, "patch": 0, "tag": 1, "border": 2}
 KINDS = set(DRAW_ORDER)
 RAISE_MS = 1000
+
+LOG = logging.getLogger("badge_helper")
+# Greyed icon surfaces by file path, None for a file that could not be loaded
+_ICONS: dict[str, object] = {}
 
 
 def parse_color(text: str) -> tuple[float, float, float, float]:
@@ -125,6 +134,9 @@ def _parsed(message: dict) -> tuple[str, list[dict]]:
             <= badge.keys()
         ):
             msg = "a patch needs icon_right, patch_right and colour"
+            raise ValueError(msg)
+        if badge["kind"] == "icon" and not isinstance(badge.get("path"), str):
+            msg = "an icon needs the path of its file"
             raise ValueError(msg)
     return op, badges
 
@@ -399,11 +411,73 @@ def _draw_patch(cr, badge: dict, family: str) -> None:
     text.draw_on_baseline(left + PATCH_PAD, baseline)
 
 
+def icon_surface(path: str):
+    """The PNG at path in luminance only, loaded once and cached by path.
+
+    None, with one DEBUG line, when the file is missing or unreadable. The
+    None is cached too, so a bad file is not retried on every redraw.
+    """
+    if path in _ICONS:
+        return _ICONS[path]
+    import cairo
+
+    try:
+        image = cairo.ImageSurface.create_from_png(path)
+        width, height = image.get_width(), image.get_height()
+        grey = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        cr = cairo.Context(grey)
+        cr.set_source_surface(image, 0, 0)
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.paint()
+        # An opaque grey source of no saturation keeps each pixel's luminance
+        # only, then the image's own alpha is put back
+        cr.set_source_rgb(0.5, 0.5, 0.5)
+        cr.set_operator(cairo.OPERATOR_HSL_SATURATION)
+        cr.paint()
+        cr.set_source_surface(image, 0, 0)
+        cr.set_operator(cairo.OPERATOR_DEST_IN)
+        cr.paint()
+        grey.flush()
+    except Exception as e:  # noqa: BLE001 - a bad icon is skipped, never fatal
+        LOG.debug("badge helper: icon %s skipped (%s)", path, e)
+        grey = None
+    _ICONS[path] = grey
+    return grey
+
+
+def _draw_icon(cr, badge: dict) -> None:
+    """The badge's icon greyed at its alpha, fitted and centred inside its inset rect."""
+    import cairo
+
+    image = icon_surface(badge["path"])
+    if image is None:
+        return
+    left, top, right, bottom = badge["rect"]
+    inset = min(max(float(badge.get("inset", 0.12)), 0.0), 0.49)
+    box_w = (right - left) * (1 - 2 * inset)
+    box_h = (bottom - top) * (1 - 2 * inset)
+    width, height = image.get_width(), image.get_height()
+    if box_w <= 0 or box_h <= 0 or width <= 0 or height <= 0:
+        return
+    scale = min(box_w / width, box_h / height)
+    x = (left + right - width * scale) / 2
+    y = (top + bottom - height * scale) / 2
+    cr.save()
+    cr.translate(x, y)
+    cr.scale(scale, scale)
+    cr.set_source_surface(image, 0, 0)
+    cr.get_source().set_filter(cairo.FILTER_GOOD)
+    cr.rectangle(0, 0, width, height)
+    cr.clip()
+    cr.paint_with_alpha(min(max(float(badge.get("alpha", 0.35)), 0.0), 1.0))
+    cr.restore()
+
+
 def draw_badges(cr, badges: list[dict], family: str = FONT_FAMILY) -> None:
     """Clear the surface to transparent and draw every badge.
 
-    Patches go first, then tags, then borders, so an outline is never hidden
-    under a fill. Badges of one kind keep their message order.
+    Icons go first, then patches, then tags, then borders, so an outline is
+    never hidden under a fill. Badges of one kind keep their message order.
     """
     import cairo
 
@@ -423,6 +497,8 @@ def draw_badges(cr, badges: list[dict], family: str = FONT_FAMILY) -> None:
             _draw_border(cr, badge)
         elif badge["kind"] == "patch":
             _draw_patch(cr, badge, family)
+        elif badge["kind"] == "icon":
+            _draw_icon(cr, badge)
         else:
             _draw_tag(cr, badge, family)
         if clip is not None:

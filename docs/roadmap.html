@@ -156,28 +156,26 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <h1>ARLO Overlay Roadmap</h1>
     <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 18 October 2026.</p>
   </div>
-  <div class="capacity"><b>4 / 8</b>phases done</div>
+  <div class="capacity"><b>5 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 76 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~76%</span></div>
-  <div class="track"><i style="width:76%"></i></div>
-  <small>62 of 69 steps done, 4 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 82 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~82%</span></div>
+  <div class="track"><i style="width:82%"></i></div>
+  <small>65 of 70 steps done, 5 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>4 / 8</b><span>phases done</span><small>phases 0, 1, 3 and 4 done</small></div>
-  <div><b>62 / 69</b><span>steps done</span><small>across all eight phases</small></div>
-  <div><b>738</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
+  <div><b>5 / 8</b><span>phases done</span><small>phases 0, 1, 3, 4 and 4b done</small></div>
+  <div><b>65 / 70</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>786</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 56 of 56 after the reader bake-off (14 Oct)</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
   <ul>
-    <li><span class="nowmark">NOW</span><span><a href="#phase5">Phase 5, step 4, Use it</a><small>"You have N" and "N more needed" on the advice card, from your saved stash and loadout</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4b">Phase 4b, step 3, Hover assist</a><small>Hover an empty Collections cell to see that blueprint and where to find it</small></span></li>
-    <li><span class="nowmark">NOW</span><span><a href="#phase4b">Phase 4b, step 4, Greyed icons in the empty cells</a><small>Each missing blueprint drawn faintly in its empty cell</small></span></li>
+    <li><span class="nowmark">NOW</span><span><a href="#phase5">Phase 5, step 6, The map keeps building after a restart</a><small>Your scroll was not recorded: ARLO now anchors on the top of the stash and ignores its own tags when matching tiles</small></span></li>
   </ul>
 </section>
 
@@ -324,37 +322,20 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase" id="phase4b">
-    <div class="slot now">4b</div>
+    <div class="slot done">4b</div>
     <article class="card" data-tab="Phase 4b · added 11 Oct">
-      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from <time datetime="2026-10-11" data-rel>11 Oct</time></span><span class="when recent">added <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
+      <div class="tags"><span class="tag done">Done</span><span class="dates"><time datetime="2026-10-11" data-rel>11 Oct</time> to <time datetime="2026-10-18" data-rel>18 Oct</time></span><span class="when recent">added <time datetime="2026-10-11" data-rel>11 Oct</time></span></div>
       <h2>Blueprint tracker</h2>
       <p>Your Collections screen shows 25 of 91 found (15 Oct). Reading that screen once also tells ARLO which blueprints you own, so the weapon rule stops guessing.</p>
-      <div class="gauge" aria-label="Phase 4b about 50 percent done">
-        <div class="bar"><i style="width:50%"></i></div>
-        <div class="read">~50%<small>2 of 4 steps</small></div>
-      </div>
-      <div class="nowsteps">
-        <h3>Working on now</h3>
+      <details>
+        <summary><span class="chev">▸</span><span class="show">Show the 4 steps</span><span class="hide">Hide the 4 steps</span></summary>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 3, Hover assist<small>Name and best places to find it, on the advice card</small></span><span class="when recent">started <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 4, Greyed icons in the empty cells<small>Needs the overlay surface from phase 4</small></span><span class="when recent">started <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 1, Blueprint data<small>All 91 blueprints with icons, the Collections grid order (it matched every one of your 20 found cells), where to find them, and a private record of which you own</small></span><span class="when recent">done <time datetime="2026-10-12" data-rel>12 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 2, Read the Collections screen<small>Your screenshot reads FOUND 25/91. ARLO now reads the screen whenever you open it and records your blueprints</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 3, Hover assist<small>Hover an empty cell to see the blueprint, its map, containers and rewards</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="done"><span class="tick">✓</span><span class="what">Step 4, Greyed icons in the empty cells<small>Every missing blueprint drawn faintly in its empty cell, 63 of 66 on your screen</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
         </ul>
-      </div>
-      <div class="split">
-        <div>
-          <h3>Done</h3>
-          <ul class="steps">
-            <li class="done"><span class="tick">✓</span><span class="what">Step 1, Blueprint data<small>All 91 blueprints with icons, the Collections grid order (it matched every one of your 20 found cells), where to find them, and a private record of which you own</small></span><span class="when recent">done <time datetime="2026-10-12" data-rel>12 Oct</time></span></li>
-            <li class="done"><span class="tick">✓</span><span class="what">Step 2, Read the Collections screen<small>Your screenshot reads FOUND 25/91. ARLO now reads the screen whenever you open it and records your blueprints</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-          </ul>
-        </div>
-        <div>
-          <h3>Ahead, in order</h3>
-          <ul class="steps">
-            <li class="todo"><span class="tick">○</span><span class="what">Nothing left ahead</span><span class="when"></span></li>
-          </ul>
-        </div>
-      </div>
+      </details>
     </article>
   </li>
 
@@ -364,14 +345,14 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
       <div class="tags"><span class="tag now">Working on now</span><span class="dates">from <time datetime="2026-10-15" data-rel>15 Oct</time></span><span class="when recent">moved up <time datetime="2026-10-15" data-rel>15 Oct</time></span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
-      <div class="gauge" aria-label="Phase 5 about 80 percent done">
-        <div class="bar"><i style="width:80%"></i></div>
-        <div class="read">~80%<small>4 of 5 steps</small></div>
+      <div class="gauge" aria-label="Phase 5 about 85 percent done">
+        <div class="bar"><i style="width:85%"></i></div>
+        <div class="read">~85%<small>5 of 6 steps</small></div>
       </div>
       <div class="nowsteps">
         <h3>Working on now</h3>
         <ul class="steps">
-          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 4, Use it<small>Use it on the advice card: You have N and keep N more, from the same totals the tags use</small></span><span class="when recent">started <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 6, The map keeps building after a restart<small>None of your scroll's frames placed. ARLO will anchor on the top of the stash and leave its own tags out when matching tiles</small></span><span class="when recent">added <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
         </ul>
       </div>
       <div class="split">
@@ -382,6 +363,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
             <li class="done"><span class="tick">✓</span><span class="what">Step 2, Stitch the stash across scrolling<small>Your 67 frames stitched into one map, now saved between sessions and updated whenever rows are seen. A restart's first pass takes 78 ms instead of 845</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 3, The ledger<small>Your saved stash map and loadout counted together in the have/need tags. Durable Cloth went from 3/6 to 54/6</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
             <li class="done"><span class="tick">✓</span><span class="what">Step 5, An unsure flag<small>A partial stash map still counts in the tags, shown as "52+/73" until one full scroll makes it sure</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 4, Use it<small>The advice card says "You have 51" and "then sell 45", "N+" while the map is partial</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
           </ul>
         </div>
         <div>
@@ -467,6 +449,8 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>The roadmap was checked against the code and outdated steps were dropped: the chip checks in phase 1 are gone and phase 1 is finished. Worth at a glance was merged, which finishes phase 4. Nothing is underway right now.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: worth at a glance (greys, white from 5,000). Started: worth in colour, red to yellow to green to gold, at your ask. The roadmap was checked against the code and outdated steps dropped. 728 tests.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: worth in colour (red to yellow to green, deep gold from 5,000) and the unsure flag (a partial stash map counts, shown as "52+/73"). Phase 4 is done. 738 tests.</span></li>
+  <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: hover an empty Collections cell for the blueprint and where to find it, and the advice card's "You have N". Started: greyed blueprint icons, and the stash map that keeps building after a restart. 771 tests.</span></li>
+  <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: greyed blueprint icons in the empty Collections cells. The blueprint tracker is done. 786 tests.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

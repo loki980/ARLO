@@ -16,6 +16,7 @@ from arc_helper.badge_helper import draw_scale
 from arc_helper.badge_helper import parse_message
 from arc_helper.badge_surface import BadgeSurface
 from arc_helper.badge_surface import Border
+from arc_helper.badge_surface import Icon
 from arc_helper.badge_surface import Patch
 from arc_helper.badge_surface import Tag
 from arc_helper.badge_surface import encode_message
@@ -245,6 +246,103 @@ def test_border_stays_on_top_of_a_patch_sent_after_it(tmp_path):
     assert image.getpixel((1, 170)) == (*GOLD, 255)
     # Just inside the stroke, the patch fill shows
     assert image.getpixel((5, 170)) == (*BAR_COLOUR, 255)
+
+
+def _red_icon(tmp_path):
+    path = tmp_path / "red.png"
+    Image.new("RGBA", (40, 40), (255, 0, 0, 255)).save(path)
+    return str(path)
+
+
+def test_icon_message_round_trips_and_draws_under_every_other_kind(tmp_path):
+    path = _red_icon(tmp_path)
+    _op, parsed = parse_message(encode_message("draw", [Icon((0, 0, 100, 100), path)]))
+    assert parsed == [
+        {
+            "kind": "icon",
+            "rect": [0, 0, 100, 100],
+            "path": path,
+            "alpha": 0.35,
+            "inset": 0.12,
+        }
+    ]
+    order = badge_helper.DRAW_ORDER
+    assert order["icon"] < min(order["patch"], order["tag"], order["border"])
+    with pytest.raises(ValueError, match="path"):
+        parse_message('{"op": "draw", "badges": [{"kind": "icon", "rect": [0,0,1,1]}]}')
+
+
+def test_icon_is_greyed_dimmed_and_inset_under_the_border(tmp_path):
+    # A pure red icon in a 100 px cell with its border: red's luminance is
+    # 0.3 * 255, the alpha 0.35 * 255, the 12 px inset stays clear
+    image = _render(
+        tmp_path,
+        [Border((0, 0, 100, 100)), Icon((0, 0, 100, 100), _red_icon(tmp_path))],
+    )
+    r, g, b, a = image.getpixel((50, 50))
+    assert r == g == b
+    assert abs(r - 77) <= 2
+    assert abs(a - 89) <= 2
+    assert image.getpixel((13, 50))[3] > 0
+    assert image.getpixel((10, 50))[3] == 0
+    assert image.getpixel((50, 10))[3] == 0
+    # The border's stroke is untouched by the icon
+    assert image.getpixel((1, 50)) == (*GOLD, 255)
+    assert image.getpixel((50, 1)) == (*GOLD, 255)
+
+
+def test_missing_or_unreadable_icon_is_skipped(tmp_path):
+    bad = tmp_path / "bad.png"
+    bad.write_bytes(b"not a png")
+    image = _render(
+        tmp_path,
+        [
+            Icon((0, 0, 100, 100), str(tmp_path / "missing.png")),
+            Icon((100, 0, 200, 100), str(bad)),
+            Border((0, 100, 100, 200)),
+        ],
+    )
+    assert image.getpixel((50, 50))[3] == 0
+    assert image.getpixel((150, 50))[3] == 0
+    assert image.getpixel((1, 150)) == (*GOLD, 255)
+
+
+ICON_CACHE_CHECK = """
+import logging, sys
+sys.path.insert(0, sys.argv[1])
+import badge_helper
+records = []
+handler = logging.Handler()
+handler.emit = records.append
+badge_helper.LOG.addHandler(handler)
+badge_helper.LOG.setLevel(logging.DEBUG)
+good, missing = sys.argv[2], sys.argv[3]
+assert badge_helper.icon_surface(good) is badge_helper.icon_surface(good)
+assert badge_helper.icon_surface(good) is not None
+assert badge_helper.icon_surface(missing) is None
+assert badge_helper.icon_surface(missing) is None
+assert [r.levelno for r in records] == [logging.DEBUG], records
+"""
+
+
+def test_helper_caches_icons_by_path_and_logs_a_bad_one_once(tmp_path):
+    python = find_system_python()
+    if python is None:
+        pytest.skip("no system Python with gi, cairo and Xlib")
+    result = subprocess.run(
+        [
+            python,
+            "-c",
+            ICON_CACHE_CHECK,
+            str(badge_surface.HELPER.parent),
+            _red_icon(tmp_path),
+            str(tmp_path / "missing.png"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_scale_maps_physical_px_onto_the_window():

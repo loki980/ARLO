@@ -30,16 +30,21 @@ from dotenv import load_dotenv
 
 from arc_helper import layout_home
 from arc_helper.advice_card import AdviceCard
+from arc_helper.advice_card import BlueprintCard
 from arc_helper.advice_card import build_advice_card
+from arc_helper.advice_card import build_blueprint_card
 from arc_helper.advice_card import needed_parts
 from arc_helper.advice_window import AdviceWindow
 from arc_helper.badge_surface import Badge
 from arc_helper.badge_surface import BadgeSurface
 from arc_helper.badge_surface import Border
+from arc_helper.badge_surface import Icon
 from arc_helper.badge_surface import Patch
 from arc_helper.badge_surface import Tag
 from arc_helper.cell_border import CellBorder
 from arc_helper.clickthrough import make_click_through
+from arc_helper.collections_screen import CollectionsCell
+from arc_helper.collections_screen import cell_at
 from arc_helper.collections_screen import read_collections
 from arc_helper.collections_screen import record_collections
 from arc_helper.config import APP_DIR
@@ -51,6 +56,7 @@ from arc_helper.config import get_settings
 from arc_helper.config import logger
 from arc_helper.database import FIELD
 from arc_helper.database import HOME
+from arc_helper.database import Blueprint
 from arc_helper.database import Database
 from arc_helper.database import Item
 from arc_helper.database import RecycleOutput
@@ -72,6 +78,7 @@ from arc_helper.hovered_cell import snap_to_slot
 from arc_helper.icon_embed import EmbedGallery
 from arc_helper.icon_embed import build_gallery
 from arc_helper.icon_embed import default_embedder
+from arc_helper.icons import cached_blueprint_icon
 from arc_helper.inventory_header import read_loadout_header
 from arc_helper.inventory_header import read_stash_header
 from arc_helper.inventory_ledger import Owned
@@ -94,6 +101,7 @@ from arc_helper.resolution_profiles import get_profile_manager
 from arc_helper.screen import ScreenCaptureUnavailable
 from arc_helper.screen import get_backend
 from arc_helper.slot_marks import learned_check
+from arc_helper.slot_marks import read_stack
 from arc_helper.stash_map import FIRST
 from arc_helper.stash_map import LOOKS
 from arc_helper.stash_map import SCROLL
@@ -139,6 +147,10 @@ NO_CARD_SLEEP_CAP_S = 0.1
 TRIGGER_RECHECK_S = 1.0
 # Seconds between looks for the Collections screen (BLUEPRINTS tab) while IDLE
 COLLECTIONS_CHECK_S = 2.0
+# The greyed blueprint icon in each empty Collections cell: its alpha, and its
+# inset inside the cell as a share of the cell's size, clear of the border
+COLLECTIONS_ICON_ALPHA = 0.35
+COLLECTIONS_ICON_INSET = 0.12
 # ACTIVE ends on a lost trigger only once the rechecks have missed for this
 # many seconds in a row (and on at least two rechecks). One hit resets it
 TRIGGER_LOST_S = 2.0
@@ -363,14 +375,29 @@ class HoveredSlot(NamedTuple):
 
     frame is None when no hovered cell was found. learned is the learned
     blueprint check read on the snapped slot (slot_marks.learned_check),
-    None when it was not read or could not be judged.
+    None when it was not read or could not be judged. stack is the xN count
+    read from the snapped slot (slot_marks.read_stack), None when it was not
+    read or the slot shows none.
     """
 
     frame: Rect | None
     learned: bool | None
+    stack: int | None = None
 
 
 NO_HOVERED_SLOT = HoveredSlot(None, None)
+
+
+class OwnedCount(NamedTuple):
+    """The owned count of one item for the verdict and the advice card.
+
+    sure is False when the count is a lower bound (the stash map is partial).
+    """
+
+    count: int
+    sure: bool
+
+
 # _queue_chips locates the frame itself when no frame is passed
 LOCATE_FRAME = object()
 
@@ -382,6 +409,7 @@ def hovered_slot_on_screen(
     ignore_phys: Sequence[Rect],
     *,
     read_check: bool = False,
+    read_count: bool = False,
 ) -> HoveredSlot:
     """Find the hovered slot in a cursor capture, framed in physical screen px.
 
@@ -391,8 +419,8 @@ def hovered_slot_on_screen(
     to the slot under it among grid.find_slots in the same capture
     (hovered_cell.snap_to_slot), so the frame covers the whole slot, and
     the ring box stays without a matching slot. With read_check the
-    snapped slot's learned blueprint check is read. Runs on the scan
-    thread.
+    snapped slot's learned blueprint check is read, and with read_count its
+    stack count, from the capture already taken. Runs on the scan thread.
     """
     if capture is None or origin is None or card is None:
         return NO_HOVERED_SLOT
@@ -403,6 +431,10 @@ def hovered_slot_on_screen(
     learned = None
     if read_check and slot is not None:
         learned = learned_check(rgb, slot.rect)
+    stack = None
+    if read_count and slot is not None:
+        r = slot.rect
+        stack = read_stack(rgb[r.top : r.bottom, r.left : r.right])
     logger.debug(
         "border search found=%s slot=%s learned=%s duration=%.1f ms",
         "yes" if cell is not None else "no",
@@ -413,7 +445,7 @@ def hovered_slot_on_screen(
     if cell is None:
         return NO_HOVERED_SLOT
     frame = slot.rect if slot is not None else cell
-    return HoveredSlot(to_screen(frame, origin), learned)
+    return HoveredSlot(to_screen(frame, origin), learned, stack)
 
 
 def hovered_cell_on_screen(
@@ -2171,6 +2203,17 @@ class Scanner:
     # while ACTIVE through the inventory trigger. None turns them off
     stash: StashBadges | None = None
 
+    # The stash ledger behind the stash badges, read for the owned count of
+    # the hovered item. None without STASH_BADGES, the owned count stays None
+    ledger: StashLedger | None = None
+    # The badge surface, shared with the stash badges. The stash draws on it
+    # only while ACTIVE and is cleared on every way out of ACTIVE, the
+    # Collections icons only while IDLE and are cleared on every way into
+    # it. None turns the icons off. The icons come from icon_cache_dir
+    # (None for the configured one) and are never downloaded here
+    badge_surface: BadgeSurface | None = None
+    icon_cache_dir: Path | None = None
+
     # Cooldown tracking
     _last_shown_item: str = ""
     _last_shown_time: float = 0
@@ -2214,6 +2257,17 @@ class Scanner:
     _collections_open: bool = False
     _collections_recorded: bool = False
     _collections_warned: bool = False
+    # The hover assist: the cells of this visit's last consistent read (the
+    # latest read until one is), the grid index and card title of the empty
+    # cell whose card the assist shows, and the blueprint catalog by name,
+    # loaded once a visit
+    _collections_cells: list[CollectionsCell] = field(default_factory=list)
+    _collections_hover: tuple[int, str] | None = None
+    _collections_catalog: dict[str, Blueprint] | None = None
+    # The greyed icons drawn in the empty cells now, and whether this scanner
+    # has started the badge surface
+    _collections_icons: list[Icon] = field(default_factory=list)
+    _badge_surface_started: bool = False
 
     # Thread control
     _running: bool = False
@@ -2244,6 +2298,7 @@ class Scanner:
             self.state = ScannerState.STOPPED
             self._hide_card_windows()
         self._clear_stash("stopped")
+        self._clear_collections_icons()
         if self._scan_thread:
             self._scan_thread.join(timeout=2.0)
         self.hotkey.stop()
@@ -2257,6 +2312,7 @@ class Scanner:
             if was_active:
                 self._hide_card_windows()
         self._clear_stash("paused")
+        self._clear_collections_icons()
 
     def resume(self) -> None:
         """Resume scanning."""
@@ -2286,6 +2342,8 @@ class Scanner:
                     if hotkey_now:
                         # Hotkey pressed - enter active mode via override
                         self._hotkey_override = True
+                        self._end_collections_hover()
+                        self._clear_collections_icons()
                         self.state = ScannerState.ACTIVE
                         self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=hotkey")
@@ -2296,6 +2354,8 @@ class Scanner:
                     ):
                         # Trigger detected! Switch to active mode
                         self._hotkey_override = False
+                        self._end_collections_hover()
+                        self._clear_collections_icons()
                         self.state = ScannerState.ACTIVE
                         self._reset_scan_timing()
                         logger.debug("state IDLE -> ACTIVE reason=inventory_trigger")
@@ -2304,9 +2364,11 @@ class Scanner:
                     else:
                         # Look for the Collections screen at most every
                         # COLLECTIONS_CHECK_S, inside the wait before the next
-                        # trigger scan so the trigger keeps its timing
+                        # trigger scan so the trigger keeps its timing. The
+                        # hover assist looks at the cursor on every round
                         began = time.monotonic()
                         self._check_collections(began)
+                        self._check_collections_hover()
                         spent = time.monotonic() - began
                         time.sleep(
                             max(0.0, settings.scan.trigger_scan_interval - spent)
@@ -2379,8 +2441,16 @@ class Scanner:
             self._collections_open = False
             self._collections_recorded = False
             self._collections_warned = False
+            self._collections_cells = []
+            self._collections_catalog = None
+            self._end_collections_hover()
+            self._clear_collections_icons()
             return
         self._collections_open = True
+        if read.consistent or not self._collections_cells:
+            self._collections_cells = read.cells
+        if read.consistent:
+            self._show_collections_icons(read.cells)
         if self._collections_recorded:
             return
         if not read.consistent:
@@ -2402,6 +2472,118 @@ class Scanner:
             recorded,
             unknown,
         )
+
+    def _check_collections_hover(self) -> None:
+        """Show the blueprint card while the cursor is over an empty cell.
+
+        Runs on every IDLE round. Only the cursor is read: it is matched to
+        the cells of the last read, so the hover costs no capture or OCR.
+        Over an empty cell the advice card shows that blueprint and where to
+        find it, and is touched on later rounds to stay up. Over a found
+        cell, between cells, off the grid or off the screen the assist's
+        card hides. Needs the advice card (ADVICE_CARD on).
+        """
+        if not self.advice_card:
+            return
+        if not self._collections_open or not self._collections_cells:
+            self._end_collections_hover()
+            return
+        try:
+            at = get_backend().cursor_position()
+        except Exception:  # noqa: BLE001 - no cursor this round, try the next
+            return
+        cell = cell_at(self._collections_cells, Point(at.x, at.y))
+        if cell is None or cell.found:
+            self._end_collections_hover()
+            return
+        if self._collections_hover is not None:
+            shown, title = self._collections_hover
+            if shown == cell.grid_index:
+                self.ui_queue.put(("touch", title, self._hold_ms))
+                return
+        card = self._blueprint_card_for(cell.grid_index)
+        self._collections_hover = (cell.grid_index, card.title)
+        logger.debug("collections hover slot=%d %s", cell.grid_index, card.title)
+        self.ui_queue.put(("advice", card.title, card, self._hold_ms))
+
+    def _blueprint_card_for(self, grid_index: int) -> BlueprintCard:
+        """The blueprint card for an empty cell, from the catalog (scan thread)."""
+        name = self.db.blueprint_at(grid_index)
+        info = self._catalog().get(name.casefold()) if name else None
+        return build_blueprint_card(grid_index, name, info)
+
+    def _catalog(self) -> dict[str, Blueprint]:
+        """The blueprint catalog by casefolded name, loaded once a visit."""
+        if self._collections_catalog is None:
+            self._collections_catalog = {
+                row.name.casefold(): row for row in self.db.blueprint_catalog()
+            }
+        return self._collections_catalog
+
+    def _collections_icon_badges(self, cells: list[CollectionsCell]) -> list[Icon]:
+        """A greyed icon for each empty named cell whose icon is cached.
+
+        Found cells, unnamed slots and blueprints without an item id or a
+        cached icon get none. Only the cache is looked at, nothing downloads.
+        """
+        icons = []
+        for cell in cells:
+            if cell.found:
+                continue
+            name = self.db.blueprint_at(cell.grid_index)
+            info = self._catalog().get(name.casefold()) if name else None
+            path = cached_blueprint_icon(
+                info.item_id if info is not None else None, self.icon_cache_dir
+            )
+            if path is None:
+                continue
+            rect = cell.rect
+            icons.append(
+                Icon(
+                    (rect.left, rect.top, rect.right, rect.bottom),
+                    str(path),
+                    alpha=COLLECTIONS_ICON_ALPHA,
+                    inset=COLLECTIONS_ICON_INSET,
+                )
+            )
+        return icons
+
+    def _show_collections_icons(self, cells: list[CollectionsCell]) -> None:
+        """Draw the empty cells' greyed icons, once for each read that changes them.
+
+        Called only while IDLE, when the stash badges have nothing drawn. A
+        read whose icons match those drawn sends nothing.
+        """
+        if self.badge_surface is None or self.state != ScannerState.IDLE:
+            return
+        icons = self._collections_icon_badges(cells)
+        if icons == self._collections_icons:
+            return
+        if not icons:
+            self._clear_collections_icons()
+            return
+        if not self._badge_surface_started:
+            self._badge_surface_started = True
+            self.badge_surface.start()
+        self._collections_icons = icons
+        self.badge_surface.draw(list(icons))
+        logger.debug("collections icons drawn icons=%d", len(icons))
+
+    def _clear_collections_icons(self) -> None:
+        """Remove the Collections icons if any are drawn. Stash badges are left alone."""
+        if not self._collections_icons or self.badge_surface is None:
+            return
+        self._collections_icons = []
+        self.badge_surface.clear()
+        logger.debug("collections icons cleared")
+
+    def _end_collections_hover(self) -> None:
+        """Hide the assist's card if it shows one. Item cards are left alone."""
+        if self._collections_hover is None:
+            return
+        logger.debug("collections hover end slot=%d", self._collections_hover[0])
+        self._collections_hover = None
+        self.ui_queue.put(("hide",))
 
     def _reset_scan_timing(self) -> None:
         """Forget scan timing and the shown card on entry to ACTIVE.
@@ -2731,12 +2913,19 @@ class Scanner:
         # The slot under the cursor is found once per shown card. Its frame
         # goes to the chips and its learned check to the verdict
         hovered = self._locate_hovered_slot(recommendation)
+        owned = self._owned_for(recommendation, hovered)
         verdict = self._verdict_for(
-            recommendation, settings.show_ended_projects, hovered.learned
+            recommendation,
+            settings.show_ended_projects,
+            hovered.learned,
+            owned.count if owned else None,
         )
 
         # Show overlay (must be done on main thread)
-        self._show_overlay(shown_name, recommendation, verdict)
+        if owned is None:
+            self._show_overlay(shown_name, recommendation, verdict)
+        else:
+            self._show_overlay(shown_name, recommendation, verdict, owned)
 
         if settings.overlay.tooltip_chips:
             self._queue_chips(
@@ -2789,23 +2978,46 @@ class Scanner:
             getattr(engine, "_last_card", None),
             self.overlay_rects.snapshot(),
             read_check=is_blueprint(recommendation),
+            # The stack is only read for the ledger's lower bound
+            **({"read_count": True} if self.ledger is not None else {}),
         )
         if hovered.learned is not None:
             self.db.set_blueprint_owned(recommendation.name, owned=hovered.learned)
         return hovered
+
+    def _owned_for(
+        self, recommendation: Item | None, hovered: HoveredSlot
+    ) -> OwnedCount | None:
+        """The owned count of the item for its verdict and card, one ledger read.
+
+        None without a ledger, a stored stash map or an item. The count is
+        the stored map plus the loadout by item name. While the map is not
+        sure the count is a lower bound, and the stack read under the cursor
+        raises it when larger (the same rule as the stash tags).
+        """
+        if recommendation is None or self.ledger is None:
+            return None
+        totals = self.ledger.owned()
+        if totals is None:
+            return None
+        count = totals.counts.get(recommendation.name, 0)
+        if not totals.sure and hovered.stack is not None:
+            count = max(count, hovered.stack)
+        return OwnedCount(count, totals.sure)
 
     def _verdict_for(
         self,
         recommendation: Item | None,
         show_ended: bool,  # noqa: FBT001
         learned: bool | None = None,  # noqa: FBT001
+        owned: int | None = None,
     ) -> Verdict:
         """Advice for the item from its needs and the recorded progress.
 
-        The owned count is unknown until the stash ledger exists. Project end
-        dates compare against the local date. learned is the hovered slot's
-        learned blueprint check, and without a read a blueprint falls back to
-        the blueprints recorded as owned.
+        owned is the item's owned count from the stash ledger, None when
+        unknown. Project end dates compare against the local date. learned is
+        the hovered slot's learned blueprint check, and without a read a
+        blueprint falls back to the blueprints recorded as owned.
         """
         today = datetime.datetime.now().astimezone().date()
         if recommendation is None:
@@ -2823,7 +3035,7 @@ class Scanner:
             recommendation,
             self.db.needs_for(recommendation.name),
             self.db.progress_map(),
-            None,
+            owned,
             today,
             show_ended,
             blueprint=self.db.blueprint_for(recommendation.name),
@@ -2834,7 +3046,11 @@ class Scanner:
         )
 
     def _show_overlay(
-        self, item_name: str, recommendation: Item | None, verdict: Verdict
+        self,
+        item_name: str,
+        recommendation: Item | None,
+        verdict: Verdict,
+        owned: OwnedCount | None = None,
     ) -> None:
         """Queue an overlay update for the main (GUI) thread to apply.
 
@@ -2842,7 +3058,7 @@ class Scanner:
         and only rendered and shown on the Tk thread.
         """
         if self.advice_card:
-            card = self._advice_card_for(recommendation, verdict)
+            card = self._advice_card_for(recommendation, verdict, owned)
             self.ui_queue.put(("advice", item_name, card, self._hold_ms))
             return
         self.ui_queue.put(
@@ -2850,13 +3066,16 @@ class Scanner:
         )
 
     def _advice_card_for(
-        self, recommendation: Item | None, verdict: Verdict
+        self,
+        recommendation: Item | None,
+        verdict: Verdict,
+        owned: OwnedCount | None = None,
     ) -> AdviceCard:
         """The advice card for an item and its verdict (scan thread).
 
         A home recycle output counts as still needed when its own verdict is
-        keep or keep_some. The owned count stays None until the stash ledger
-        exists.
+        keep or keep_some. owned is the item's count from the stash ledger,
+        None leaves the card without one.
         """
         if recommendation is None:
             return build_advice_card(verdict, [])
@@ -2874,9 +3093,10 @@ class Scanner:
         return build_advice_card(
             verdict,
             self.db.needs_for(recommendation.name),
-            None,
+            owned.count if owned else None,
             home,
             needed_parts(home, self.db.needs_for, is_needed),
+            owned_sure=owned.sure if owned else True,
         )
 
     def _queue_chips(
@@ -3023,7 +3243,10 @@ class Application:
         self.ui_queue: queue.Queue[tuple] = queue.Queue()
         # Last status applied, so the debug log names only status changes
         self._last_status: str | None = None
-        self.stash = self._make_stash()
+        self.ledger: StashLedger | None = None
+        # One badge surface for the stash badges and the Collections icons
+        self.badge_surface = BadgeSurface()
+        self.stash = self._make_stash(self.badge_surface)
         self.scanner = Scanner(
             root=self.root,
             overlay=self.overlay,
@@ -3032,6 +3255,9 @@ class Application:
             ui_queue=self.ui_queue,
             advice_card=self.advice is not None,
             stash=self.stash,
+            ledger=self.ledger,
+            badge_surface=self.badge_surface,
+            icon_cache_dir=self.settings.icon_cache_dir,
         )
         self.overlay_rects = self.scanner.overlay_rects
 
@@ -3048,13 +3274,14 @@ class Application:
             return None
         return StatusWindow(self.root, on_quit=self.quit)
 
-    def _make_stash(self) -> StashBadges | None:
-        """The stash badges per STASH_BADGES, None when turned off."""
+    def _make_stash(self, surface: BadgeSurface) -> StashBadges | None:
+        """The stash badges per STASH_BADGES on surface, None when turned off."""
         overlay = self.settings.overlay
         if not overlay.stash_badges:
             return None
         try:
             ledger = StashLedger(self.db)
+            self.ledger = ledger
         except Exception:  # noqa: BLE001 - without it the tags count the slots on screen
             logger.warning("stash ledger off", exc_info=True)
             ledger = None
@@ -3065,7 +3292,7 @@ class Application:
                 lambda: get_settings().show_ended_projects,
                 ledger.owned if ledger else None,
             ),
-            BadgeSurface(),
+            surface,
             keep_border=overlay.stash_badge_keep_border,
             ledger=ledger,
         )
@@ -3390,6 +3617,7 @@ class Application:
         self.scanner.stop()
         if self.stash is not None:
             self.stash.stop()
+        self.badge_surface.stop()
         from arc_helper.screen import reset_backend
 
         reset_backend()  # release the portal session / PipeWire stream

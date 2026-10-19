@@ -1,8 +1,15 @@
 """Tests for the advice card model and renderer."""
 
+from arc_helper.advice_card import NO_PUBLIC_DATA
+from arc_helper.advice_card import NOT_FOUND_YET
+from arc_helper.advice_card import UNNAMED_SLOT
+from arc_helper.advice_card import _Canvas  # noqa: PLC2701
 from arc_helper.advice_card import build_advice_card
+from arc_helper.advice_card import build_blueprint_card
 from arc_helper.advice_card import needed_parts
+from arc_helper.advice_card import owned_text
 from arc_helper.advice_card import render_advice_card
+from arc_helper.database import Blueprint
 from arc_helper.database import Need
 from arc_helper.database import RecycleOutput
 from arc_helper.verdict import Verdict
@@ -51,7 +58,7 @@ def test_keep_some_title_and_subtitle():
     verdict = Verdict("keep_some", "x", 3, (("Wires Crossed", 3),))
     card = build_advice_card(verdict, [_need("quest", "Wires Crossed", None, 3)], 5)
     assert card.title == "Keep 3"
-    assert card.subtitle == "For Wires Crossed, then sell the rest"
+    assert card.subtitle == "For Wires Crossed, then sell 2"
 
 
 def test_keep_subtitle_names_all_goals_in_row_order():
@@ -204,3 +211,149 @@ def test_known_blueprint_keep_card_adds_the_needs_line_after():
 def test_plain_sell_card_is_unchanged():
     card = build_advice_card(Verdict("sell", "Sell"), [])
     assert card.subtitle == "Nothing you track needs it"
+
+
+def _blueprint(**where):
+    fields = dict.fromkeys(Blueprint._fields[4:], "")
+    fields.update(where)
+    return Blueprint("Bobcat Blueprint", "bobcat_blueprint", "Bobcat", None, **fields)
+
+
+def test_blueprint_card_with_full_where_found_data():
+    info = _blueprint(
+        map="Condition Only",
+        map_condition="Locked Gate, Hurricane",
+        scavengable="Yes",
+        containers="Anywhere, First Wave Cache",
+        quest_reward="Yes, Sparks Fly",
+        trials_reward="Trophy Only",
+    )
+    card = build_blueprint_card(12, "Bobcat Blueprint", info)
+    assert (card.kind, card.title, card.subtitle) == (
+        "learn",
+        "Bobcat Blueprint",
+        NOT_FOUND_YET,
+    )
+    assert card.rows == (
+        ("Map", "Only during a map condition"),
+        ("Condition", "Locked Gate, Hurricane"),
+        ("Containers", "Anywhere, First Wave Cache"),
+        ("Scavengable", "Yes"),
+        ("Quest reward", "Sparks Fly"),
+        ("Trials reward", "Trophy Only"),
+    )
+    render_advice_card(card)
+
+
+def test_blueprint_card_with_partial_data_shows_only_what_is_known():
+    # Burletta's row: N/A and ? are unknown, a No reward is no place to look
+    info = _blueprint(
+        map="N/A",
+        map_condition="?",
+        scavengable="No",
+        containers="N/A",
+        quest_reward="Yes, Industrial Espionage",
+        trials_reward="No",
+    )
+    card = build_blueprint_card(12, "Bobcat Blueprint", info)
+    assert card.subtitle == NOT_FOUND_YET
+    assert card.rows == (
+        ("Scavengable", "No"),
+        ("Quest reward", "Industrial Espionage"),
+    )
+
+
+def test_blueprint_card_with_no_where_found_data():
+    for info in (_blueprint(), None):
+        card = build_blueprint_card(12, "Bobcat Blueprint", info)
+        assert (card.title, card.subtitle, card.rows) == (
+            "Bobcat Blueprint",
+            NO_PUBLIC_DATA,
+            (),
+        )
+    assert render_advice_card(card).size[0] == 560
+
+
+def test_blueprint_card_for_an_unnamed_slot():
+    card = build_blueprint_card(26, None, None)
+    assert (card.title, card.subtitle, card.rows) == (
+        "Blueprint slot 26",
+        UNNAMED_SLOT,
+        (),
+    )
+    assert UNNAMED_SLOT == "Unnamed slot, not in the public data"
+
+
+def test_a_lower_bound_says_so_in_the_title_and_the_line(monkeypatch):
+    card = build_advice_card(KEEP, NEEDS, owned=2, owned_sure=False)
+    assert card.title == "Keep all 7: up to 5 more needed"
+    assert (card.owned, card.owned_sure) == (2, False)
+    covered = build_advice_card(KEEP, NEEDS, owned=9, owned_sure=False)
+    assert covered.title == "Keep all 7: 0 more needed"
+    assert owned_text(2, sure=False) == "2+"
+    assert owned_text(2, sure=True) == "2"
+    shown = []
+    real = _Canvas.text
+
+    def record(self, x, y, text, *args):
+        shown.append(text)
+        return real(self, x, y, text, *args)
+
+    monkeypatch.setattr(_Canvas, "text", record)
+    render_advice_card(card)
+    assert "2+ of 7" in shown
+    assert "You have 2+" in shown
+    shown.clear()
+    render_advice_card(build_advice_card(KEEP, NEEDS, owned=2))
+    assert "2 of 7" in shown
+
+
+def _texts(monkeypatch, card):
+    shown = []
+    real = _Canvas.text
+
+    def record(self, x, y, text, *args):
+        shown.append(text)
+        return real(self, x, y, text, *args)
+
+    monkeypatch.setattr(_Canvas, "text", record)
+    render_advice_card(card)
+    return shown
+
+
+SOME = Verdict("keep_some", "x", 7, (("Utility Station II", 6), ("Wires Crossed", 1)))
+
+
+def test_owned_above_the_need_is_capped_in_the_bar_and_says_how_many_can_go(
+    monkeypatch,
+):
+    card = build_advice_card(SOME, NEEDS, owned=52)
+    assert card.subtitle.endswith("then sell 45")
+    shown = _texts(monkeypatch, card)
+    assert "7 of 7" in shown
+    assert "You have 52" in shown
+    # An unsure count cannot say how many can go
+    unsure = build_advice_card(SOME, NEEDS, owned=52, owned_sure=False)
+    assert unsure.subtitle.endswith("then sell the rest")
+
+
+def test_an_item_the_partial_map_has_not_seen_shows_no_number(monkeypatch):
+    card = build_advice_card(KEEP, NEEDS, owned=0, owned_sure=False)
+    assert card.title == "Keep 7"
+    shown = _texts(monkeypatch, card)
+    assert "7 in total" in shown
+    assert "Not in your saved stash yet" in shown
+    assert not any("0+" in t for t in shown)
+    # A known count of 1 or more keeps the N+ wording, a sure 0 is a real 0
+    assert "1+ of 7" in _texts(
+        monkeypatch, build_advice_card(KEEP, NEEDS, owned=1, owned_sure=False)
+    )
+    assert build_advice_card(KEEP, NEEDS, owned=0).title == "Keep all 7: 7 more needed"
+
+
+def test_a_weapon_title_ignores_the_count_and_the_footer_shows_it(monkeypatch):
+    weapon = Verdict("keep", "Weapon, keep at least one, more until you own it", 1)
+    card = build_advice_card(weapon, [], owned=2)
+    assert card.title == "Keep 1"
+    assert "You have 2" in _texts(monkeypatch, card)
+    assert build_advice_card(weapon, [], owned=2, owned_sure=False).title == "Keep 1"

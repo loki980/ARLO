@@ -22,6 +22,7 @@ import cv2
 import numpy as np
 import pytesseract
 
+from arc_helper.tooltip_layout import Point
 from arc_helper.tooltip_layout import Rect
 
 if TYPE_CHECKING:
@@ -234,6 +235,20 @@ def read_collections(rgb: np.ndarray) -> CollectionsRead | None:
         and len([cell for cell in cells if cell.found]) == found_count
     )
     return CollectionsRead(found_count, total, cells, consistent)
+
+
+def cell_at(cells: list[CollectionsCell], point: Point) -> CollectionsCell | None:
+    """The cell whose rect contains point, None between cells or off the grid.
+
+    A rect's left and top edges are inside it, its right and bottom edges
+    (exclusive) are not, so the cell border the game draws counts as the
+    cell. Costs a pass over the cells and no image work.
+    """
+    for cell in cells:
+        rect = cell.rect
+        if rect.left <= point.x < rect.right and rect.top <= point.y < rect.bottom:
+            return cell
+    return None
 
 
 def record_collections(db: "Database", read: CollectionsRead) -> list[int]:

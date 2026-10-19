@@ -1,7 +1,9 @@
 """The advice card: a dark game-style panel drawn as an image.
 
 build_advice_card turns a verdict and the needs behind it into a small data
-model, render_advice_card draws that model with Pillow. The look is the ARC
+model, render_advice_card draws that model with Pillow. build_blueprint_card
+is the card for an empty Collections cell: the blueprint's name and where the
+public data says it is found, drawn by the same render_advice_card. The look is the ARC
 Tracker card idea (header block with a colour stripe, a Needed for section
 with a progress track, one row per source) drawn from scratch with the
 bundled Barlow Semi Condensed. Nothing here touches Tk or the database.
@@ -16,6 +18,7 @@ from PIL import ImageDraw
 from PIL import ImageFont
 
 from .database import HOME
+from .database import Blueprint
 from .database import Need
 from .database import RecycleOutput
 from .textrender import _load_font
@@ -76,13 +79,21 @@ SUPERSAMPLE = 4
 ELLIPSIS = "…"
 BOLD = "bold"
 REGULAR = "regular"
+# The blueprint card's label column, wide enough for "Quest reward"
+LABEL_COLUMN = 124
+# Where-found values that say nothing is known
+UNKNOWN_VALUES = frozenset({"", "?", "N/A"})
+UNNAMED_SLOT = "Unnamed slot, not in the public data"
+NOT_FOUND_YET = "Not found yet"
+NO_PUBLIC_DATA = "Not found yet. No public data on where to find it"
 
 
 class AdviceCard(NamedTuple):
     """What the card shows.
 
     kind is a verdict kind. owned is the stack count, None when unknown.
-    rows are (kind label, name, quantity) per source. needed_total is the
+    owned_sure is False when owned is a lower bound (the stash map is
+    partial), and the card then shows it as N+. rows are (kind label, name, quantity) per source. needed_total is the
     count to keep, None when the verdict gave no count.
     """
 
@@ -92,6 +103,33 @@ class AdviceCard(NamedTuple):
     needed_total: int | None
     owned: int | None
     rows: tuple[tuple[str, str, int], ...]
+    owned_sure: bool = True
+
+
+WEAPON_REASON = "Weapon, keep at least one"
+NOT_SAVED = "Not in your saved stash yet"
+
+
+def owned_unseen(card: "AdviceCard") -> bool:
+    """True when the partial map has not seen the item, so no number is shown."""
+    return card.owned == 0 and not card.owned_sure
+
+
+def owned_text(owned: int, sure: bool) -> str:  # noqa: FBT001
+    """The owned count as shown, '52' when sure and '52+' for a lower bound."""
+    return str(owned) if sure else f"{owned}+"
+
+
+class BlueprintCard(NamedTuple):
+    """The card for an empty Collections cell.
+
+    rows are (label, value) per where-found fact, only the known ones.
+    """
+
+    kind: str
+    title: str
+    subtitle: str
+    rows: tuple[tuple[str, str], ...]
 
 
 def _row_name(need: Need) -> str:
@@ -121,11 +159,15 @@ def _rows(verdict: Verdict, needs: Iterable[Need]) -> tuple[tuple[str, str, int]
     return tuple(rows)
 
 
-def _keep_title(count: int | None, owned: int | None) -> str:
+def _keep_title(count: int | None, owned: int | None, sure: bool = True) -> str:  # noqa: FBT001, FBT002
     if count is None:
         return "Keep"
     if owned is not None:
-        return f"Keep all {count}: {max(0, count - owned)} more needed"
+        more = max(0, count - owned)
+        # A lower bound that already covers the count leaves nothing to find
+        if not sure and more:
+            return f"Keep all {count}: up to {more} more needed"
+        return f"Keep all {count}: {more} more needed"
     return f"Keep {count}"
 
 
@@ -191,6 +233,7 @@ def build_advice_card(
     owned: int | None = None,
     recycle_outputs: Iterable[RecycleOutput] = (),
     needed_parts: frozenset[str] = frozenset(),
+    owned_sure: bool = True,  # noqa: FBT001, FBT002
 ) -> AdviceCard:
     """The card model for a verdict. Rows exist for keep and keep_some only.
 
@@ -204,14 +247,20 @@ def build_advice_card(
     subtitle: str | None = None
     rows: tuple[tuple[str, str, int], ...] = ()
     total = verdict.keep_count
+    unseen = owned == 0 and not owned_sure
     if kind == KEEP:
-        title = _keep_title(total, owned)
+        # A weapon keeps one and more until its blueprint is owned, so its
+        # title ignores the count and only the footer shows it
+        weapon = verdict.reason.startswith(WEAPON_REASON)
+        title = _keep_title(total, None if unseen or weapon else owned, owned_sure)
         rows = _rows(verdict, needs)
         subtitle = _keep_reason(verdict, rows)
     elif kind == KEEP_SOME:
         title = "Keep" if total is None else f"Keep {total}"
         rows = _rows(verdict, needs)
-        subtitle = f"{_keep_reason(verdict, rows)}, then sell the rest"
+        spare = owned - total if owned is not None and total is not None else 0
+        rest = f"sell {spare}" if owned_sure and spare > 0 else "sell the rest"
+        subtitle = f"{_keep_reason(verdict, rows)}, then {rest}"
     elif kind == SELL:
         title, subtitle, total = "Sell it", "Nothing you track needs it", None
     elif kind == RECYCLE:
@@ -226,7 +275,59 @@ def build_advice_card(
         title, total = "Not in the database", None
     if kind != LEARN and verdict.reason.startswith(KNOWN_BLUEPRINT_REASON):
         subtitle = _known_subtitle(kind, subtitle)
-    return AdviceCard(kind, title, subtitle, total, owned, rows)
+    return AdviceCard(kind, title, subtitle, total, owned, rows, owned_sure)
+
+
+def _known(value: str | None) -> str | None:
+    """The stripped value, None when empty or an unknown marker (?, N/A)."""
+    value = (value or "").strip()
+    return None if value in UNKNOWN_VALUES else value
+
+
+def _where_found(info: Blueprint) -> tuple[tuple[str, str], ...]:
+    """The known where-found facts of a blueprint as (label, value) rows.
+
+    A No for a quest or trials reward is no place to look, so it gives no
+    row. Scavengable shows Yes or No.
+    """
+    rows: list[tuple[str, str]] = []
+    map_name = _known(info.map)
+    if map_name == "All":
+        rows.append(("Map", "All maps"))
+    elif map_name == "Condition Only":
+        rows.append(("Map", "Only during a map condition"))
+    elif map_name is not None:
+        rows.append(("Map", map_name))
+    if (condition := _known(info.map_condition)) is not None:
+        rows.append(("Condition", condition))
+    if (containers := _known(info.containers)) is not None:
+        rows.append(("Containers", containers))
+    if (scavengable := _known(info.scavengable)) is not None:
+        rows.append(("Scavengable", scavengable))
+    quest = _known(info.quest_reward)
+    if quest is not None and quest.casefold() != "no":
+        # "Yes, Sparks Fly" names the quest
+        _, _, name = quest.partition(",")
+        rows.append(("Quest reward", name.strip() or quest))
+    trials = _known(info.trials_reward)
+    if trials is not None and trials.casefold() != "no":
+        rows.append(("Trials reward", trials))
+    return tuple(rows)
+
+
+def build_blueprint_card(
+    grid_index: int, name: str | None, info: Blueprint | None
+) -> BlueprintCard:
+    """The card for the empty Collections cell at grid_index (from 1).
+
+    name is the blueprint in that slot, None for a slot without a public
+    name. info is its catalog row, None when the catalog has none.
+    """
+    if name is None:
+        return BlueprintCard(LEARN, f"Blueprint slot {grid_index}", UNNAMED_SLOT, ())
+    rows = _where_found(info) if info is not None else ()
+    subtitle = NOT_FOUND_YET if rows else NO_PUBLIC_DATA
+    return BlueprintCard(LEARN, name, subtitle, rows)
 
 
 class _Fonts:
@@ -337,8 +438,12 @@ def _line_height(fonts: _Fonts, size: int, bold: str) -> int:
     return ascent + descent
 
 
-def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
+def render_advice_card(
+    card: AdviceCard | BlueprintCard, scale: float = 1.0
+) -> Image.Image:
     """Draw the card as an RGBA image, 560 px wide at scale 1.0."""
+    if isinstance(card, BlueprintCard):
+        return render_blueprint_card(card, scale)
     fonts = _Fonts(scale)
     s = fonts.px
     canvas = _Canvas(fonts)
@@ -406,11 +511,12 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
         if total is None:
             total = sum(q for _, _, q in card.rows)
         canvas.text(body_left, y, "Needed for", BODY_SIZE, REGULAR, MUTED)
-        amount = (
-            f"{card.owned} of {total}"
-            if card.owned is not None
-            else f"{total} in total"
-        )
+        if card.owned is None or owned_unseen(card):
+            amount = f"{total} in total"
+        elif card.owned >= total:
+            amount = f"{total} of {total}"
+        else:
+            amount = f"{owned_text(card.owned, card.owned_sure)} of {total}"
         canvas.text(body_right, y, amount, BODY_SIZE, BOLD, AMBER, "r")
         y += body_h + s(8)
         track_h = max(2, s(5))
@@ -444,10 +550,14 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
     if card.owned is not None:
         canvas.rect((body_left, y, body_right, y + max(1, s(1))), DIVIDER)
         y += max(1, s(1)) + s(14)
-        canvas.text(body_left, y, f"You have {card.owned}", BODY_SIZE, BOLD, WHITE)
-        canvas.text(
-            body_right, y, f"{card.owned} in stash", BODY_SIZE, REGULAR, MUTED, "r"
-        )
+        if owned_unseen(card):
+            canvas.text(body_left, y, NOT_SAVED, BODY_SIZE, REGULAR, MUTED)
+        else:
+            shown = owned_text(card.owned, card.owned_sure)
+            canvas.text(body_left, y, f"You have {shown}", BODY_SIZE, BOLD, WHITE)
+            canvas.text(
+                body_right, y, f"{shown} in stash", BODY_SIZE, REGULAR, MUTED, "r"
+            )
         y += bold_h + s(PAD - 4)
     elif not card.rows:
         y = header_bottom
@@ -466,3 +576,87 @@ def render_advice_card(card: AdviceCard, scale: float = 1.0) -> Image.Image:
     base.alpha_composite(panel.resize((width, height), Image.LANCZOS))
     base.alpha_composite(body)
     return base
+
+
+def _draw_header(
+    canvas: _Canvas, title: str, subtitle: str | None, accent: str, width: int
+) -> int:
+    """The header block with its colour stripe. Returns the block's bottom."""
+    fonts = canvas.fonts
+    s = fonts.px
+    inner_left = s(MARGIN)
+    inner_right = width - s(MARGIN)
+    text_left = inner_left + s(STRIPE + PAD)
+    limit = inner_right - s(PAD) - text_left
+    y = header_top = s(MARGIN)
+    y += s(16)
+    title_h = _line_height(fonts, TITLE_SIZE, BOLD)
+    for line in _wrap(fonts, title, TITLE_SIZE, BOLD, limit):
+        canvas.text(text_left, y, line, TITLE_SIZE, BOLD, WHITE)
+        y += title_h
+    if subtitle:
+        y += s(2)
+        sub_h = _line_height(fonts, SUBTITLE_SIZE, REGULAR)
+        lines = _wrap(fonts, subtitle, SUBTITLE_SIZE, REGULAR, limit)
+        if len(lines) > SUBTITLE_MAX_LINES:
+            keep = SUBTITLE_MAX_LINES - 1
+            tail = fonts.fit(" ".join(lines[keep:]), SUBTITLE_SIZE, REGULAR, limit)
+            lines = [*lines[:keep], tail]
+        for line in lines:
+            canvas.text(text_left, y, line, SUBTITLE_SIZE, REGULAR, MUTED)
+            y += sub_h
+    y += s(16)
+    canvas.rect((inner_left, header_top, inner_right, y), HEADER_BG, s(HEADER_RADIUS))
+    # Stripe with the header's rounded left corners
+    stripe_right = inner_left + s(HEADER_RADIUS * 2)
+    canvas.rect((inner_left, header_top, stripe_right, y), accent, s(HEADER_RADIUS))
+    canvas.rect((inner_left + s(STRIPE), header_top, stripe_right + 1, y), HEADER_BG)
+    return y
+
+
+def _on_panel(canvas: _Canvas, width: int, height: int) -> Image.Image:
+    """The canvas drawn on the rounded card panel."""
+    s = canvas.fonts.px
+    body = canvas.render(width, height)
+    base = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    k = SUPERSAMPLE
+    panel = Image.new("RGBA", (width * k, height * k), (0, 0, 0, 0))
+    ImageDraw.Draw(panel).rounded_rectangle(
+        (0, 0, width * k - 1, height * k - 1),
+        s(RADIUS) * k,
+        fill=PANEL,
+        outline=PANEL_BORDER,
+        width=max(1, s(1)) * k,
+    )
+    base.alpha_composite(panel.resize((width, height), Image.LANCZOS))
+    base.alpha_composite(body)
+    return base
+
+
+def render_blueprint_card(card: BlueprintCard, scale: float = 1.0) -> Image.Image:
+    """Draw the blueprint card as an RGBA image, 560 px wide at scale 1.0.
+
+    The header is the advice card's, below it one row per where-found fact:
+    the label in the left column, the value wrapped beside it.
+    """
+    fonts = _Fonts(scale)
+    s = fonts.px
+    canvas = _Canvas(fonts)
+    width = s(WIDTH)
+    accent = KIND_COLORS.get(card.kind, GREY)
+    y = _draw_header(canvas, card.title, card.subtitle, accent, width)
+    if card.rows:
+        body_left = s(MARGIN + PAD)
+        body_right = width - s(MARGIN + PAD)
+        value_left = body_left + s(LABEL_COLUMN)
+        body_h = _line_height(fonts, BODY_SIZE, REGULAR)
+        y += s(PAD)
+        for label, value in card.rows:
+            canvas.text(body_left, y, label, BODY_SIZE, REGULAR, MUTED)
+            limit = body_right - value_left
+            for line in _wrap(fonts, value, BODY_SIZE, REGULAR, limit):
+                canvas.text(value_left, y, line, BODY_SIZE, REGULAR, WHITE)
+                y += body_h
+            y += s(ROW_GAP)
+        y += s(PAD - 4 - ROW_GAP)
+    return _on_panel(canvas, width, y + s(MARGIN))

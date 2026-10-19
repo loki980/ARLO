@@ -107,7 +107,7 @@ The popup shows a verdict (KEEP, KEEP SOME, SELL, RECYCLE, USE or UNKNOWN) with 
 3. **No active needs**: the item's `action` string decides, by the first of sell, recycle, keep or use that appears in it. "Keep until upgrade is complete; sell once done" is KEEP.
 4. **Unknown items** show UNKNOWN.
 
-`progress.csv` is loaded into a `progress` table (`source_kind`, `source_name`, `value`) in `arlo_user.db` next to `items.db`, never into `items.db` itself. KEEP SOME ("You have 5, need 2, recycle the rest") needs a stash count, which nothing supplies yet.
+`progress.csv` is loaded into a `progress` table (`source_kind`, `source_name`, `value`) in `arlo_user.db` next to `items.db`, never into `items.db` itself. KEEP SOME ("You have 5, need 2, recycle the rest") comes from the owned count: the saved stash map plus the loadout, with stash badges on. While the map is partial the count is a lower bound and shows as "N+".
 
 ### How Action Generation Works
 

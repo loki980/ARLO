@@ -1,10 +1,10 @@
 """BadgeSurface: ARLO's handle on the badge helper process.
 
-The helper (badge_helper.py) draws gold slot borders and price tags on one
-full-screen, transparent, click-through, topmost window. It needs gi with
-GTK 3, cairo and python-xlib, which only the system Python has, so this
-module finds that Python, starts the helper under it and sends it one JSON
-line per draw, clear or translate.
+The helper (badge_helper.py) draws gold slot borders, price tags and greyed
+icons on one full-screen, transparent, click-through, topmost window. It
+needs gi with GTK 3, cairo and python-xlib, which only the system Python
+has, so this module finds that Python, starts the helper under it and sends
+it one JSON line per draw, clear or translate.
 
 draw, clear and translate never block their caller: they leave the message
 for a writer thread, started with the helper, which sends only the newest
@@ -94,7 +94,23 @@ class Patch:
     kind: str = "patch"
 
 
-Badge = Border | Tag | Patch
+@dataclass(frozen=True)
+class Icon:
+    """An image file drawn greyed and dimmed inside rect, under every other kind.
+
+    path is a PNG the helper loads and caches. It is drawn in luminance only
+    at alpha, fitted and centred inside rect less inset (a share of the
+    rect's width and height) on each side.
+    """
+
+    rect: tuple[int, int, int, int]
+    path: str
+    alpha: float = 0.35
+    inset: float = 0.12
+    kind: str = "icon"
+
+
+Badge = Border | Tag | Patch | Icon
 
 
 def encode_message(
