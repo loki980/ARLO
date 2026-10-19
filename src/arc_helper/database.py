@@ -644,8 +644,10 @@ class Database:
             """)
             # The stored stash map (stash_map.StashMapStore): one row of the
             # view it was built on, its geometry in shares of the frame
-            # height and the STASH header last read, and one row per slot
-            # with its content, look fingerprint and when that was seen
+            # height, the STASH header last read and the map's version
+            # (stash_map.MAP_VERSION, NULL on maps saved before it), and one
+            # row per slot with its content, look fingerprint and when that
+            # was seen
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS stash_map_view (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -656,9 +658,16 @@ class Database:
                     column_left REAL NOT NULL,
                     header_used INTEGER,
                     header_capacity INTEGER,
-                    header_seen_at TEXT
+                    header_seen_at TEXT,
+                    version INTEGER
                 )
             """)
+            view_columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(stash_map_view)").fetchall()
+            }
+            if "version" not in view_columns:
+                conn.execute("ALTER TABLE stash_map_view ADD COLUMN version INTEGER")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS stash_map_cells (
                     row INTEGER NOT NULL,
@@ -905,19 +914,25 @@ class Database:
             ).fetchall()
         return view, cells
 
-    def save_stash_map(self, view: dict, cells: list[dict]) -> None:
+    def save_stash_map(
+        self, view: dict, cells: list[dict], *, replace: bool = False
+    ) -> None:
         """Write the stash map's view row and upsert these cells, in one transaction.
 
-        view has the stash_map_view columns but id, each cell the
-        stash_map_cells columns. Cells not given are left as stored.
+        view has the stash_map_view columns but id (version None when not
+        given), each cell the stash_map_cells columns. Cells not given are
+        left as stored, or deleted first when replace is True (a new map in
+        place of an old one).
         """
         with self._get_user_connection() as conn:
+            if replace:
+                conn.execute("DELETE FROM stash_map_cells")
             conn.execute(
                 "INSERT OR REPLACE INTO stash_map_view (id, tab, side, grid_left, "
-                "pitch, column_left, header_used, header_capacity, header_seen_at) "
-                "VALUES (1, :tab, :side, :grid_left, :pitch, :column_left, "
-                ":header_used, :header_capacity, :header_seen_at)",
-                view,
+                "pitch, column_left, header_used, header_capacity, header_seen_at, "
+                "version) VALUES (1, :tab, :side, :grid_left, :pitch, :column_left, "
+                ":header_used, :header_capacity, :header_seen_at, :version)",
+                {"version": None, **view},
             )
             conn.executemany(
                 "INSERT OR REPLACE INTO stash_map_cells (row, col, filled, name, "

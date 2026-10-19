@@ -6,6 +6,7 @@ from arc_helper.stash_stitch import LOOKS
 from arc_helper.stash_stitch import NEW_SEGMENT
 from arc_helper.stash_stitch import SCROLL
 from arc_helper.stash_stitch import filled_cells
+from arc_helper.stash_stitch import slot_look
 from arc_helper.stash_stitch import stitch
 
 # A 4K frame with a stash viewport like the real one: 4 columns of 192 px
@@ -119,3 +120,51 @@ def test_an_unmeasurable_offset_starts_a_new_segment():
     assert segments[1].frames == (1, 2)
     # The first segment has only the first frame's six rows, nothing guessed
     assert sorted({r for r, _ in result.cells}) == list(range(6))
+
+
+def test_arlo_drawings_on_a_slot_leave_its_look_alone():
+    content = _content(1, seed=3, empty=set())
+    slot = content[FIRST_ROW : FIRST_ROW + SIDE, 0:SIDE]
+    rng = np.random.default_rng(4)
+    looks = []
+    for _ in range(2):
+        drawn = slot.copy()
+        # The have/need tag at its largest (badge_helper: text 0.17 of the
+        # height, the pill down to 1.9 of that plus 1 px), across the top
+        text = round(0.17 * SIDE)
+        tag = slice(round(0.3 * text), round(1.9 * text) + 1)
+        drawn[tag, 8 : SIDE - 8] = rng.integers(0, 256, (1, SIDE - 16, 3), np.uint8)
+        # The old red short-stock outline, 5 px inside the edge
+        red = (255, 92, 77)
+        drawn[:5] = drawn[-5:] = drawn[:, :5] = drawn[:, -5:] = red
+        # A price patch on the bar, from 0.734 of the height
+        drawn[round(0.734 * SIDE) :, 8:90] = rng.integers(0, 256, 3, np.uint8)
+        looks.append(slot_look(drawn))
+    assert looks[0] is not None
+    np.testing.assert_array_equal(looks[0], looks[1])
+    np.testing.assert_array_equal(looks[0], slot_look(slot))
+
+
+def test_a_price_patch_from_a_high_bar_top_leaves_the_look_alone():
+    # Frame 26 of the 15 Oct captures: slot (720, 1218, 912, 1412), 192 x 194,
+    # its bar found from y 1355 (0.706 of the height), the patch drawn from
+    # there to the bar's bottom, across the bar's left part
+    height, width = 194, 192
+    rng = np.random.default_rng(6)
+    slot = np.full((height, width, 3), (35, 38, 52), np.uint8)
+    slot[30:150, 20:172] = rng.integers(0, 256, (120, 152, 3), np.uint8)
+    slot[1355 - 1218 :, 12:180] = 15
+    looks = [slot_look(slot)]
+    for fill in (
+        (0xD9, 0x4A, 0x3A),
+        (0xE8, 0xC2, 0x3C),
+        (0x1A, 0x1A, 0x1A),
+        (0x6D,) * 3,
+    ):
+        drawn = slot.copy()
+        drawn[1355 - 1218 : 1412 - 1218 - 12, 12:110] = fill
+        drawn[1365 - 1218 : 1380 - 1218, 40:90] = (249, 238, 223)
+        looks.append(slot_look(drawn))
+    assert looks[0] is not None
+    for look in looks[1:]:
+        np.testing.assert_array_equal(look, looks[0])
