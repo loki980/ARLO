@@ -143,3 +143,28 @@ def test_arlo_drawings_on_a_slot_leave_its_look_alone():
     assert looks[0] is not None
     np.testing.assert_array_equal(looks[0], looks[1])
     np.testing.assert_array_equal(looks[0], slot_look(slot))
+
+
+def test_a_price_patch_from_a_high_bar_top_leaves_the_look_alone():
+    # Frame 26 of the 15 Oct captures: slot (720, 1218, 912, 1412), 192 x 194,
+    # its bar found from y 1355 (0.706 of the height), the patch drawn from
+    # there to the bar's bottom, across the bar's left part
+    height, width = 194, 192
+    rng = np.random.default_rng(6)
+    slot = np.full((height, width, 3), (35, 38, 52), np.uint8)
+    slot[30:150, 20:172] = rng.integers(0, 256, (120, 152, 3), np.uint8)
+    slot[1355 - 1218 :, 12:180] = 15
+    looks = [slot_look(slot)]
+    for fill in (
+        (0xD9, 0x4A, 0x3A),
+        (0xE8, 0xC2, 0x3C),
+        (0x1A, 0x1A, 0x1A),
+        (0x6D,) * 3,
+    ):
+        drawn = slot.copy()
+        drawn[1355 - 1218 : 1412 - 1218 - 12, 12:110] = fill
+        drawn[1365 - 1218 : 1380 - 1218, 40:90] = (249, 238, 223)
+        looks.append(slot_look(drawn))
+    assert looks[0] is not None
+    for look in looks[1:]:
+        np.testing.assert_array_equal(look, looks[0])

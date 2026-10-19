@@ -58,6 +58,7 @@ from .grid import find_slots
 from .grid import scroll_offset
 from .inventory_header import StashHeader
 from .inventory_header import read_stash_header
+from .stash_scan import PATCH_TOP
 from .stash_scan import SlotItem
 from .stash_scan import owned_totals
 from .tooltip_layout import Rect
@@ -84,11 +85,16 @@ WHOLE_SHARE = 0.04
 #   0.34 from 100 px up. Measured on composites of the 15 Oct captures:
 #   0.286.
 # - The bottom bar, from LOOK_BOTTOM of the height: the price patch is drawn
-#   on the bar, whose top is at 0.734 to 0.758, and the count.
+#   on the bar from the bar's top as found per slot (slot_marks.bar_geometry),
+#   and the count. unpatch looks for patches from stash_scan.PATCH_TOP (0.7)
+#   down, and the look stops there too. Measured patch tops: 0.706 to 0.758
+#   on the 1196 patches drawn over the 15 Oct captures (0.706 on frame 26,
+#   0.716 on frame 19, where a band ending at 0.72 took in their top rows)
+#   and on the 406 patches on the 18 Oct captures.
 LOOK_SIDE = 16
 LOOK_BORDER = 0.07
 LOOK_TOP = 0.34
-LOOK_BOTTOM = 0.72
+LOOK_BOTTOM = PATCH_TOP
 # A look whose grey spread is under this is flat: an empty slot or an icon
 # not drawn yet, which matches anything and is left out of the matching
 LOOK_TEXTURE = 10.0

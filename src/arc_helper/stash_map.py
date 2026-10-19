@@ -93,8 +93,8 @@ OTHER_VIEW = "other view"
 UNPLACED = "unplaced"
 
 # The stored map's format. 2: row 0 is the stash's first row and the looks
-# leave out ARLO's tag band (stash_stitch.LOOK_TOP 0.34). A map of another
-# version is dropped and rebuilt
+# leave out ARLO's tag band and patch (stash_stitch.LOOK_TOP 0.34 and
+# LOOK_BOTTOM 0.7). A map of another version is dropped and rebuilt
 MAP_VERSION = 2
 
 # The stash rests at its top when its top whole row is within REST_TOLERANCE
