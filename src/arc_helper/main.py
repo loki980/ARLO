@@ -7,6 +7,7 @@ import argparse
 import datetime
 import inspect
 import json
+import math
 import queue
 import sys
 import threading
@@ -17,6 +18,8 @@ from collections import deque
 from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
+from concurrent.futures import Future
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -66,6 +69,7 @@ from arc_helper.grid import EQUIPMENT
 from arc_helper.grid import STASH
 from arc_helper.grid import STILL_MEAN
 from arc_helper.grid import STILL_SCALE
+from arc_helper.grid import WORK_HEIGHT
 from arc_helper.grid import find_slots
 from arc_helper.grid import frames_still
 from arc_helper.grid import scroll_offset
@@ -140,6 +144,12 @@ HOLD_FLOOR_S = 3.0
 # A shown card missing from this many cycles in a row hides the popup, chips
 # and frame at once
 CARD_GONE_CYCLES = 2
+# Milliseconds between drains of the scanner's ui_queue on the Tk thread. A
+# message waits half of this on average before it is applied
+UI_PUMP_MS = 10
+# Seconds between publishes of ARLO's window rects when no message came, the
+# old pump interval
+RECTS_PUBLISH_S = 0.05
 # A cycle without a card sleeps at most this long before the next one. A
 # cycle that found a card does not sleep at all
 NO_CARD_SLEEP_CAP_S = 0.1
@@ -402,6 +412,73 @@ class OwnedCount(NamedTuple):
 LOCATE_FRAME = object()
 
 
+# The hovered cell's slot is first looked for among the slots of a full
+# height strip this many cell widths either side of the cell, a quarter of
+# the 4K frame's find_slots time. The strip's left edge and width are
+# multiples of the grid work frame's scale, so its slots line up with the
+# whole frame's
+HOVER_STRIP_CELLS = 3
+
+
+def _snap_hovered(rgb: np.ndarray, cell: Rect):
+    """The slot under the hovered cell, from a strip around it first.
+
+    The strip spans the frame's full height, so grid.find_slots works at the
+    same scale as on the whole frame. A strip wider than half the frame, or
+    one without a slot under the cell, gives way to the whole frame.
+    """
+    height, width = rgb.shape[:2]
+    step = max(1, math.ceil(height / WORK_HEIGHT))
+    reach = HOVER_STRIP_CELLS * (cell.right - cell.left)
+    left = max(0, cell.left - reach) // step * step
+    right = min(width, cell.right + reach)
+    right = left + (right - left) // step * step
+    if 2 * (right - left) <= width:
+        strip = find_slots(np.ascontiguousarray(rgb[:, left:right]))
+        moved = [
+            slot._replace(
+                rect=Rect(
+                    slot.rect.left + left,
+                    slot.rect.top,
+                    slot.rect.right + left,
+                    slot.rect.bottom,
+                )
+            )
+            for slot in strip
+        ]
+        slot = snap_to_slot(cell, moved)
+        if slot is not None:
+            return slot
+    return snap_to_slot(cell, find_slots(rgb))
+
+
+class HoverSearch(NamedTuple):
+    """The slow part of hovered_slot_on_screen, which can run ahead of it.
+
+    rgb is the capture as an array, cell the glow ring box (None without
+    one) and slot the slot snapped under it, both in capture px. duration
+    is the search time in seconds.
+    """
+
+    rgb: np.ndarray
+    cell: Rect | None
+    slot: object | None
+    duration: float
+
+
+def search_hovered_slot(
+    capture, origin: Point | None, card: Rect | None, ignore_phys: Sequence[Rect]
+) -> HoverSearch | None:
+    """Find the hovered cell and its slot, None without a capture or card."""
+    if capture is None or origin is None or card is None:
+        return None
+    rgb = np.asarray(capture if capture.mode == "RGB" else capture.convert("RGB"))
+    start = time.perf_counter()
+    cell = find_hovered_cell(rgb, card, screen_to_capture(ignore_phys, origin))
+    slot = _snap_hovered(rgb, cell) if cell is not None else None
+    return HoverSearch(rgb, cell, slot, time.perf_counter() - start)
+
+
 def hovered_slot_on_screen(
     capture,
     origin: Point | None,
@@ -410,6 +487,7 @@ def hovered_slot_on_screen(
     *,
     read_check: bool = False,
     read_count: bool = False,
+    search: HoverSearch | None = None,
 ) -> HoveredSlot:
     """Find the hovered slot in a cursor capture, framed in physical screen px.
 
@@ -420,14 +498,15 @@ def hovered_slot_on_screen(
     (hovered_cell.snap_to_slot), so the frame covers the whole slot, and
     the ring box stays without a matching slot. With read_check the
     snapped slot's learned blueprint check is read, and with read_count its
-    stack count, from the capture already taken. Runs on the scan thread.
+    stack count, from the capture already taken. search is the same
+    capture's search_hovered_slot when it already ran, ahead of the title
+    read. Runs on the scan thread.
     """
     if capture is None or origin is None or card is None:
         return NO_HOVERED_SLOT
-    rgb = np.asarray(capture if capture.mode == "RGB" else capture.convert("RGB"))
-    start = time.perf_counter()
-    cell = find_hovered_cell(rgb, card, screen_to_capture(ignore_phys, origin))
-    slot = snap_to_slot(cell, find_slots(rgb)) if cell is not None else None
+    found = search or search_hovered_slot(capture, origin, card, ignore_phys)
+    rgb, cell, slot = found.rgb, found.cell, found.slot
+    start = time.perf_counter() - found.duration
     learned = None
     if read_check and slot is not None:
         learned = learned_check(rgb, slot.rect)
@@ -2235,6 +2314,10 @@ class Scanner:
     # (none, new, same, gone, hide) and when the windows were last touched.
     _card_shown: CardSignature | None = None
     _card_missed: int = 0
+    # The hovered slot search of a new card, started on _hover_pool while
+    # its title is read, with the capture it searches
+    _hover_search: tuple[object, Future] | None = None
+    _hover_pool: ThreadPoolExecutor | None = None
     _card_state: str = "none"
     _last_touch: float = 0.0
 
@@ -2712,9 +2795,12 @@ class Scanner:
         """One ACTIVE cycle: locate the card, then act on what changed.
 
         The same card as the one shown is not read again, only touched. A
-        new card is read and shown at once. A shown card missing for
-        CARD_GONE_CYCLES cycles hides the popup, chips and frame at once.
-        Only a cycle without a card sleeps, and briefly.
+        new card is read and shown at once, before the capture goes to the
+        stash badges and the home refresh, so neither delays the card. A
+        shown card missing for CARD_GONE_CYCLES cycles hides the popup,
+        chips and frame at once. Only a cycle without a card sleeps, and
+        briefly, except after the first miss of a shown card, when the next
+        cycle looks again at once.
         """
         start = time.monotonic()
         period_s = None
@@ -2725,17 +2811,34 @@ class Scanner:
         sighting = ocr.locate_card_at_cursor()
         locate_s = time.monotonic() - start
         self.stats.tooltip_scans += 1
-        self._feed_stash(ocr)
-        self._refresh_home(ocr)
         self._return_home(None if sighting is None else self._card_rect(ocr))
 
         if sighting is None:
+            self._feed_stash(ocr)
+            self._refresh_home(ocr)
             sleep_s = min(settings.scan.tooltip_scan_interval, NO_CARD_SLEEP_CAP_S)
             self._set_hold(settings, locate_s + sleep_s)
-            self._card_absent()
+            if self._card_absent():
+                return
             time.sleep(sleep_s)
             return
 
+        try:
+            self._card_seen(ocr, settings, sighting, start, locate_s, period_s)
+        finally:
+            self._feed_stash(ocr)
+            self._refresh_home(ocr)
+
+    def _card_seen(
+        self,
+        ocr: OCREngine,
+        settings,
+        sighting: CardSignature,
+        start: float,
+        locate_s: float,
+        period_s: float | None,
+    ) -> None:
+        """Act on a cycle that found a card: touch the same card, read a new one."""
         self._card_missed = 0
         if self._card_shown is not None and same_card(self._card_shown, sighting):
             self._set_hold(settings, locate_s)
@@ -2746,14 +2849,51 @@ class Scanner:
                 self.ui_queue.put(("touch", self._last_shown_item, self._hold_ms))
             return
 
+        self._start_hover_search(ocr)
+        try:
+            self._read_new_card(ocr, settings, sighting, start, locate_s, period_s)
+        finally:
+            self._hover_search = None
+
+    def _start_hover_search(self, ocr: OCREngine) -> None:
+        """Start the hovered slot search of the located card on _hover_pool.
+
+        It runs while the title is read, and _locate_hovered_slot takes its
+        result for the same capture. Nothing starts without a capture or card.
+        """
+        capture = getattr(ocr, "_last_capture", None)
+        origin = getattr(ocr, "_last_origin", None)
+        card = getattr(ocr, "_last_card", None)
+        if capture is None or origin is None or card is None:
+            return
+        if self._hover_pool is None:
+            self._hover_pool = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="hover-search"
+            )
+        future = self._hover_pool.submit(
+            search_hovered_slot, capture, origin, card, self.overlay_rects.snapshot()
+        )
+        self._hover_search = (capture, future)
+
+    def _read_new_card(
+        self,
+        ocr: OCREngine,
+        settings,
+        sighting: CardSignature,
+        start: float,
+        locate_s: float,
+        period_s: float | None,
+    ) -> None:
+        """Read a card not shown yet and show its item."""
         item_name = ocr.read_located_card()
         scan_s = time.monotonic() - start
         self._set_hold(settings, scan_s)
         self._log_card_state(
             "new",
-            "rect=%s read=%s locate=%d ms read=%d ms period=%s",
+            "rect=%s read=%s cached=%s locate=%d ms read=%d ms period=%s",
             tuple(sighting.rect),
             item_name or "none",
+            "yes" if getattr(ocr, "last_read_cached", False) else "no",
             locate_s * 1000,
             (scan_s - locate_s) * 1000,
             "none" if period_s is None else f"{period_s * 1000:.0f} ms",
@@ -2865,17 +3005,22 @@ class Scanner:
         )
         self._hold_ms = round(max(HOLD_FLOOR_S, hold_s) * 1000)
 
-    def _card_absent(self) -> None:
-        """A cycle found no card: hide the shown windows on the second miss."""
+    def _card_absent(self) -> bool:
+        """A cycle found no card: hide the shown windows on the second miss.
+
+        Returns True when a shown card missed for the first time, so the
+        next cycle should look again at once instead of sleeping.
+        """
         self._card_missed += 1
         if self._card_shown is None:
             self._card_state = "none"
-            return
+            return False
         if self._card_missed < CARD_GONE_CYCLES:
             self._log_card_state("gone")
-            return
+            return True
         self._log_card_state("hide")
         self._hide_card_windows()
+        return False
 
     def _hide_card_windows(self) -> None:
         """Queue an immediate hide of the popup, chips and frame.
@@ -3035,14 +3180,21 @@ class Scanner:
         if recommendation is None:
             return NO_HOVERED_SLOT
         engine = get_ocr_engine()
+        capture = getattr(engine, "_last_capture", None)
+        ahead = {}
+        if self._hover_search is not None and self._hover_search[0] is capture:
+            search = self._hover_search[1].result()
+            if search is not None:
+                ahead["search"] = search
         hovered = hovered_slot_on_screen(
-            getattr(engine, "_last_capture", None),
+            capture,
             getattr(engine, "_last_origin", None),
             getattr(engine, "_last_card", None),
             self.overlay_rects.snapshot(),
             read_check=is_blueprint(recommendation),
             # The stack is only read for the ledger's lower bound
             **({"read_count": True} if self.ledger is not None else {}),
+            **ahead,
         )
         if hovered.learned is not None:
             self.db.set_blueprint_owned(recommendation.name, owned=hovered.learned)
@@ -3375,10 +3527,17 @@ class Application:
             self.status.set_error("Error")
 
     def _pump_ui_queue(self) -> None:
-        """Drain scanner UI messages on the main thread, then reschedule."""
+        """Drain scanner UI messages on the main thread, then reschedule.
+
+        ARLO's window rects are published after any message and otherwise
+        at most every RECTS_PUBLISH_S, so the short pump interval does not
+        query Tk for them a hundred times a second.
+        """
+        applied = False
         try:
             while True:
                 msg = self.ui_queue.get_nowait()
+                applied = True
                 # The IDLE loop queues a status on every trigger scan, so a
                 # status is logged only when it changes
                 if msg[0] != "status" or msg[1] != self._last_status:
@@ -3421,8 +3580,12 @@ class Application:
                     self._hide_card_windows()
         except queue.Empty:
             pass
-        self._publish_overlay_rects()
-        self.root.after(50, self._pump_ui_queue)
+        now = time.monotonic()
+        published = getattr(self, "_rects_published_at", float("-inf"))
+        if applied or now - published >= RECTS_PUBLISH_S:
+            self._rects_published_at = now
+            self._publish_overlay_rects()
+        self.root.after(UI_PUMP_MS, self._pump_ui_queue)
 
     def _hide_card_windows(self) -> None:
         """Hide the popup, chips and frame at once (main thread only).

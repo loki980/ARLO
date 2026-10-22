@@ -183,9 +183,44 @@ def test_card_gone_twice_queues_one_hide(monkeypatch):
 
 
 def test_one_missed_cycle_keeps_the_card_without_a_read(monkeypatch):
-    scanner, ocr, _ = _run(monkeypatch, [CARD_A, None, CARD_A], held=False)
+    scanner, ocr, sleeps = _run(monkeypatch, [CARD_A, None, CARD_A], held=False)
     assert ocr.reads == 1
     assert "hide" not in _kinds(scanner)
+    # The first miss of a shown card looks again at once
+    assert NO_CARD_SLEEP_CAP_S not in sleeps
+
+
+class _TimedOcr(_Ocr):
+    """_Ocr that keeps the fake time each locate (its capture) started."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.starts = []
+
+    def locate_card_at_cursor(self):
+        self.starts.append(self.clock.now)
+        return super().locate_card_at_cursor()
+
+
+@pytest.mark.parametrize("locate_s", [0.077, 0.124])
+def test_card_gone_hides_two_locates_later_without_a_sleep(monkeypatch, locate_s):
+    # 77 and 124 ms are the median and worst locate of the 21 Oct live log.
+    # The card goes between the shown cycle and the next capture
+    ocr = _TimedOcr(_Clock(), [CARD_A, None, None, None], search_s=locate_s)
+    hides = []
+    hide = Scanner._hide_card_windows  # noqa: SLF001
+
+    def timed_hide(self):
+        hides.append(ocr.clock.now)
+        hide(self)
+
+    monkeypatch.setattr(Scanner, "_hide_card_windows", timed_hide)
+    sleeps = []
+    _loop(monkeypatch, ocr, held=False, sleeps=sleeps)
+    gone_at = ocr.starts[1]
+    assert hides[0] - gone_at == pytest.approx(2 * locate_s)
+    # Of the three cycles without a card, the first miss does not sleep
+    assert sleeps.count(NO_CARD_SLEEP_CAP_S) == 2
 
 
 def test_same_item_after_a_hide_shows_again(monkeypatch):

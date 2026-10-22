@@ -368,3 +368,80 @@ def test_status_window_shown_with_the_setting(monkeypatch):
     app.status = app._make_status()  # noqa: SLF001
     assert isinstance(app.status, _StubStatus)
     assert _publish(monkeypatch, app)[STATUS] == Rect(5, 5, 9, 9)
+
+
+def _strip_slots(monkeypatch, strip, full):
+    """find_slots giving strip for a strip of the frame and full for all of it."""
+    from arc_helper.grid import Slot
+
+    calls = []
+
+    def find_slots(rgb):
+        calls.append(rgb.shape[1])
+        rects = full if rgb.shape[1] == 3840 else strip
+        return [Slot(Rect(*r), "stash", filled=True) for r in rects]
+
+    monkeypatch.setattr(main_module, "find_slots", find_slots)
+    return calls
+
+
+def test_hovered_slot_is_snapped_in_a_strip_and_mapped_to_the_frame(monkeypatch):
+    import numpy as np
+
+    rgb = np.zeros((2160, 3840, 3), np.uint8)
+    cell = Rect(2001, 500, 2101, 600)
+    # The strip starts 3 cell widths left of the cell, on an even px
+    calls = _strip_slots(monkeypatch, [(300, 500, 400, 600)], [])
+    slot = main_module._snap_hovered(rgb, cell)  # noqa: SLF001
+    assert slot.rect == Rect(2000, 500, 2100, 600)
+    assert calls == [700]
+
+
+def test_hovered_slot_without_a_strip_slot_searches_the_frame(monkeypatch):
+    import numpy as np
+
+    rgb = np.zeros((2160, 3840, 3), np.uint8)
+    cell = Rect(2001, 500, 2101, 600)
+    calls = _strip_slots(monkeypatch, [], [(2000, 500, 2100, 600)])
+    slot = main_module._snap_hovered(rgb, cell)  # noqa: SLF001
+    assert slot.rect == Rect(2000, 500, 2100, 600)
+    assert calls[-1] == 3840
+    assert len(calls) == 2
+
+
+def test_hovered_slot_search_runs_ahead_and_is_used_for_its_capture(monkeypatch):
+    import numpy as np
+
+    capture = Image.new("RGB", (64, 64))
+    ocr = type(
+        "Located",
+        (),
+        {
+            "_last_capture": capture,
+            "_last_origin": Point(0, 0),
+            "_last_card": Rect(10, 10, 40, 40),
+        },
+    )()
+    found = main_module.HoverSearch(np.zeros((64, 64, 3), np.uint8), None, None, 0.0)
+    searches, finished = [], []
+
+    def search(*args):
+        searches.append(args[0])
+        return found
+
+    def hovered(*_args, **kwargs):
+        finished.append(kwargs.get("search"))
+        return main_module.NO_HOVERED_SLOT
+
+    monkeypatch.setattr(main_module, "search_hovered_slot", search)
+    monkeypatch.setattr(main_module, "hovered_slot_on_screen", hovered)
+    monkeypatch.setattr(main_module, "get_ocr_engine", lambda: ocr)
+    scanner = Scanner(root=None, overlay=None, status=None, db=None, hotkey=None)
+    scanner._start_hover_search(ocr)  # noqa: SLF001
+    scanner._locate_hovered_slot(Item(name="Battery", action="Keep"))  # noqa: SLF001
+    assert searches == [capture]
+    assert finished == [found]
+    # Another capture does not take the search started for this one
+    ocr._last_capture = Image.new("RGB", (64, 64))  # noqa: SLF001
+    scanner._locate_hovered_slot(Item(name="Battery", action="Keep"))  # noqa: SLF001
+    assert finished == [found, None]
