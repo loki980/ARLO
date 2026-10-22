@@ -156,7 +156,7 @@ def test_icon_downloads_once_and_is_cached(monkeypatch, tmp_path):
 
 
 def _no_network(monkeypatch):
-    def fail(*args, **kwargs):
+    def fail(*_args, **_kwargs):
         pytest.fail("the cache-only lookup reached the network")
 
     monkeypatch.setattr(icons.requests, "get", fail)

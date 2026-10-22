@@ -1322,13 +1322,15 @@ class Database:
     @staticmethod
     def _row_to_item(row: sqlite3.Row) -> Item:
         """Convert database row to Item model."""
+        # sqlite3.Row membership tests values, so check the column names list.
+        columns = row.keys()
         return Item(
             name=row["name"],
             action=row["action"],
             recycle_for=row["recycle_for"],
             keep_for=row["keep_for"],
-            sell_price=row["sell_price"] if "sell_price" in row.keys() else None,
-            stack_size=row["stack_size"] if "stack_size" in row.keys() else None,
+            sell_price=row["sell_price"] if "sell_price" in columns else None,
+            stack_size=row["stack_size"] if "stack_size" in columns else None,
             rarity=row["rarity"],
             category=row["category"],
         )
