@@ -476,8 +476,12 @@ Done:
     captures). The gold is a deep gold (#ad7500), kept apart from ARLO's
     hover frame gold, closest in look to the orange at about 500.
 23. Every slot gets its badge. Every stash pass on 21 Oct left 1 to 5 slots
-    unidentified, and those get no price or tag. Step 1, find which items
-    and why on Jeffrey's capture and video, underway 21 Oct. Added 21 Oct.
+    unidentified, and those get no price or tag. Step 1, the investigation,
+    done 21 Oct: nothing is missing from the catalog. ARLO's own badges over
+    the icons while scrolling, the augment's icon cut by the crop, ARLO's
+    pill on the shield, and a tier rule that adds 57 with 0 wrong. The tier
+    rule and the wide equipment slots are underway 21 Oct, the stale
+    badges follow with Phase 5 step 7. Added 21 Oct.
 
 ## Phase 4b. Blueprint tracker. Done 18 Oct. Added 11 Oct
 
@@ -605,8 +609,14 @@ Ahead, in order:
    from the top as designed but stopped at 92 of 272 cells and then fell to
    80. A stash pass took about 1.5 s, so ARLO saw a view only every few
    seconds and the scroll outran it, and one view placed in the wrong spot.
-   Step 1, the investigation on his capture of that scroll, underway 21 Oct.
-   Added 21 Oct.
+   Step 1, the investigation on his capture and his screen video (his idea,
+   21 Oct: "Would it be easier for me to give you a video of me scrolling
+   through my inventory?"), done 21 Oct: ARLO's badges follow the scroll
+   onto the wrong tiles and spoil the looks, passes land 4 to 6 rows apart,
+   the slot cache never hits after a scroll, and badges show 1.2 s (first)
+   to 5.5 s (all) after the grid stops. Next steps in order: stop wrong
+   placements (underway 21 Oct), anchor on the scrollbar, keep ARLO's
+   badges out of the looks, a faster pass. Added 21 Oct.
 
 ## Phase 6. It reads your progress too. Planned, after phases 2 and 5
 
