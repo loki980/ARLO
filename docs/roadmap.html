@@ -156,25 +156,27 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
     <h1>ARLO Overlay Roadmap</h1>
     <p class="sub">Eight phases from a popup in the corner to an overlay that knows your stash, your bench, and what to keep. Laid out like the stash: one card per phase, status as a rarity tag. Corrected to 18 October 2026.</p>
   </div>
-  <div class="capacity"><b>7 / 8</b>phases done</div>
+  <div class="capacity"><b>6 / 8</b>phases done</div>
 </header>
 
-<section class="overall" aria-label="Whole roadmap about 85 percent done">
-  <div class="top"><h2>Whole roadmap</h2><span class="pct">~85%</span></div>
-  <div class="track"><i style="width:85%"></i></div>
-  <small>67 of 70 steps done, 7 of 8 phases done, weighted by effort (the large later phases count for more)</small>
+<section class="overall" aria-label="Whole roadmap about 83 percent done">
+  <div class="top"><h2>Whole roadmap</h2><span class="pct">~83%</span></div>
+  <div class="track"><i style="width:83%"></i></div>
+  <small>67 of 71 steps done, 6 of 8 phases done, weighted by effort (the large later phases count for more)</small>
 </section>
 
 <section class="counts" aria-label="Where things stand">
-  <div><b>7 / 8</b><span>phases done</span><small>every phase but 6 done</small></div>
-  <div><b>67 / 70</b><span>steps done</span><small>across all eight phases</small></div>
+  <div><b>6 / 8</b><span>phases done</span><small>phases 0 to 4 and 4b done</small></div>
+  <div><b>67 / 71</b><span>steps done</span><small>across all eight phases</small></div>
   <div><b>803</b><span>tests passing</span><small>on the overlay-extension branch</small></div>
   <div><b>320</b><span>captures labeled by eye</span><small>titles fully visible: read right 56 of 56 after the reader bake-off (14 Oct)</small></div>
 </section>
 
 <section class="nowlist" aria-label="Working on now">
   <h2>Working on now</h2>
-  <p>Nothing is underway right now.</p>
+  <ul>
+    <li><span class="nowmark">NOW</span><span><a href="#phase5">Phase 5, step 7, The map fills on one scroll</a><small>Your scroll stopped at 92 of 272: finding out why on your capture of it</small></span></li>
+  </ul>
 </section>
 
 <ol class="course">
@@ -326,22 +328,40 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   </li>
 
   <li class="phase">
-    <div class="slot done">5</div>
+    <div class="slot now">5</div>
     <article class="card" data-tab="Phase 5" id="phase5">
-      <div class="tags"><span class="tag done">Done</span><span class="dates"><time datetime="2026-10-15" data-rel>15 Oct</time> to <time datetime="2026-10-18" data-rel>18 Oct</time></span><span class="when recent">moved up <time datetime="2026-10-15" data-rel>15 Oct</time></span></div>
+      <div class="tags"><span class="tag now">Working on now</span><span class="dates">from <time datetime="2026-10-15" data-rel>15 Oct</time></span><span class="when recent">moved up <time datetime="2026-10-15" data-rel>15 Oct</time></span></div>
       <h2>ARLO knows what you own</h2>
       <p>ARLO watches the stash and loadout pages as you scroll and keeps one running tally of everything you own, stash and loadout together. Without it the have/need tags cannot count. Local only, nothing leaves your machine.</p>
-      <details>
-        <summary><span class="chev">▸</span><span class="show">Show the 6 steps</span><span class="hide">Hide the 6 steps</span></summary>
+      <div class="gauge" aria-label="Phase 5 about 85 percent done">
+        <div class="bar"><i style="width:85%"></i></div>
+        <div class="read">~85%<small>6 of 7 steps</small></div>
+      </div>
+      <div class="nowsteps">
+        <h3>Working on now</h3>
         <ul class="steps">
-          <li class="done"><span class="tick">✓</span><span class="what">Step 1, Read the headers<small>The stash's used and total slots and its value, the loadout's weight and value</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 2, Stitch the stash across scrolling<small>Your 67 frames stitched into one map, now saved between sessions and updated whenever rows are seen. A restart's first pass takes 78 ms instead of 845</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 3, The ledger<small>Your saved stash map and loadout counted together in the have/need tags. Durable Cloth went from 3/6 to 54/6</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 5, An unsure flag<small>A partial stash map still counts in the tags, shown as "52+/73" until one full scroll makes it sure</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 4, Use it<small>The advice card says "You have 51" and "then sell 45", "N+" while the map is partial</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
-          <li class="done"><span class="tick">✓</span><span class="what">Step 6, The map keeps building after a restart<small>A view at the top of the stash anchors the map. Your 18 Oct scroll fills it to 284, the header's count</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          <li class="now"><span class="nowmark">NOW</span><span class="what">Step 7, The map fills on one scroll<small>Your scroll stopped at 92 of 272 cells. Each stash pass took about 1.5 s, so ARLO missed most views, and one view landed in the wrong spot</small></span><span class="when recent">added <time datetime="2026-10-21" data-rel>21 Oct</time></span></li>
         </ul>
-      </details>
+      </div>
+      <div class="split">
+        <div>
+          <h3>Done</h3>
+          <ul class="steps">
+            <li class="done"><span class="tick">✓</span><span class="what">Step 1, Read the headers<small>The stash's used and total slots and its value, the loadout's weight and value</small></span><span class="when recent">done <time datetime="2026-10-15" data-rel>15 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 2, Stitch the stash across scrolling<small>Your 67 frames stitched into one map, now saved between sessions and updated whenever rows are seen. A restart's first pass takes 78 ms instead of 845</small></span><span class="when recent">done <time datetime="2026-10-17" data-rel>17 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 3, The ledger<small>Your saved stash map and loadout counted together in the have/need tags. Durable Cloth went from 3/6 to 54/6</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 5, An unsure flag<small>A partial stash map still counts in the tags, shown as "52+/73" until one full scroll makes it sure</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 4, Use it<small>The advice card says "You have 51" and "then sell 45", "N+" while the map is partial</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+            <li class="done"><span class="tick">✓</span><span class="what">Step 6, The map keeps building after a restart<small>A view at the top of the stash anchors the map. Your 18 Oct scroll fills it to 284, the header's count</small></span><span class="when recent">done <time datetime="2026-10-18" data-rel>18 Oct</time></span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Ahead, in order</h3>
+          <ul class="steps">
+            <li class="todo"><span class="tick">○</span><span class="what">Nothing else ahead<small>Step 7 finishes the phase</small></span><span class="when"></span></li>
+          </ul>
+        </div>
+      </div>
     </article>
   </li>
 
@@ -420,6 +440,7 @@ code{font-family:var(--mono);font-size:.88em;background:var(--bg2);border:1px so
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: greyed blueprint icons in the empty Collections cells. The blueprint tracker is done. 786 tests.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>You kept ended projects hidden and coin phases skipped, so Phase 2 is done. The stash header reads again when the grid icon is read as a digit.</span></li>
   <li><time datetime="2026-10-18" data-rel>18 Oct</time><span>Merged: the stash map keeps building after a restart (your scroll fills it to 284), and the greyed icons got their own setting. Phase 5 is done, only Phase 6 is left. 803 tests.</span></li>
+  <li><time datetime="2026-10-21" data-rel>21 Oct</time><span>Your scroll started the map from the top but it stopped at 92 of 272 cells. Started: finding out why on your capture of that scroll.</span></li>
 </ul>
 
 <div class="legend" aria-label="Key">

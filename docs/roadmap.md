@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 85 percent of the whole roadmap, weighted by effort: 67 of 70 steps
-done, 7 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+About 83 percent of the whole roadmap, weighted by effort: 67 of 71 steps
+done, 6 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
 Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
@@ -517,7 +517,7 @@ Ahead, in order:
    Done 18 Oct, reviewed: 63 of the 66 empty cells on Jeffrey's screenshot
    show their blueprint in grey, the other 3 are the unnamed slots.
 
-## Phase 5. ARLO knows what you own. Done 18 Oct. Moved up 15 Oct
+## Phase 5. ARLO knows what you own. Started 15 Oct, 85 percent, 6 of 7 steps. Moved up 15 Oct
 
 Jeffrey's words: "Maybe when my hotkey opens the inventory, you start
 watching and updating a local database of my inventory?" Decided 11 Oct.
@@ -591,6 +591,13 @@ Ahead, in order:
    frames place and the map fills to 284, the header's count (none placed
    before). The old 51-cell map is dropped, one scroll from the top rebuilds
    it.
+7. The map fills on one scroll. Jeffrey, 21 Oct, after one scroll from the
+   top on the step 6 build: "ok, done with the scroll". The map started
+   from the top as designed but stopped at 92 of 272 cells and then fell to
+   80. A stash pass took about 1.5 s, so ARLO saw a view only every few
+   seconds and the scroll outran it, and one view placed in the wrong spot.
+   Step 1, the investigation on his capture of that scroll, underway 21 Oct.
+   Added 21 Oct.
 
 ## Phase 6. It reads your progress too. Planned, after phases 2 and 5
 
