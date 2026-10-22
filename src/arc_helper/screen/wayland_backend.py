@@ -101,7 +101,10 @@ class WaylandBackend:
                 raise OSError(msg) from e
             sink = self._pipeline.get_by_name("sink")
             sink.connect("new-sample", self._on_new_sample)
-            if self._pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
+            if (
+                self._pipeline.set_state(Gst.State.PLAYING)
+                == Gst.StateChangeReturn.FAILURE
+            ):
                 msg = f"GStreamer pipeline refused to start.{self._collect_bus_error()}"
                 raise OSError(msg)  # noqa: TRY301
 
@@ -130,9 +133,7 @@ class WaylandBackend:
         # Plain attribute stores (atomic in CPython); readers may see one stale frame's worth during restart - harmless.
         self._size = (width, height)
         self._tk_scale = compute_scale(width, self._x11_logical_width())
-        logger.info(
-            f"Wayland capture: {width}x{height}, tk scale {self._tk_scale:.4g}"
-        )
+        logger.info(f"Wayland capture: {width}x{height}, tk scale {self._tk_scale:.4g}")
 
     def stop(self) -> None:
         # Order matters: NULL the pipeline first (joins streaming threads),

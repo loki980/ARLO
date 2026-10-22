@@ -32,7 +32,9 @@ def _windows_click_through(window: tk.Misc) -> None:
     user32 = ctypes.windll.user32
     hwnd = user32.GetParent(window.winfo_id()) or window.winfo_id()
     style = user32.GetWindowLongPtrW(hwnd, gwl_exstyle)
-    user32.SetWindowLongPtrW(hwnd, gwl_exstyle, style | ws_ex_layered | ws_ex_transparent)
+    user32.SetWindowLongPtrW(
+        hwnd, gwl_exstyle, style | ws_ex_layered | ws_ex_transparent
+    )
 
 
 def _x11_click_through(window: tk.Misc) -> None:
@@ -51,9 +53,7 @@ def _x11_click_through(window: tk.Misc) -> None:
         # input region, which would swallow the clicks anyway. Empty the
         # input region of the whole chain up to (excluding) the root.
         while xwindow.id != root_id:
-            xwindow.shape_rectangles(
-                shape.SO.Set, shape.SK.Input, X.Unsorted, 0, 0, []
-            )
+            xwindow.shape_rectangles(shape.SO.Set, shape.SK.Input, X.Unsorted, 0, 0, [])
             parent = xwindow.query_tree().parent
             if parent is None or parent.id == root_id:
                 break

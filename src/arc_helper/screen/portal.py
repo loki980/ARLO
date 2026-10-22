@@ -53,7 +53,9 @@ class ScreenCastSession:
         self.new_restore_token: str | None = None
         self.node_id: int | None = None
         self.stream_props: dict = {}
-        self.pipewire_fd: int = -1  # dup'd from the portal; ours to close (pipewiresrc dups again internally)
+        self.pipewire_fd: int = (
+            -1
+        )  # dup'd from the portal; ours to close (pipewiresrc dups again internally)
         self.closed = threading.Event()  # compositor/user ended the cast
 
         try:
@@ -196,7 +198,12 @@ class ScreenCastSession:
 
     # ------------------------------------------------------------------
 
-    def _request(self, method: str, build_args: Callable[[str], GLib.Variant], timeout: float = RESPONSE_TIMEOUT_S) -> dict:
+    def _request(
+        self,
+        method: str,
+        build_args: Callable[[str], GLib.Variant],
+        timeout: float = RESPONSE_TIMEOUT_S,
+    ) -> dict:
         """Call a request-style portal method, wait for its Response signal."""
         self._counter += 1
         token = f"{self._app_token}_{self._counter}"

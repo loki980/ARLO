@@ -576,7 +576,9 @@ class CalibrationTool:
             image = grab_screen(bbox)
         except OSError as e:
             logger.warning(f"Capture failed: {e}")
-            self.result_label.config(text="✗ Capture failed (see log)", foreground="red")
+            self.result_label.config(
+                text="✗ Capture failed (see log)", foreground="red"
+            )
             return
         logger.info(f"Captured image: {image.size}, mode: {image.mode}")  # Debug
 
@@ -797,7 +799,14 @@ class CalibrationTool:
 
         tree = ttk.Treeview(
             tree_frame,
-            columns=("name", "action", "sell_price", "stack_size", "recycle_for", "keep_for"),
+            columns=(
+                "name",
+                "action",
+                "sell_price",
+                "stack_size",
+                "recycle_for",
+                "keep_for",
+            ),
             show="headings",
             yscrollcommand=v_scrollbar.set,
             xscrollcommand=h_scrollbar.set,
