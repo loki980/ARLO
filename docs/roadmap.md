@@ -11,8 +11,8 @@ days and are dropped after that. Completed steps keep their date.
 
 ## Overall progress
 
-About 83 percent of the whole roadmap, weighted by effort: 67 of 71 steps
-done, 6 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
+About 81 percent of the whole roadmap, weighted by effort: 67 of 73 steps
+done, 4 of 8 phases done (18 Oct, checked against the code). Weights: phase 0
 counts 1, phases 2 and 4b count 2, every other phase 3. A phase's percent is
 its steps done over its steps. Phase 6 counts its 3 planned items as steps.
 Dropped steps do not count. Jeffrey, 15 Oct: "the roadmap should show overall
@@ -44,7 +44,7 @@ rights reserved), data-source study with evidence, design written.
    workshop levels (the only source with Outpost). Done 11 Oct.
 4. Design written. Done 11 Oct.
 
-## Phase 1. Hover an item and read the whole story. Done 17 Oct
+## Phase 1. Hover an item and read the whole story. Started 11 Oct, 95 percent, 17 of 18 steps
 
 One small chip on the game's tooltip: HOME ONLY beside the Recycles into
 icons, naming the extra parts you only get from the Speranza recycler. The
@@ -217,6 +217,12 @@ Done (steps 8 to 10 were dropped 18 Oct):
     chips are gone, the status window is off unless SHOW_STATUS_WINDOW is
     set, and HOME ONLY sits on the recycle icon row (4 of 4 test cards).
     Added 17 Oct.
+21. A faster hover card. Jeffrey, 17 Oct: "there's still a noticible delay
+    both showing and hiding the overlay. Is it possible to make this
+    faster?" The 21 Oct log shows the advice card 0.5 to 1 s after the
+    game's card: the title read takes 190 to 650 ms and the card another
+    250 ms to reach the screen. Remember titles by look and cut the screen
+    path. Underway 21 Oct. Added 21 Oct.
 
 ## Phase 2. Advice with a reason. Done 18 Oct
 
@@ -334,7 +340,7 @@ Done:
    52 of 53. With the icon model, weapons identified exactly 39 of 44 (11
    before). Measured on the crops the reader was tuned on.
 
-## Phase 4. Badges on every cell. Done 18 Oct
+## Phase 4. Badges on every cell. Started 11 Oct, 95 percent, 22 of 23 steps
 
 Decided 11 Oct. The Wayland risk sat here and is settled: the X11 layer works
 over the game. Delivered: prices on every icon (steps 4 to 6), the gold frame
@@ -469,6 +475,9 @@ Done:
     its own coloured patches as well as the greys (0 item changes on 12
     captures). The gold is a deep gold (#ad7500), kept apart from ARLO's
     hover frame gold, closest in look to the orange at about 500.
+23. Every slot gets its badge. Every stash pass on 21 Oct left 1 to 5 slots
+    unidentified, and those get no price or tag. Step 1, find which items
+    and why on Jeffrey's capture and video, underway 21 Oct. Added 21 Oct.
 
 ## Phase 4b. Blueprint tracker. Done 18 Oct. Added 11 Oct
 
@@ -645,12 +654,13 @@ Will contain:
   `.env.example` (blocked for agents by permission settings). Changed 14 Oct:
   `CAPTURE_LIBRARY` is no longer a setting, so it does not belong there, and
   Jeffrey can delete it from his `.env`.
-- The ruff baseline on master has 9 lint errors and 7 unformatted files
-  outside the new code.
+- Done 21 Oct: the ruff baseline is cleared except config.py (unformatted)
+  and overlay.py (4 findings), left while other work touches them.
 - 158 items have no rarity because the API gives none.
 - The capture library should record the cursor position with each image
   (sidecar or file name) so the evaluation script picks the same card the
   live scanner did now that captures are full screen. Added 12 Oct.
+  Underway 21 Oct.
 - Done 18 Oct: the README, `docs/CONFIGURATION.md` and the `TOOLTIP_CHIPS`
   description describe the current overlay (no price chip, status window
   off by default, how to quit, how to fill the stash map), and the design
