@@ -96,7 +96,9 @@ def main() -> int:
     files = sorted(folder.glob("*.png"))
     width = max((len(f.name) for f in files), default=4)
 
-    print(f"{'file':<{width}}  {'cursor':<7}  {'card':<21}  {'read':<24}  {'vote':<9}  resolved")
+    print(
+        f"{'file':<{width}}  {'cursor':<7}  {'card':<21}  {'read':<24}  {'vote':<9}  resolved"
+    )
     hits = {"read": 0, "no_vote": 0, "vote": 0}
     labeled = 0
     read_times: list[float] = []
