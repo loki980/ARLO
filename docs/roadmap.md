@@ -479,9 +479,14 @@ Done:
     unidentified, and those get no price or tag. Step 1, the investigation,
     done 21 Oct: nothing is missing from the catalog. ARLO's own badges over
     the icons while scrolling, the augment's icon cut by the crop, ARLO's
-    pill on the shield, and a tier rule that adds 57 with 0 wrong. The tier
-    rule and the wide equipment slots are underway 21 Oct, the stale
-    badges follow with Phase 5 step 7. Added 21 Oct.
+    pill on the shield, and a tier rule that adds 57 with 0 wrong. Step 2,
+    the tier rule, done 21 Oct, reviewed (875 to 818, 0 wrong). Step 3, the
+    wide equipment slots, done 22 Oct, reviewed, reviewer items overruled:
+    the Light Shield reads on every frame, the augment's whole icon is in
+    view and ranks first, unidentified 875 to 752. Left: Looting Mk. 2 ties
+    with its near-identical Mk. 3 icons (a tie-break by the rarity stripe,
+    to measure), and the stale badges, which go with Phase 5 step 7. Added
+    21 Oct.
 
 ## Phase 4b. Blueprint tracker. Done 18 Oct. Added 11 Oct
 
