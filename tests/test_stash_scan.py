@@ -617,6 +617,55 @@ def test_the_tile_settles_an_item_and_its_blueprint(ranked, read, blueprint, exp
         assert tier is None
 
 
+@pytest.mark.parametrize(
+    ("ranked", "read", "blueprint", "expected", "tier"),
+    [
+        # A plain tile, no numeral: the item's own blueprint names one tier
+        (
+            (("Compensator II", 0.8), ("Metal Parts", 0.5)),
+            None,
+            False,
+            "Compensator II",
+            "II",
+        ),
+        # A read numeral still wins
+        (
+            (("Compensator II", 0.8), ("Metal Parts", 0.5)),
+            "III",
+            False,
+            "Compensator III",
+            "III",
+        ),
+        # An untiered blueprint names no tier, the numeral is needed
+        ((("Anvil I", 0.8), ("Metal Parts", 0.5)), None, False, None, "I"),
+        ((("Anvil I", 0.8), ("Metal Parts", 0.5)), "III", False, "Anvil III", "III"),
+        # A blueprint tile still gives the blueprint
+        (
+            (("Compensator II", 0.8), ("Metal Parts", 0.5)),
+            None,
+            True,
+            "Compensator II Blueprint",
+            None,
+        ),
+        # A group of more than two still needs the numeral
+        ((("Kettle II", 0.8), ("Metal Parts", 0.5)), None, False, None, "II"),
+    ],
+)
+def test_the_catalog_tier_is_taken_for_an_items_own_blueprint(
+    ranked, read, blueprint, expected, tier
+):
+    twins = {
+        "Compensator II": ("Compensator II Blueprint",),
+        "Anvil I": ("Anvil Blueprint",),
+        "Kettle II": ("Amplified Kettle", "Kettle II Blueprint"),
+    }
+    item, got_tier, _ = stash_scan._resolve(  # noqa: SLF001
+        _candidates(*ranked), read, _named, twins, blueprint=blueprint
+    )
+    assert (item.name if item else None) == expected
+    assert got_tier == tier
+
+
 @pytest.mark.usefixtures("stubs")
 def test_identify_slots_settles_twins_by_the_tile(monkeypatch):
     slots = _slots(1)
