@@ -157,7 +157,12 @@ def reason_for(found, read, lookup, twins, blueprint) -> str:
     )
     if picked is not None and not stash_scan._is_blueprint_name(picked):
         if stash_scan.name_tier(picked) is not None and read is None:
-            return "tier_unread"
+            if not stash_scan._own_blueprint_only(picked, alike):
+                return "tier_unread"
+            item, _, _ = stash_scan._resolve(
+                found, read, lookup, twins, blueprint=blueprint
+            )
+            return "tier_catalog" if item is not None else "lookup_none"
     if picked is None and alike:
         if not (settled and all(stash_scan.name_tier(t) is None for t in alike)):
             return "twins_unsettled"
@@ -296,7 +301,7 @@ def main() -> int:
             read = tier_read.tier if tier_read else None
             blueprint = is_blueprint_tile(crop)
             reason = reason_for(found, read, lookup, twins, blueprint)
-            if (reason == "identified") != (result.item is not None):
+            if (reason in ("identified", "tier_catalog")) != (result.item is not None):
                 reason += "_MISMATCH"
             look = look_id(crop)
             bar = None if is_wide(slot.rect) else bar_geometry(crop)
@@ -544,20 +549,23 @@ def main() -> int:
 
 
 def tier_rule(o: Obs, lookup, twins) -> str | None:
-    """The proposed tier rule: a tiered item whose only twin is its own tier's
+    """The tier rule's outcome: a tiered item whose only twin is its own tier's
     blueprint ("Compensator II" and "Compensator II Blueprint") takes the
     catalog tier when no numeral is read, since that pair names one tier.
+    The slot is recognised by the replayed reason of the implemented branch
+    and must agree with the item identify_slots gave it.
     """
-    if o.reason != "tier_unread":
+    if o.reason != "tier_catalog":
         return None
     top = o.found[0].name
     alike = twins.get(top, ())
     tier = stash_scan.name_tier(top)
-    own = f"{top} blueprint".casefold()
-    if tier is None or len(alike) != 1 or alike[0].casefold() != own:
+    if tier is None or not stash_scan._own_blueprint_only(top, alike):
         return None
     item = lookup(top)
-    return item.name if item is not None else None
+    if item is None or o.item is None or o.item.casefold() != item.name.casefold():
+        return None
+    return item.name
 
 
 def tier_rule_lines(observations, lookup, twins, labels) -> list[str]:
@@ -576,13 +584,15 @@ def tier_rule_lines(observations, lookup, twins, labels) -> list[str]:
         verdicts[v] += 1
         looks[o.look] = f"{name} -> {v}"
     tier_unread = sum(o.reason == "tier_unread" for o in observations)
+    tier_catalog = sum(o.reason == "tier_catalog" for o in observations)
     out = [
         "",
-        "TIER RULE PROPOSAL (catalog tier when the only twin is that tier's blueprint)",
-        f"  tier_unread observations {tier_unread}, newly accepted {len(newly)} "
+        "TIER RULE (catalog tier when the only twin is that tier's blueprint)",
+        f"  tier_unread observations left {tier_unread}, tier_catalog observations "
+        f"{tier_catalog}, newly accepted {len(newly)} "
         f"({len(looks)} looks): correct {verdicts['correct']}, wrong "
         f"{verdicts['wrong']}, uncertain {verdicts['uncertain']}"
-        "  | accepted now rejected 0 (it only acts on tier_unread slots)",
+        "  | the rule only acts on slots that had no numeral",
     ]
     out.extend(f"      {look}: {text}" for look, text in sorted(looks.items()))
     return out

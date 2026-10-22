@@ -814,6 +814,17 @@ def _tile_twin(top: str, alike: Sequence[str], *, blueprint: bool | None) -> str
     return blueprints[0] if blueprint else plain[0]
 
 
+def _own_blueprint_only(picked: str, alike: Sequence[str]) -> bool:
+    """Whether the item's only twin is the blueprint named after it.
+
+    "Compensator II" and "Compensator II Blueprint" name one tier, so the
+    catalog tier is known without a numeral. "Anvil I" with "Anvil Blueprint"
+    does not, that blueprint has no tier.
+    """
+    own = f"{picked}{BLUEPRINT_SUFFIX}"
+    return len(alike) == 1 and alike[0].casefold() == own.casefold()
+
+
 def _resolve(
     found: Sequence[EmbedCandidate],
     read: str | None,
@@ -828,7 +839,9 @@ def _resolve(
     item and its blueprint, the tile decides (blueprint is is_blueprint_tile's
     answer): a blueprint tile picks the blueprint, a plain tile the item,
     whose tier, when it has one, is the read numeral (none read leaves it
-    unidentified). Otherwise the item is kept only when the read numeral
+    unidentified, unless the blueprint is named after that very tiered item,
+    as "Compensator II Blueprint" is, and the catalog tier is taken).
+    Otherwise the item is kept only when the read numeral
     settles it: the top name is tiered, a numeral was read and no twin is
     tiered (an untiered blueprint or variant cannot show a numeral). For the
     same reason a settled slot's lead passes over the untiered candidates.
@@ -849,7 +862,9 @@ def _resolve(
         picked_tier = name_tier(picked)
         tier = read or picked_tier
         if picked_tier is not None and read is None:
-            return None, tier, lead
+            if not _own_blueprint_only(picked, alike):
+                return None, tier, lead
+            return lookup(picked), picked_tier, lead
         name = f"{base_name(picked)} {read}" if picked_tier else picked
         return lookup(name), tier, lead
     if alike and not (settled and all(name_tier(t) is None for t in alike)):
