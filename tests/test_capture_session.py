@@ -356,3 +356,24 @@ def test_sidecar_failure_is_logged_and_does_not_raise(monkeypatch, tmp_path, cap
     assert (tmp_path / "20260101-000000-000_x.png").exists()
     assert not list(tmp_path.glob("*.json"))
     assert "Could not save capture sidecar" in caplog.text
+
+
+def test_sidecar_write_failure_is_logged_and_does_not_raise(
+    monkeypatch, tmp_path, caplog
+):
+    from pathlib import Path
+
+    from arc_helper import ocr as ocr_module
+
+    def broken_write(self, *_args, **_kwargs):
+        raise OSError("disk full")
+
+    engine = OCREngine()
+    engine.capture_library_dir = tmp_path
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (1920, 1080))
+    monkeypatch.setattr(Path, "write_text", broken_write)
+    with caplog.at_level(logging.WARNING, logger="arc_helper"):
+        engine._write_capture(_image(), "20260101-000000-000", "y", {"cursor": None})  # noqa: SLF001
+    assert (tmp_path / "20260101-000000-000_y.png").exists()
+    assert not list(tmp_path.glob("*.json"))
+    assert "Could not save capture sidecar: disk full" in caplog.text

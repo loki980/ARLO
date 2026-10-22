@@ -101,11 +101,17 @@ def main() -> int:
     )
     hits = {"read": 0, "no_vote": 0, "vote": 0}
     labeled = 0
+    skipped = 0
     read_times: list[float] = []
     layout_times: list[float] = []
     for path in files:
-        with Image.open(path) as image:
-            rgb = image.convert("RGB")
+        try:
+            with Image.open(path) as image:
+                rgb = image.convert("RGB")
+        except (OSError, ValueError) as e:
+            print(f"skipped {path.name}: {e}")
+            skipped += 1
+            continue
         # The capture as the scanner kept it before reading, at origin 0,0 so
         # the locate cursor is in image coordinates
         engine._last_capture, engine._last_origin = rgb, Point(0, 0)
@@ -148,7 +154,8 @@ def main() -> int:
         print(f"resolver without vote:  {_percent(hits['no_vote'], labeled)}")
         print(f"resolver with vote:     {_percent(hits['vote'], labeled)}")
     print(f"engine: {engine.reader.name}")
-    print(f"captures with a card:   {len(read_times)} of {len(files)}")
+    print(f"captures with a card:   {len(read_times)} of {len(files) - skipped}")
+    print(f"skipped unreadable:     {skipped}")
     print(f"median full read:       {_median_ms(read_times)} per card")
     print(f"median layout:          {_median_ms(layout_times)} per card")
     return 0
