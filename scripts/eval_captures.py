@@ -8,7 +8,9 @@ Runs the real OCR name read and database lookup on every PNG in the folder
 prints one row per file: file, located card, read text, tier vote and
 confidence, and the resolved catalog name. Each image is read the way the
 scanner reads it, with the reader OCR_ENGINE names: the card is located with
-the cursor assumed at the image centre and the reader runs on its crop. With
+the cursor from the capture's sidecar (<name>.json, the cursor minus the
+image origin) or, without one, assumed at the image centre, and the reader
+runs on its crop. The cursor column says which was used. With
 no card the tesseract engine reads the whole image, as for an old fixed-box
 capture, and the other engines read nothing. With a labels.csv in the folder,
 or given after it (columns file,expected), it also prints the accuracy of the
@@ -21,6 +23,7 @@ Needs Tesseract and items.db, no display.
 """
 
 import csv
+import json
 import logging
 import statistics
 import sys
@@ -44,6 +47,22 @@ def _load_labels(path: Path) -> dict[str, str]:
             for row in csv.DictReader(f)
             if row.get("file")
         }
+
+
+def _cursor_for(path: Path, image: Image.Image) -> tuple[Point, str]:
+    """The locate cursor in image coordinates, and whether it came from the sidecar.
+
+    Uses the sidecar's cursor minus its origin when <name>.json contains a
+    cursor, else the image centre.
+    """
+    centre = Point(image.width // 2, image.height // 2)
+    try:
+        data = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        x, y = data["cursor"]
+        ox, oy = data.get("origin") or (0, 0)
+        return Point(int(x) - int(ox), int(y) - int(oy)), "sidecar"
+    except (OSError, ValueError, TypeError, KeyError):
+        return centre, "centre"
 
 
 def _same(name: str | None, expected: str) -> bool:
@@ -77,20 +96,29 @@ def main() -> int:
     files = sorted(folder.glob("*.png"))
     width = max((len(f.name) for f in files), default=4)
 
-    print(f"{'file':<{width}}  {'card':<21}  {'read':<24}  {'vote':<9}  resolved")
+    print(
+        f"{'file':<{width}}  {'cursor':<7}  {'card':<21}  {'read':<24}  {'vote':<9}  resolved"
+    )
     hits = {"read": 0, "no_vote": 0, "vote": 0}
     labeled = 0
+    skipped = 0
     read_times: list[float] = []
     layout_times: list[float] = []
     for path in files:
-        with Image.open(path) as image:
-            rgb = image.convert("RGB")
-        # The capture is the search window, centred on the cursor, as the
-        # scanner keeps it before reading
+        try:
+            with Image.open(path) as image:
+                rgb = image.convert("RGB")
+        except (OSError, ValueError) as e:
+            print(f"skipped {path.name}: {e}")
+            skipped += 1
+            continue
+        # The capture as the scanner kept it before reading, at origin 0,0 so
+        # the locate cursor is in image coordinates
         engine._last_capture, engine._last_origin = rgb, Point(0, 0)
         engine._last_card = None
         start = time.perf_counter()
-        crop = engine._locate_card(Point(rgb.width // 2, rgb.height // 2))
+        cursor, cursor_source = _cursor_for(path, rgb)
+        crop = engine._locate_card(cursor)
         card = engine._last_card
         card_text = "-"
         if card is not None:
@@ -107,7 +135,7 @@ def main() -> int:
         vote_text = f"{vote.tier} {vote.confidence:.2f}" if vote and vote.tier else "-"
         resolved = with_vote.name if with_vote else "-"
         print(
-            f"{path.name:<{width}}  {card_text:<21}  {read or '-':<24}  "
+            f"{path.name:<{width}}  {cursor_source:<7}  {card_text:<21}  {read or '-':<24}  "
             f"{vote_text:<9}  {resolved}"
         )
 
@@ -126,7 +154,8 @@ def main() -> int:
         print(f"resolver without vote:  {_percent(hits['no_vote'], labeled)}")
         print(f"resolver with vote:     {_percent(hits['vote'], labeled)}")
     print(f"engine: {engine.reader.name}")
-    print(f"captures with a card:   {len(read_times)} of {len(files)}")
+    print(f"captures with a card:   {len(read_times)} of {len(files) - skipped}")
+    print(f"skipped unreadable:     {skipped}")
     print(f"median full read:       {_median_ms(read_times)} per card")
     print(f"median layout:          {_median_ms(layout_times)} per card")
     return 0

@@ -1,6 +1,7 @@
 """Tests for the capture library: on only with --capture, limited, saved off-thread."""
 
 import argparse
+import json
 import logging
 import threading
 import time
@@ -116,7 +117,7 @@ def test_full_queue_drops_capture_without_blocking(monkeypatch, tmp_path):
     started = threading.Event()
     release = threading.Event()
 
-    def blocked_write(_image, _stamp, _label):
+    def blocked_write(_image, _stamp, _label, _meta=None):
         started.set()
         release.wait(5)
 
@@ -145,7 +146,7 @@ def test_capture_count_stops_at_the_limit(tmp_path, caplog):
             engine._save_to_library(_image(), f"ITEM {n}")  # noqa: SLF001
             engine._capture_queue.join()  # noqa: SLF001
     assert engine._capture_count == 3  # noqa: SLF001
-    assert sorted(p.name.split("_", 1)[1] for p in tmp_path.iterdir()) == [
+    assert sorted(p.name.split("_", 1)[1] for p in tmp_path.glob("*.png")) == [
         "ITEM-0.png",
         "ITEM-1.png",
         "ITEM-2.png",
@@ -209,7 +210,7 @@ def grid_run(monkeypatch, tmp_path):
             scanner._feed_stash(engine)  # noqa: SLF001
             scanner._scan_periods.append(step_s)  # noqa: SLF001
         engine._capture_queue.join()  # noqa: SLF001
-        return sorted(p.name.split("_", 1)[1] for p in tmp_path.iterdir())
+        return sorted(p.name.split("_", 1)[1] for p in tmp_path.glob("*.png"))
 
     return SimpleNamespace(engine=engine, scanner=scanner, feed=feed, dir=tmp_path)
 
@@ -226,7 +227,9 @@ def test_distinct_grid_frames_half_a_second_apart_all_save(grid_run):
 
 def test_grid_frames_closer_than_the_gap_save_first_and_fifth(grid_run):
     saved = []
-    grid_run.engine._queue_capture = lambda image, _label: saved.append(image) or True  # noqa: SLF001
+    grid_run.engine._queue_capture = (
+        lambda image, _label, **_kw: saved.append(image) or True
+    )  # noqa: SLF001
     frames = [_grid_frame(40 + 30 * n) for n in range(5)]
     grid_run.feed(frames, 0.1)
     assert saved == [frames[0], frames[4]]
@@ -262,7 +265,115 @@ def test_limit_stops_grid_saves(grid_run):
 def test_no_grid_frames_without_a_capture_run(grid_run):
     offered = []
     grid_run.engine.capture_library = False
-    grid_run.engine._queue_capture = lambda *a: offered.append(a) or True  # noqa: SLF001
+    grid_run.engine._queue_capture = lambda *a, **_kw: offered.append(a) or True  # noqa: SLF001
     frames = [_grid_frame(40 + 30 * n) for n in range(3)]
     assert grid_run.feed(frames, 0.5) == []
     assert offered == []
+
+
+def _sidecars(folder):
+    return {
+        p.name.split("_", 1)[1]: json.loads(p.read_text())
+        for p in folder.glob("*.json")
+    }
+
+
+def test_card_capture_writes_png_and_sidecar_with_the_stored_cursor(
+    monkeypatch, tmp_path
+):
+    from arc_helper import ocr as ocr_module
+    from arc_helper.screen import Point
+    from arc_helper.tooltip_layout import Point as LayoutPoint
+
+    engine = OCREngine()
+    engine.capture_library_dir = tmp_path
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (3840, 2160))
+    # Stored at capture time, the backend now reports somewhere else
+    monkeypatch.setattr(ocr_module, "get_cursor_position", lambda: Point(x=1, y=1))
+    image = _image()
+    engine._capture_cursor = Point(x=1200, y=800)  # noqa: SLF001
+    engine._capture_origin = LayoutPoint(0, 0)  # noqa: SLF001
+    engine._last_capture, engine._last_origin = image, LayoutPoint(0, 0)  # noqa: SLF001
+    engine._save_to_library(image, "ANVIL II")  # noqa: SLF001
+    engine._capture_queue.join()  # noqa: SLF001
+    assert [p.name.split("_", 1)[1] for p in tmp_path.glob("*.png")] == ["ANVIL-II.png"]
+    sidecar = _sidecars(tmp_path)["ANVIL-II.json"]
+    assert sidecar["cursor"] == [1200, 800]
+    assert sidecar["origin"] == [0, 0]
+    assert sidecar["screen"] == [3840, 2160]
+    assert sidecar["label"] == "ANVIL-II"
+    assert sidecar["time"]
+
+    # A no-card image is the cursor box, with its own origin
+    box = _image()
+    engine._last_capture, engine._last_origin = box, LayoutPoint(1210, 810)  # noqa: SLF001
+    engine._save_to_library(box, "OSPREY I")  # noqa: SLF001
+    engine._capture_queue.join()  # noqa: SLF001
+    sidecar = _sidecars(tmp_path)["OSPREY-I.json"]
+    assert sidecar["cursor"] == [1200, 800]
+    assert sidecar["origin"] == [1210, 810]
+
+
+def test_grid_capture_sidecar_has_the_cursor_at_offer_time(monkeypatch, tmp_path):
+    from arc_helper import ocr as ocr_module
+    from arc_helper.screen import Point
+
+    engine = OCREngine()
+    engine.capture_library = True
+    engine.capture_library_dir = tmp_path
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (1920, 1080))
+    monkeypatch.setattr(ocr_module, "get_cursor_position", lambda: Point(x=640, y=360))
+    assert engine.offer_grid_frame(_image(), [], lambda *_: False)
+    engine._capture_queue.join()  # noqa: SLF001
+    sidecar = _sidecars(tmp_path)["grid.json"]
+    assert sidecar["cursor"] == [640, 360]
+    assert sidecar["origin"] == [0, 0]
+    assert sidecar["screen"] == [1920, 1080]
+
+
+def test_capture_without_a_known_cursor_writes_null(monkeypatch, tmp_path):
+    from arc_helper import ocr as ocr_module
+
+    engine = OCREngine()
+    engine.capture_library_dir = tmp_path
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (1920, 1080))
+    engine._save_to_library(_image(), "NOCURSOR")  # noqa: SLF001 - no search window yet
+    engine._capture_queue.join()  # noqa: SLF001
+    assert _sidecars(tmp_path)["NOCURSOR.json"]["cursor"] is None
+
+
+def test_sidecar_failure_is_logged_and_does_not_raise(monkeypatch, tmp_path, caplog):
+    from arc_helper import ocr as ocr_module
+
+    def broken():
+        raise RuntimeError("no display")
+
+    engine = OCREngine()
+    engine.capture_library_dir = tmp_path
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", broken)
+    with caplog.at_level(logging.WARNING, logger="arc_helper"):
+        engine._write_capture(_image(), "20260101-000000-000", "x", {"cursor": None})  # noqa: SLF001
+    assert (tmp_path / "20260101-000000-000_x.png").exists()
+    assert not list(tmp_path.glob("*.json"))
+    assert "Could not save capture sidecar" in caplog.text
+
+
+def test_sidecar_write_failure_is_logged_and_does_not_raise(
+    monkeypatch, tmp_path, caplog
+):
+    from pathlib import Path
+
+    from arc_helper import ocr as ocr_module
+
+    def broken_write(self, *_args, **_kwargs):
+        raise OSError("disk full")
+
+    engine = OCREngine()
+    engine.capture_library_dir = tmp_path
+    monkeypatch.setattr(ocr_module, "get_screen_resolution", lambda: (1920, 1080))
+    monkeypatch.setattr(Path, "write_text", broken_write)
+    with caplog.at_level(logging.WARNING, logger="arc_helper"):
+        engine._write_capture(_image(), "20260101-000000-000", "y", {"cursor": None})  # noqa: SLF001
+    assert (tmp_path / "20260101-000000-000_y.png").exists()
+    assert not list(tmp_path.glob("*.json"))
+    assert "Could not save capture sidecar: disk full" in caplog.text
