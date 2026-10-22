@@ -54,6 +54,7 @@ frame has filled slots.
 
 import datetime
 import hashlib
+import itertools
 import json
 import math
 import re
@@ -66,6 +67,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from typing import NamedTuple
 
+import cv2
 import numpy as np
 
 from .badge_helper import PATCH_TEXT_RGB
@@ -78,10 +80,18 @@ from .database import Database
 from .database import Item
 from .grid import Slot
 from .grid import find_slots
+from .icon_embed import INPUT_SIDE
 from .icon_embed import EmbedCandidate
 from .icon_embed import EmbedGallery
 from .icon_embed import crop_square
 from .icon_embed import default_embedder
+from .icon_match import ART_MARGIN
+from .icon_match import GALLERY_BACKGROUND
+from .icon_match import INSET
+from .icon_match import MIN_MASK_PIXELS
+from .icon_match import _art_mask
+from .icon_match import _background
+from .icon_match import _pad_square
 from .slot_marks import _ICON_START_MAX
 from .slot_marks import _INK_ABOVE
 from .slot_marks import _RIGHT_HALF
@@ -111,8 +121,10 @@ BLUEPRINT_SUFFIX = " blueprint"  # casefolded, a blueprint's catalog name ends s
 # The slot cache: entries kept, least recently used dropped first
 SLOT_CACHE_SIZE = 4096
 # Part of the saved slot cache's fingerprint. Bump it whenever slot_signature
-# or look_signature change, so entries keyed the old way are dropped on load
-SLOT_CACHE_VERSION = 1
+# or look_signature change, or the model's view of a slot (2: wide slots
+# unpilled and equipment cards cropped whole), so entries keyed or
+# identified the old way are dropped on load
+SLOT_CACHE_VERSION = 2
 # After the first save, the slot cache is saved at most once per this many
 # seconds, and stop waits at most SLOT_CACHE_STOP_WAIT_S for the last save
 SLOT_CACHE_SAVE_S = 30.0
@@ -155,6 +167,78 @@ TAG_BG = "#141414d9"
 TAG_ALPHA = "d9"
 # The pill is fully opaque from WORTH_HIGH, so the gold stands out
 TAG_ALPHA_HIGH = "ff"
+
+# The passes also see ARLO's own price pill on wide slots, top left or top
+# right. unpill paints it out before the slot is embedded. badge_helper draws
+# the pill's text TAG_TEXT_SHARE of the slot height tall (TAG_TEXT_MIN to
+# TAG_TEXT_MAX px), the pill PILL_INSET of that text size (at least
+# PILL_INSET_MIN px) inside the corner, its ink plus PILL_PAD of the text
+# size above and below (the 288 x 192 shield card: text 33 px, pill rows 10
+# to 55, columns 10 to 120 for "Φ 640"). A pill is found on the row
+# PILL_ROW of the text size below its top, inside the top pad where no ink
+# goes: the fill is taken PILL_SAMPLE of the text size in from its end (the
+# end pad is 0.35), counts when its channels spread at least PILL_CHROMA
+# (every worth fill does, the slot backdrop and the dark tag do not), and the
+# pill runs on while pixels stay within PILL_TOLERANCE of it in every
+# channel (a translucent fill over art moves a channel at most
+# 0.15 x 255 = 38), gaps under PILL_BRIDGE columns bridged, for at least
+# PILL_MIN_RUN text sizes ("Φ 0" is about 2.3). It is painted out from the
+# slot's edge to the run's end plus PILL_END text sizes (the rounded end,
+# at most half the pill's height) and PILL_MARGIN px, and from the top to
+# PILL_DEPTH text sizes below the inset (the pill's height with an ink as
+# tall as the text) plus PILL_MARGIN, never past slot_signature's tag band.
+# The fill is the slot's own backdrop: the median of the art region's top
+# strip (icon_match._background) outside the pills
+PILL_INSET = 0.3
+PILL_INSET_MIN = 3
+PILL_ROW = 0.15
+PILL_SAMPLE = 0.35
+PILL_CHROMA = 60
+PILL_TOLERANCE = 40
+PILL_BRIDGE = 3
+PILL_MIN_RUN = 1.0
+PILL_END = 0.8
+PILL_DEPTH = 1.6
+PILL_MARGIN = 2
+
+# A wide slot is a weapon card (608 x 402 at 4K, the weapon above a row of
+# attachment boxes) or an equipment card (augment, shield, 288 x 192 at 4K,
+# the icon down to the bar), and both are about 1.5 times as wide as tall.
+# card_square tells them apart by the art from INSET of the side in to
+# CARD_BOTTOM of the height (above the bar, whose top is at 0.77 to 0.79):
+# the first art from the top runs until CARD_GAP of the height without art.
+# It is a weapon when that art is at least WEAPON_ASPECT times as wide as
+# tall (the rifles measure 3 to 4) or when more art of at least
+# CARD_ATTACHMENTS of the height follows (the attachment boxes, 0.53 to
+# 0.75, also under the hand cannons, whose art measures about 1.8). A weapon
+# keeps the crop step as it is (icon_embed.crop_square, the top half turned
+# to the catalog pose). An equipment card's icon reaches below the half
+# (the augment 0.10 to 0.74, the shields 0.12 to 0.72) and its catalog icon
+# is not turned, so its square is the whole region, untilted, with the
+# rarity wedge painted out in the backdrop colour. The wedge's curved edge
+# leaves the slot's left edge at 0.38 to 0.50 of the height and reaches
+# 0.02 of the width at 0.46, 0.06 at 0.50, 0.14 at 0.62, 0.22 at 0.70 and
+# 0.29 at 0.74 at most (the 4K cards). CARD_WEDGE (shares of the width and
+# height) runs about 0.04 of the width outside that edge and stays left of
+# the icons (the augment's corner at 0.33 of the width, 0.72 of the
+# height). The icon box is about 150 px at 4K and scaled up to the model's
+# side, with INTER_LANCZOS4: icon_match.art_square scales with INTER_AREA,
+# which scales a box up by repeating pixels (Looting Mk. 2's lead over
+# Looting Mk. 3 (Cautious) 0.022 with it, 0.031 with LANCZOS4)
+CARD_BOTTOM = 0.76
+CARD_GAP = 0.03
+CARD_ATTACHMENTS = 0.1
+WEAPON_ASPECT = 2.0
+CARD_WEDGE = (
+    (0.0, 0.32),
+    (0.06, 0.46),
+    (0.12, 0.56),
+    (0.2, 0.64),
+    (0.28, 0.7),
+    (0.36, 0.76),
+    (0.36, 0.8),
+    (0.0, 0.8),
+)
 
 # Worth at a glance: the price patch and pill are filled by the stack's worth,
 # red for the cheapest stacks through yellow and green, gold from WORTH_HIGH.
@@ -874,9 +958,137 @@ def _resolve(
 
 
 def _slot_crop(rgb: np.ndarray, rect: Rect) -> np.ndarray:
-    """A slot's crop of the frame, unpatched when it is square."""
+    """A slot's crop of the frame, unpatched when square, unpilled when wide."""
     crop = rgb[rect.top : rect.bottom, rect.left : rect.right]
-    return crop if is_wide(rect) else unpatch(crop)
+    return unpill(crop) if is_wide(rect) else unpatch(crop)
+
+
+def _tag_text(height: int) -> int:
+    """badge_helper's tag text size on a slot this tall, in px."""
+    return max(TAG_TEXT_MIN, min(TAG_TEXT_MAX, round(height * TAG_TEXT_SHARE)))
+
+
+def _pill_end(crop: np.ndarray) -> int | None:
+    """How far a price pill in the crop's top left corner reaches, in columns.
+
+    None when no pill is there. Mirror the crop to look top right.
+    """
+    height, width = crop.shape[:2]
+    text = _tag_text(height)
+    inset = max(PILL_INSET_MIN, PILL_INSET * text)
+    row = round(inset + PILL_ROW * text)
+    start = round(inset + PILL_SAMPLE * text)
+    if row + 1 >= height or start + 1 >= width:
+        return None
+    line = crop[row, :, :3].astype(np.int16)
+    fill = np.median(line[start - 1 : start + 2], axis=0)
+    if fill.max() - fill.min() < PILL_CHROMA:
+        return None
+    near = np.abs(line - fill).max(axis=1) <= PILL_TOLERANCE
+    end, gap = start, 0
+    for x in range(start, width):
+        if near[x]:
+            end, gap = x, 0
+        else:
+            gap += 1
+            if gap >= PILL_BRIDGE:
+                break
+    if end - start + 1 < PILL_MIN_RUN * text:
+        return None
+    return min(width, end + 1 + round(PILL_END * text) + PILL_MARGIN)
+
+
+def unpill(crop: np.ndarray) -> np.ndarray:
+    """A copy of a wide slot crop with ARLO's price pills painted out.
+
+    A pill top left or top right (see PILL_INSET) is painted the slot's own
+    backdrop colour, from the slot's edge to its end and from the top to its
+    deepest possible bottom. Without a pill the copy equals the crop. Only
+    rows slot_signature leaves out are painted, so the signature is the same.
+    """
+    out = np.array(crop, dtype=np.uint8)
+    height, width = out.shape[:2]
+    text = _tag_text(height)
+    ends = (_pill_end(out), _pill_end(out[:, ::-1]))
+    if ends == (None, None):
+        return out
+    inset = max(PILL_INSET_MIN, PILL_INSET * text)
+    band = max(_band(out), round(SIG_TAG_ROWS * text))
+    depth = min(band, round(inset + PILL_DEPTH * text) + PILL_MARGIN)
+    left, right = ends[0] or 0, width - (ends[1] or 0)
+    top = round(INSET * height)
+    strip = out[top : top + max(2, round((CARD_BOTTOM - INSET) * height) // 12)]
+    clear = strip[:, left:right] if right > left else strip
+    fill = np.median(clear.reshape(-1, 3), axis=0).astype(np.uint8)
+    out[:depth, :left] = fill
+    out[:depth, right:] = fill
+    return out
+
+
+def _art_rows(mask: np.ndarray) -> np.ndarray:
+    return mask.sum(axis=1) >= MIN_MASK_PIXELS
+
+
+def is_weapon_card(region: np.ndarray, height: int) -> bool:
+    """Whether a wide slot's art region (see card_square) shows a weapon."""
+    _, mask, _, _ = _art_mask(region)
+    rows = np.flatnonzero(_art_rows(mask))
+    if rows.size == 0:
+        return True
+    gap = max(1, round(CARD_GAP * height))
+    first_end = rows[-1] + 1
+    for before, after in itertools.pairwise(rows):
+        if after - before > gap:
+            first_end = before + 1
+            break
+    first = mask[rows[0] : first_end]
+    cols = np.flatnonzero(first.sum(axis=0) >= MIN_MASK_PIXELS)
+    if cols.size and cols[-1] + 1 - cols[0] >= WEAPON_ASPECT * (first_end - rows[0]):
+        return True
+    below = rows[rows > first_end]
+    return below.size > 0 and below[-1] + 1 - below[0] >= CARD_ATTACHMENTS * height
+
+
+def card_region(crop: np.ndarray) -> np.ndarray:
+    """A wide slot's art above the bar with the rarity wedge painted out."""
+    height, width = crop.shape[:2]
+    left, right = round(width * INSET), round(width * (1 - INSET))
+    top, bottom = round(height * INSET), round(height * CARD_BOTTOM)
+    region = np.array(crop[top:bottom, left:right, :3], dtype=np.uint8)
+    if region.size == 0:
+        return region
+    wedge = np.array(
+        [[round(x * width) - left, round(y * height) - top] for x, y in CARD_WEDGE],
+        dtype=np.int32,
+    )
+    cv2.fillPoly(region, [wedge], tuple(int(c) for c in _background(region)))
+    return region
+
+
+def card_square(crop: np.ndarray) -> np.ndarray:
+    """The model's view of a wide slot crop.
+
+    A weapon card keeps icon_embed.crop_square. An equipment card gives its
+    whole icon above the bar, untilted, boxed and padded as
+    icon_match.art_square does. See CARD_BOTTOM for the rule and its numbers.
+    """
+    region = card_region(crop)
+    if region.size == 0 or is_weapon_card(region, crop.shape[0]):
+        return crop_square(crop)
+    _, mask, rows, cols = _art_mask(region)
+    box = np.where(mask[rows, cols, None], region[rows, cols], GALLERY_BACKGROUND)
+    square = _pad_square(box.astype(np.uint8), GALLERY_BACKGROUND, ART_MARGIN)
+    grow = square.shape[0] < INPUT_SIDE
+    return cv2.resize(
+        square,
+        (INPUT_SIDE, INPUT_SIDE),
+        interpolation=cv2.INTER_LANCZOS4 if grow else cv2.INTER_AREA,
+    )
+
+
+def slot_square(crop: np.ndarray, rect: Rect) -> np.ndarray:
+    """The model's view of a slot: card_square when wide, else crop_square."""
+    return card_square(crop) if is_wide(rect) else crop_square(crop)
 
 
 def identify_slots(
@@ -928,7 +1140,7 @@ def identify_slots(
                     known[n] = cache.get(again)
     missed = [n for n, entry in enumerate(known) if entry is None]
     if missed:
-        squares = [crop_square(crops[n]) for n in missed]
+        squares = [slot_square(crops[n], filled[n].rect) for n in missed]
         vectors = (embedder or default_embedder()).embed(squares)
         for n, found in zip(missed, _rank(vectors, gallery), strict=True):
             crop = crops[n]

@@ -19,6 +19,8 @@ from arc_helper.grid import SHORT_RED
 from arc_helper.grid import Slot
 from arc_helper.icon_embed import EmbedCandidate
 from arc_helper.icon_embed import EmbedGallery
+from arc_helper.icon_match import ART_MARGIN
+from arc_helper.icon_match import GALLERY_BACKGROUND
 from arc_helper.slot_marks import BarGeometry
 from arc_helper.slot_marks import TierRead
 from arc_helper.stash_scan import SlotItem
@@ -1178,3 +1180,176 @@ def test_need_tag_have_comes_from_the_given_owned_totals():
     assert (tag["text"], tag["check"]) == ("12/10", True)
     shown = [b for b in badges_for([slot], verdict) if b["kind"] == "tag"]
     assert [t["text"] for t in shown] == ["2/10"]
+
+
+# Wide slots, drawn at the 4K sizes: an equipment card 288 x 192 and a
+# weapon card 608 x 402, on the cards' dark backdrop
+CARD_BACKDROP = (13, 18, 31)
+WEDGE_BLUE = (20, 150, 230)
+PILL_FILL = stash_scan.worth_colours(640)[0]
+
+
+def _hex_rgb(colour: str) -> np.ndarray:
+    return np.array([int(colour[i : i + 2], 16) for i in (1, 3, 5)])
+
+
+def _card(width: int = 288, height: int = 192) -> np.ndarray:
+    """A wide slot: backdrop, the rarity wedge bottom left, the dark bar."""
+    card = np.empty((height, width, 3), dtype=np.uint8)
+    card[:] = CARD_BACKDROP
+    for y in range(round(0.5 * height), round(0.77 * height)):
+        reach = round(0.29 * width * (y - 0.5 * height) / (0.27 * height))
+        card[y, :reach] = WEDGE_BLUE
+    card[round(0.77 * height) :] = (8, 10, 18)
+    return card
+
+
+def _draw_pill(card: np.ndarray, corner: str) -> tuple[slice, slice]:
+    """ARLO's "Φ 640" pill as badge_helper draws it on a 192 px tall slot.
+
+    Text 33 px, pill rows 10 to 55 and 110 columns from the inset, filled
+    PILL_FILL at TAG_ALPHA over the slot, its dark text in the middle rows.
+    Returns the pill's rows and columns.
+    """
+    width = card.shape[1]
+    left = 10 if corner == "tl" else width - 10 - 110
+    rows, cols = slice(10, 56), slice(left, left + 110)
+    alpha = int(stash_scan.TAG_ALPHA, 16) / 255
+    under = card[rows, cols].astype(float)
+    card[rows, cols] = np.round(alpha * _hex_rgb(PILL_FILL) + (1 - alpha) * under)
+    card[22:44, left + 14 : left + 96 : 3] = (17, 17, 17)
+    return rows, cols
+
+
+def _augment(card: np.ndarray) -> tuple[int, int, int, int]:
+    """An augment-shaped icon from 0.10 to 0.74 of the height, its box."""
+    height, width = card.shape[:2]
+    top, bottom = round(0.10 * height), round(0.74 * height)
+    for y in range(top, bottom):
+        half = round(0.12 * width + 0.06 * width * (y - top) / (bottom - top))
+        card[y, width // 2 - half : width // 2 + half] = (170, 170, 175)
+    card[top + 30 : top + 60, width // 2 - 15 : width // 2 + 15] = (60, 90, 200)
+    return (
+        top,
+        bottom,
+        width // 2 - round(0.18 * width),
+        width // 2 + round(0.18 * width),
+    )
+
+
+def _near(square: np.ndarray, colour: np.ndarray, tolerance: int = 40) -> int:
+    return int((np.abs(square.astype(int) - colour).max(axis=2) <= tolerance).sum())
+
+
+@pytest.mark.parametrize("corner", ["tl", "tr"])
+def test_a_wide_slot_is_embedded_without_arlos_price_pill(corner):
+    card = _card()
+    _augment(card)
+    _draw_pill(card, corner)
+    alpha = int(stash_scan.TAG_ALPHA, 16) / 255
+    drawn = np.round(
+        alpha * _hex_rgb(PILL_FILL) + (1 - alpha) * np.array(CARD_BACKDROP)
+    )
+    assert _near(card, drawn) > 2000
+    frame = np.zeros((192, 400, 3), dtype=np.uint8)
+    frame[:, 50:338] = card
+    slot = Slot(Rect(50, 0, 338, 192), "equipment", filled=True)
+    seen = []
+
+    class Recording(QueueEmbedder):
+        def embed(self, squares):
+            seen.extend(squares)
+            return super().embed(squares)
+
+    identify_slots(
+        frame,
+        _gallery(),
+        _catalog,
+        embedder=Recording([[0, 0, 0, 1, 0]]),
+        slots=[slot],
+    )
+    (square,) = seen
+    assert square.shape == (224, 224, 3)
+    assert _near(square, drawn) == 0
+    # The icon's blue mark is still in the view
+    assert _near(square, np.array([60, 90, 200])) > 100
+
+
+def test_a_wide_slot_without_a_pill_is_left_as_it_is():
+    card = _card()
+    _augment(card)
+    assert np.array_equal(stash_scan.unpill(card), card)
+
+
+def test_unpill_keeps_the_slot_signature():
+    card = _card()
+    _augment(card)
+    clean = stash_scan.slot_signature(card)
+    _draw_pill(card, "tl")
+    assert not np.array_equal(stash_scan.unpill(card), card)
+    assert stash_scan.slot_signature(stash_scan.unpill(card)) == clean
+
+
+def test_an_augment_card_gives_a_square_with_its_whole_icon():
+    card = _card()
+    top, bottom, left, right = _augment(card)
+    rect = Rect(0, 0, card.shape[1], card.shape[0])
+    square = stash_scan.slot_square(card, rect)
+    art = np.abs(square.astype(int) - np.array(GALLERY_BACKGROUND)).max(axis=2) > 30
+    rows, cols = np.flatnonzero(art.any(axis=1)), np.flatnonzero(art.any(axis=0))
+    tall, wide = rows[-1] + 1 - rows[0], cols[-1] + 1 - cols[0]
+    # The whole icon is boxed: its height spans the square inside the margin,
+    # and its width to height ratio is the icon's, not cut
+    side = 224 / (1 + 2 * ART_MARGIN)
+    assert tall == pytest.approx(side, abs=3)
+    assert wide / tall == pytest.approx((right - left) / (bottom - top), abs=0.03)
+    # No rarity wedge in the view
+    assert _near(square, np.array(WEDGE_BLUE)) == 0
+
+
+def _weapon_card(*, art_rows=(0.15, 0.40), art_cols=(0.2, 0.8)) -> np.ndarray:
+    card = _card(608, 402)
+    height, width = card.shape[:2]
+    rows = slice(round(art_rows[0] * height), round(art_rows[1] * height))
+    card[rows, round(art_cols[0] * width) : round(art_cols[1] * width)] = (
+        150,
+        150,
+        150,
+    )
+    for n in range(3):
+        left = round((0.3 + 0.14 * n) * width)
+        card[round(0.55 * height) : round(0.75 * height), left : left + 70] = (
+            90,
+            120,
+            90,
+        )
+    return card
+
+
+@pytest.mark.parametrize(
+    "card",
+    [
+        _weapon_card(),
+        # A hand cannon, its art less than WEAPON_ASPECT times as wide as tall
+        _weapon_card(art_rows=(0.10, 0.48), art_cols=(0.25, 0.65)),
+    ],
+    ids=["rifle", "hand cannon"],
+)
+def test_a_weapon_cards_square_is_unchanged(card):
+    from arc_helper.icon_embed import crop_square
+
+    rect = Rect(0, 0, card.shape[1], card.shape[0])
+    assert np.array_equal(stash_scan.slot_square(card, rect), crop_square(card))
+
+
+@pytest.mark.usefixtures("stubs", "no_bars")
+def test_a_cache_saved_under_the_previous_version_is_not_reused(tmp_path):
+    cache = stash_scan.SlotCache()
+    _identified(cache, QueueEmbedder([METAL, RUBBER, ANVIL]))
+    db = _user_db(tmp_path)
+    old = stash_scan.slot_cache_fingerprint(
+        NAMES, 1000, 5, version=stash_scan.SLOT_CACHE_VERSION - 1
+    )
+    db.save_slot_cache(old, cache.snapshot().rows())
+    assert len(stash_scan.load_slot_cache(db, FINGERPRINT)) == 0
+    assert len(stash_scan.load_slot_cache(db, old)) == 3
