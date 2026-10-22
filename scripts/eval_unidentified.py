@@ -19,7 +19,16 @@ They drive the cause counts and the correct, wrong and uncertain counts of
 each threshold proposal. A proposal is replayed on every observation, and
 the observations it newly accepts or newly rejects are counted.
 
+With --baseline DIR (an earlier run's out folder), the labels are read from
+DIR/labels.json instead, and every wide slot is compared with the same slot
+(source, frame and rect) in DIR/observations.csv: a per-item table of the
+frames where it is visible, correct, wrong and unidentified before and
+after, the newly wrong and the lost. A slot's true item is its baseline
+look's label, else the item the baseline identified (the labels name only
+looks that were unidentified or newly accepted by a proposal).
+
 usage: eval_unidentified.py --frames GLOB [--video FILE] --out DIR [--every S]
+       [--baseline DIR]
 """
 
 import argparse
@@ -44,7 +53,6 @@ from arc_helper.config import get_settings
 from arc_helper.database import Database
 from arc_helper.grid import find_slots
 from arc_helper.icon_embed import EmbedCandidate
-from arc_helper.icon_embed import crop_square
 from arc_helper.icon_embed import default_embedder
 from arc_helper.main import STASH_EXCLUDED_TYPES
 from arc_helper.main import STASH_ITEMS_FILE
@@ -224,12 +232,14 @@ def main() -> int:
     parser.add_argument("--video")
     parser.add_argument("--out", required=True)
     parser.add_argument("--every", type=float, default=2.0)
+    parser.add_argument("--baseline")
     args = parser.parse_args()
     out = Path(args.out)
     crops_dir = out / "unidentified"
     crops_dir.mkdir(parents=True, exist_ok=True)
     logging.getLogger("arc_helper").setLevel(logging.ERROR)
-    labels_path = out / "labels.json"
+    baseline = Path(args.baseline) if args.baseline else None
+    labels_path = (baseline or out) / "labels.json"
     labels = (
         json.loads(labels_path.read_text(encoding="utf-8"))
         if labels_path.is_file()
@@ -328,7 +338,9 @@ def main() -> int:
             if obs.item is None and look not in first_frame:
                 first_frame.add(look)
                 save_crops(rgb, tuple(slot.rect), crops_dir, look)
-                Image.fromarray(crop_square(crop)).save(crops_dir / f"{look}_model.png")
+                Image.fromarray(stash_scan.slot_square(crop, slot.rect)).save(
+                    crops_dir / f"{look}_model.png"
+                )
 
     paths = sorted(glob.glob(args.frames))
     for path in paths:
@@ -536,6 +548,8 @@ def main() -> int:
             lines.append(f"      {look}: {text}")
 
     lines.extend(tier_rule_lines(observations, lookup, twins, labels))
+    if baseline is not None:
+        lines.extend(wide_lines(observations, baseline, labels))
     write_observations(out, observations)
     text = "\n".join(lines) + "\n"
     (out / "real-data.txt").write_text(text, encoding="utf-8")
@@ -640,6 +654,83 @@ def write_observations(out: Path, observations: list[Obs]) -> None:
         looks=np.array([o.look for o in looks]),
         vectors=np.array([o.vector for o in looks]),
     )
+
+
+UNSURE = ("?", "empty weapon slot")
+
+
+def wide_lines(observations: list[Obs], baseline: Path, labels: dict) -> list[str]:
+    """Every wide slot before (the baseline's observations.csv) and after."""
+    before = {}
+    with (baseline / "observations.csv").open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            rect = tuple(int(row[k]) for k in ("left", "top", "right", "bottom"))
+            before[row["source"], row["frame"], rect] = row
+    lines = ["", f"WIDE SLOTS BEFORE AND AFTER (baseline {baseline})"]
+    table = defaultdict(Counter)
+    after_sims = defaultdict(list)
+    unmatched = 0
+    for o in observations:
+        r = o.rect
+        if r[2] - r[0] < stash_scan.WIDE_ASPECT * (r[3] - r[1]):
+            continue
+        row = before.get((o.source, o.frame, r))
+        if row is None:
+            unmatched += 1
+            continue
+        truth = labels.get(row["look"], {}).get("name") or row["item"] or "?"
+        old = row["item"] or None
+        key = (truth, o.source)
+        counts = table[key]
+        counts["visible"] += 1
+        sure = truth not in UNSURE
+        for when, item in (("before", old), ("after", o.item)):
+            if item is None:
+                counts[f"{when} unidentified"] += 1
+            elif sure and item == truth:
+                counts[f"{when} correct"] += 1
+            else:
+                counts[f"{when} wrong"] += 1
+        wrong = o.item is not None and (not sure or o.item != truth)
+        if wrong and (old is None or (sure and old == truth)):
+            counts["newly wrong"] += 1
+        if sure and old == truth and o.item != truth:
+            counts["lost"] += 1
+        after_sims[key].append((o.confidence, o.lead, o.found[0].name))
+    lines.extend(
+        [
+            (
+                f"wide slots after {sum(c['visible'] for c in table.values())}, "
+                f"without a baseline slot {unmatched}"
+            ),
+            (
+                "item | source | visible | before correct/wrong/unidentified | "
+                "after correct/wrong/unidentified | after correct share | "
+                "newly wrong | lost | after similarity, lead, top guesses"
+            ),
+        ]
+    )
+    for key in sorted(table):
+        c = table[key]
+        sims = after_sims[key]
+        guesses = Counter(name for _, _, name in sims).most_common(2)
+        share = c["after correct"] / c["visible"]
+        lines.append(
+            f"{key[0]} | {key[1]} | {c['visible']} | "
+            f"{c['before correct']}/{c['before wrong']}/{c['before unidentified']} | "
+            f"{c['after correct']}/{c['after wrong']}/{c['after unidentified']} | "
+            f"{share:.0%} | {c['newly wrong']} | {c['lost']} | "
+            f"{min(s for s, _, _ in sims):.4f}..{max(s for s, _, _ in sims):.4f}, "
+            f"{min(lead for _, lead, _ in sims):.4f}..{max(lead for _, lead, _ in sims):.4f}, "
+            f"{guesses}"
+        )
+    total = Counter()
+    for c in table.values():
+        total.update(c)
+    lines.append(
+        f"all wide slots: newly wrong {total['newly wrong']}, lost {total['lost']}"
+    )
+    return lines
 
 
 def stash_scan_twins(name: str, twins) -> tuple:
