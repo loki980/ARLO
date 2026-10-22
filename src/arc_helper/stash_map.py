@@ -41,6 +41,7 @@ Changed cells get the frame's time as last_seen, and only they are written.
 """
 
 from collections.abc import Callable
+from collections.abc import Sequence
 from datetime import UTC
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -63,6 +64,7 @@ from .stash_stitch import LOOK_TOLERANCE
 from .stash_stitch import LOOK_VOTES
 from .stash_stitch import ROW_RESIDUAL
 from .stash_stitch import Observation
+from .stash_stitch import Shift
 from .stash_stitch import View
 from .stash_stitch import frame_scale
 from .stash_stitch import frame_view
@@ -116,6 +118,9 @@ THUMB_TO = 40
 CLEAR_FROM = 30
 CLEAR_TO = 8
 THUMB_MIN_WIDTH = 6
+# The stash's first row, defined by the top anchor. A placed frame never has
+# a row above it
+FIRST_ROW = 0
 # The tab bar's first tab shows the whole stash (stash_stitch.tab_index 0)
 ALL_TAB = 0
 
@@ -323,6 +328,19 @@ def _stored_observations(
     return tuple(out)
 
 
+def _frame_cells(observations, origin, pitch, left) -> dict:
+    """The (row, column) cell of each whole slot of a frame whose row 0 top
+    is at origin, as observe takes them (slots off the grid left out)."""
+    out: dict[tuple[int, int], Observation] = {}
+    for o in observations:
+        exact = (o.rect.top - origin) / pitch
+        row = round(exact)
+        if abs(exact - row) > ROW_RESIDUAL:
+            continue
+        out.setdefault((row, round((o.rect.left - left) / pitch)), o)
+    return out
+
+
 class StashMapStore:
     """The stored stash map of one user database (see the module docstring)."""
 
@@ -453,7 +471,9 @@ class StashMapStore:
         if rest is not None:
             origin, how = float(rest), FIRST
         else:
-            placed, how = self._place(rgb, stash, probes, stored, pitch, left, scale)
+            placed, how = self._place(
+                rgb, stash, probes, stored, pitch, left, scale, observations
+            )
             if placed is None:
                 logger.info("stash map: frame not placed (%s), nothing changed", how)
                 return _nothing(UNPLACED, how)
@@ -509,6 +529,7 @@ class StashMapStore:
         pitch: float,
         left: float,
         scale: float,
+        observations: Sequence[Observation] = (),
     ) -> tuple[float | None, str]:
         """The frame y of row 0's top and how it was found (SCROLL or LOOKS),
         or None and which check stopped the frame."""
@@ -558,8 +579,10 @@ class StashMapStore:
         tol = LOOK_TOLERANCE * scale
         fresh = _stored_observations(stored, pitch, left, self._seen)
         tops, diff = look_pairs(fresh, probes, pitch)
+        contra = 0
         if tops.size:
             judged = judge_offset(tops, diff, round(origin), tol)
+            contra = judged.contra
             if shift_wrong(judged):
                 return None, (
                     f"{found[1]} place contradicts the cells seen this session "
@@ -572,12 +595,44 @@ class StashMapStore:
                 judged = judge_offset(tops, diff, round(origin - last.origin), tol)
                 if not shift_wrong(judged):
                     support = max(support, judged.support)
+        # Rule A. A whole empty slot on a cell seen filled this session
+        # contradicts the place, like a textured clash does (flat looks
+        # never reach look_pairs). On Jeffrey's first scroll of 21 Oct a
+        # frame of rows 65 to 70 was placed on row 6 with 5 for, 1 against
+        # and 12 empty slots on filled cells, and filled fell 92 to 80
+        emptied = self._emptied(observations, origin, pitch, left, stored)
+        if shift_wrong(Shift(0, support, contra + emptied)):
+            return None, (
+                f"{found[1]} place empties cells seen filled this session "
+                f"({contra} + {emptied} against, {support} for)"
+            )
+        # Rule B. The top anchor defines row 0, so no frame row may land
+        # above it. On the video of the second scroll 36 of 38 wrong
+        # placements did, none of the 186 correct ones
+        lowest = self._lowest_row(observations, origin, pitch, left)
+        if lowest is not None and lowest < FIRST_ROW:
+            return None, f"{found[1]} place puts row {lowest} above row {FIRST_ROW}"
         if support < LOOK_VOTES:
             return (
                 None,
                 f"{found[1]} place with {support} matching looks of {LOOK_VOTES}",
             )
         return found
+
+    def _emptied(self, observations, origin, pitch, left, stored) -> int:
+        """Whole empty slots of the frame, with row 0 at origin, on cells
+        seen filled this session."""
+        count = 0
+        for key, o in _frame_cells(observations, origin, pitch, left).items():
+            cell = stored.cells.get(key)
+            if not o.filled and cell is not None and cell.filled and key in self._seen:
+                count += 1
+        return count
+
+    @staticmethod
+    def _lowest_row(observations, origin, pitch, left) -> int | None:
+        rows = [r for r, _ in _frame_cells(observations, origin, pitch, left)]
+        return min(rows) if rows else None
 
     def _save(self, stored: StoredMap, cells, *, replace: bool = False) -> None:
         view = {

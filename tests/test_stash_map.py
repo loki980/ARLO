@@ -372,6 +372,62 @@ def test_an_unplaced_frame_followed_by_a_top_frame_recovers(db):
     assert store.observe(_frame(other, 300), [], _header(FILLED)).how == SCROLL
 
 
+def test_empty_slots_over_cells_seen_filled_do_not_place(db):
+    # The 21:12:49 shape: rows 3 to 5 of the frame are empty slots, on
+    # cells the session saw filled. Rows 1, 2 and 6 still match the map
+    store = _built(db)
+    before = store.map
+    content = _content()
+    for row in (3, 4, 5):
+        for col in range(COLUMNS):
+            _paint(content, row, col, None)
+    seen = store.observe(_frame(content, 300), [], _header(FILLED))
+    assert seen.how == UNPLACED
+    assert "empties cells seen filled" in seen.why
+    assert store.map == before
+
+
+def test_empty_slots_over_cells_seen_empty_place(db):
+    store = _built(db)
+    seen = store.observe(_frame(_content(), 1000), [], _header(FILLED))
+    assert seen.how in {SCROLL, LOOKS}
+    assert seen.rows is not None
+    assert seen.rows[1] == ROWS - 1
+
+
+def _no_thumb(frame: np.ndarray) -> np.ndarray:
+    """The frame without its scrollbar thumb, so it is not taken for the
+    top of the stash."""
+    x = THUMB_LEFT
+    frame[THUMB_TOP : THUMB_TOP + THUMB_HEIGHT, x : x + THUMB_WIDTH] = BACKGROUND
+    return frame
+
+
+def test_a_place_with_its_lowest_row_on_row_0_passes_and_one_above_is_refused(db):
+    store = _built(db)
+    content = _content()
+    seen = store.observe(_no_thumb(_frame(content, 0)), [], _header(FILLED))
+    assert seen.how in {SCROLL, LOOKS}
+    assert seen.rows[0] == 0
+    # The same content under a new row of other items: its first slots
+    # would be row -1
+    above = np.full(
+        (FIRST_ROW + (ROWS + 1) * PITCH + VIEW_BOTTOM, *content.shape[1:]),
+        BACKGROUND,
+        np.uint8,
+    )
+    above[PITCH : PITCH + content.shape[0]] = content
+    rng = np.random.default_rng(9)
+    for col in range(COLUMNS):
+        _paint(above, 0, col, rng)
+    store = _built(db)
+    before = store.map
+    seen = store.observe(_no_thumb(_frame(above, 0)), [], _header(FILLED))
+    assert seen.how == UNPLACED
+    assert "above row 0" in seen.why
+    assert store.map == before
+
+
 def test_a_map_of_an_old_version_is_rebuilt(db):
     _built(db)
     # As saved before MAP_VERSION
