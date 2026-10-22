@@ -132,7 +132,7 @@ def test_capture_library_throttles_per_name_and_never_raises(tmp_path):
     engine._save_to_library(image, None)  # noqa: SLF001
     engine._capture_queue.join()  # noqa: SLF001 - wait for the writer thread
     saved = sorted(
-        p.name.split("_", 1)[1] for p in engine.capture_library_dir.iterdir()
+        p.name.split("_", 1)[1] for p in engine.capture_library_dir.glob("*.png")
     )
     assert saved == ["ANVIL-II.png", "none.png"]
 
@@ -208,7 +208,7 @@ def test_card_in_search_window_is_cropped_and_window_saved(monkeypatch, tmp_path
     assert seen == [(card.width + 16, card.height + 16)]
     # The library keeps the whole window, named as before
     engine._capture_queue.join()  # noqa: SLF001 - wait for the writer thread
-    saved = list(tmp_path.iterdir())
+    saved = list(tmp_path.glob("*.png"))
     assert [p.name.split("_", 1)[1] for p in saved] == ["ANVILIV.png"]
     with Image.open(saved[0]) as image:
         assert image.size == (2400, 1600)
@@ -236,7 +236,7 @@ def test_no_card_falls_back_to_cursor_box(monkeypatch, tmp_path):
     assert engine._last_origin == FRAME_AT  # noqa: SLF001
     assert engine._last_capture.size == (1031, 1174)  # noqa: SLF001
     engine._capture_queue.join()  # noqa: SLF001 - wait for the writer thread
-    saved = list(tmp_path.iterdir())
+    saved = list(tmp_path.glob("*.png"))
     assert [p.name.split("_", 1)[1] for p in saved] == ["none.png"]
     with Image.open(saved[0]) as image:
         assert image.size == (1031, 1174)

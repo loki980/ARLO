@@ -3,6 +3,7 @@ OCR module for ARLO.
 Screen capture and text extraction using Tesseract.
 """
 
+import json
 import queue
 import re
 import string
@@ -314,9 +315,14 @@ class OCREngine:
         # Captures queued this run, and the queue the writer thread drains so
         # a 2 MB PNG save never runs on the scan thread
         self._capture_count = 0
-        self._capture_queue: queue.Queue[tuple[Image.Image, str, str]] = queue.Queue(
-            maxsize=CAPTURE_QUEUE_SIZE
+        self._capture_queue: queue.Queue[tuple[Image.Image, str, str, dict]] = (
+            queue.Queue(maxsize=CAPTURE_QUEUE_SIZE)
         )
+        # The cursor capture_search_window received and the screen origin of
+        # the window it grabbed, kept for the sidecar of the capture saved
+        # after the title read. None before the first search window.
+        self._capture_cursor: Point | None = None
+        self._capture_origin: LayoutPoint | None = None
         self._capture_writer: threading.Thread | None = None
         # The last grid frame saved in this ACTIVE stretch, with its ignore
         # rects and monotonic save time, None before the first
@@ -382,6 +388,8 @@ class OCREngine:
         )
         # The box is already clamped, so its own size is passed on
         image = self._grab_clamped(cursor, left, top, right - left, bottom - top)
+        self._capture_cursor = cursor
+        self._capture_origin = LayoutPoint(left, top)
         return image, cursor
 
     def _grab_clamped(
@@ -958,7 +966,16 @@ class OCREngine:
         last = self._capture_saved_at.get(label)
         if last is not None and now - last < 2.0:
             return
-        if not self._queue_capture(image, label):
+        # The cursor stored at capture time, and the origin of the saved image.
+        # A no-card image is the cursor box grabbed after the window, which
+        # made it the last capture.
+        origin = self._last_origin if image is self._last_capture else None
+        if not self._queue_capture(
+            image,
+            label,
+            cursor=self._capture_cursor,
+            origin=origin or self._capture_origin,
+        ):
             return
         self._capture_saved_at[label] = now
 
@@ -993,20 +1010,40 @@ class OCREngine:
                 return False
             if still(saved, image, [*saved_ignore, *ignore]):
                 return False
-        if not self._queue_capture(image, "grid"):
+        try:
+            cursor = get_cursor_position()
+        except Exception:  # noqa: BLE001 - a cursor read must not stop the capture
+            cursor = None
+        if not self._queue_capture(image, "grid", cursor=cursor):
             return False
         self._grid_saved = (image, tuple(ignore), now)
         return True
 
-    def _queue_capture(self, image: Image.Image, label: str) -> bool:
+    def _queue_capture(
+        self,
+        image: Image.Image,
+        label: str,
+        *,
+        cursor: Point | None = None,
+        origin: LayoutPoint | None = None,
+    ) -> bool:
         """Queue one capture for the writer thread, counted toward the limit.
 
-        Returns False when the queue was full and the capture dropped.
+        cursor is the screen position the scanner used for this frame, origin
+        the screen position of the image's top left (0, 0 when None). Both go
+        to the sidecar. Returns False when the queue was full and the capture
+        dropped.
         """
-        stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-%f")[:-3]
+        now = datetime.now().astimezone()
+        stamp = now.strftime("%Y%m%d-%H%M%S-%f")[:-3]
+        meta = {
+            "cursor": [cursor.x, cursor.y] if cursor is not None else None,
+            "origin": [origin.x, origin.y] if origin is not None else [0, 0],
+            "time": now.isoformat(timespec="milliseconds"),
+        }
         self._start_capture_writer()
         try:
-            self._capture_queue.put_nowait((image, stamp, label))
+            self._capture_queue.put_nowait((image, stamp, label, meta))
         except queue.Full:
             logger.debug(f"Capture writer busy, dropped capture '{label}'")
             return False
@@ -1029,19 +1066,34 @@ class OCREngine:
     def _capture_writer_loop(self) -> None:
         """Save queued captures one at a time, for the life of the process."""
         while True:
-            image, stamp, label = self._capture_queue.get()
+            image, stamp, label, meta = self._capture_queue.get()
             try:
-                self._write_capture(image, stamp, label)
+                self._write_capture(image, stamp, label, meta)
             finally:
                 self._capture_queue.task_done()
 
-    def _write_capture(self, image: Image.Image, stamp: str, label: str) -> None:
-        """Save one capture as <stamp>_<label>.png, never raising."""
+    def _write_capture(
+        self, image: Image.Image, stamp: str, label: str, meta: dict | None = None
+    ) -> None:
+        """Save one capture as <stamp>_<label>.png, never raising.
+
+        Then writes <stamp>_<label>.json beside it with meta (cursor, origin,
+        time), the screen size and the label. A sidecar failure is logged
+        and never raises.
+        """
         try:
             self.capture_library_dir.mkdir(parents=True, exist_ok=True)
             image.save(self.capture_library_dir / f"{stamp}_{label}.png")
         except Exception as e:  # noqa: BLE001 - a full disk must not stop scanning
             logger.warning(f"Could not save capture to library: {e}")
+            return
+        try:
+            width, height = get_screen_resolution()
+            sidecar = {**(meta or {}), "screen": [width, height], "label": label}
+            path = self.capture_library_dir / f"{stamp}_{label}.json"
+            path.write_text(json.dumps(sidecar), encoding="utf-8")
+        except Exception as e:  # noqa: BLE001 - a sidecar must not stop scanning
+            logger.warning(f"Could not save capture sidecar: {e}")
 
     def _read_title(self, image: Image.Image, *, card_found: bool) -> str | None:
         """Read the item name from a card crop with the configured reader.
