@@ -8,6 +8,7 @@ a display.
 """
 
 import tkinter as tk
+from collections import OrderedDict
 
 from PIL import Image
 from PIL import ImageTk
@@ -29,6 +30,9 @@ FIT_TRIES = 3
 # capture (debug/captures/20261014-211438-853_none.png), the most common
 # pixel value, #0B0D19. The card's transparent corners are composited onto it.
 PANEL_RGB = (11, 13, 25)
+# Rendered cards kept per window, so hovering an item shown before maps its
+# image again without rendering it. The least recently shown is dropped first
+RENDER_CACHE_SIZE = 16
 
 
 def fit_scale(box_width_phys: int) -> float:
@@ -98,30 +102,52 @@ class AdviceWindow:
         self._pos: tuple[int, int] | None = None  # tk units
         self._size_tk: tuple[int, int] = (0, 0)
         self._visible = False
+        # (card, box, tk scale) -> (photo, size in tk units, top left in tk)
+        self._renders: OrderedDict[tuple, tuple] = OrderedDict()
+
+    def _render(
+        self, card: AdviceCard, home_rect_phys: Rect, tk_scale: float
+    ) -> tuple[ImageTk.PhotoImage, tuple[int, int], tuple[int, int]]:
+        """The card's photo, size and spot in tk units, rendered once per box."""
+        key = (card, tuple(home_rect_phys), tk_scale)
+        found = self._renders.get(key)
+        if found is not None:
+            self._renders.move_to_end(key)
+            return found
+        image = render_in_box(card, home_rect_phys)
+        phys_size = image.size
+        flat = flatten_on_panel(image)
+        width_tk = max(1, round(phys_size[0] / tk_scale))
+        height_tk = max(1, round(phys_size[1] / tk_scale))
+        if (width_tk, height_tk) != phys_size:
+            flat = flat.resize((width_tk, height_tk), Image.LANCZOS)
+        x, y = place_card(home_rect_phys, phys_size, get_backend().resolution()[1])
+        found = (
+            ImageTk.PhotoImage(flat),
+            (width_tk, height_tk),
+            (phys_to_tk(x), phys_to_tk(y)),
+        )
+        self._renders[key] = found
+        while len(self._renders) > RENDER_CACHE_SIZE:
+            self._renders.popitem(last=False)
+        return found
 
     def show(self, card: AdviceCard, home_rect_phys: Rect) -> None:
         """Show the card at the box's top left, no wider or taller than it.
 
-        An equal card in the same box is a no-op.
+        An equal card in the same box is a no-op. A card shown before in
+        the same box reuses its rendered image.
         """
         box_key = tuple(home_rect_phys)
         if self._visible and card == self._card and box_key == self._box_key:
             return
-        backend = get_backend()
-        tk_scale = backend.tk_scale
         if card != self._card or box_key != self._box_key or self._photo is None:
-            image = render_in_box(card, home_rect_phys)
-            phys_size = image.size
-            flat = flatten_on_panel(image)
-            width_tk = max(1, round(phys_size[0] / tk_scale))
-            height_tk = max(1, round(phys_size[1] / tk_scale))
-            if (width_tk, height_tk) != phys_size:
-                flat = flat.resize((width_tk, height_tk), Image.LANCZOS)
-            self._photo = ImageTk.PhotoImage(flat)
-            self._label.configure(image=self._photo)
-            self._size_tk = (width_tk, height_tk)
-            x, y = place_card(home_rect_phys, phys_size, backend.resolution()[1])
-            self._pos = (phys_to_tk(x), phys_to_tk(y))
+            photo, self._size_tk, self._pos = self._render(
+                card, home_rect_phys, get_backend().tk_scale
+            )
+            if photo is not self._photo:
+                self._photo = photo
+                self._label.configure(image=self._photo)
             self._card = card
             self._box_key = box_key
         width, height = self._size_tk

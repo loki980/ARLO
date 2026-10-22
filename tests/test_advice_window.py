@@ -133,6 +133,26 @@ def test_show_different_card_swaps_in_place(window):
     assert len(_count(window, "deiconify")) == 1
 
 
+def test_card_shown_before_is_not_rendered_again(window):
+    window.show(_card(), BOX_4K)
+    window.show(_card("Keep 8"), BOX_4K)
+    window.hide()
+    window.show(_card(), BOX_4K)
+    assert len(window.renders) == 2
+    assert window._card == _card()  # noqa: SLF001
+    assert window.rect_phys() == Rect(1367, 1635, 2045, 1835)
+
+
+def test_render_cache_keeps_the_newest_cards(window, monkeypatch):
+    monkeypatch.setattr(advice_window, "RENDER_CACHE_SIZE", 2)
+    for title in ("A", "B", "C", "A"):
+        window.show(_card(title), BOX_4K)
+    # A was dropped when C came in, so it renders again
+    assert [card.title for card, _ in window.renders] == ["A", "B", "C", "A"]
+    window.show(_card("C"), BOX_4K)
+    assert len(window.renders) == 4
+
+
 def test_hide_then_show_remaps(window):
     window.show(_card(), BOX_4K)
     window.hide()
