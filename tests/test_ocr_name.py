@@ -12,6 +12,11 @@ from arc_helper.config import get_settings
 from arc_helper.database import Database
 from arc_helper.ocr import OCREngine
 from arc_helper.screen import Point
+from arc_helper.tiers import TierVote
+from arc_helper.title_reader import TESSERACT_TITLE
+from arc_helper.title_reader import TesseractTitleReader
+from arc_helper.title_reader import TitleRead
+from arc_helper.title_reader import title_look
 from arc_helper.tooltip_layout import Edges
 from arc_helper.tooltip_layout import Rect
 
@@ -261,3 +266,113 @@ def test_anvil_card_read_resolves_through_vote(monkeypatch, tmp_path):
     assert engine._last_card is not None  # noqa: SLF001 - the new path ran
     assert engine.last_tier_vote is not None
     assert db.lookup(name, tier_vote=engine.last_tier_vote).name == "Anvil IV"
+
+
+class _CountingReader:
+    """A title reader that counts its reads and returns one fixed read.
+
+    Its line boxes are the card's own title lines unless lines says otherwise,
+    as TesseractTitleReader's are.
+    """
+
+    name = TESSERACT_TITLE
+    wants_binary = False
+
+    def __init__(self, text, vote=None, boxes=None):
+        self.text = text
+        self.vote = vote
+        self.boxes = boxes
+        self.reads = 0
+
+    def read(self, card_rgb):
+        self.reads += 1
+        look = title_look(card_rgb)
+        boxes = self.boxes if self.boxes is not None else look.boxes
+        return TitleRead(self.text, boxes, 0.9, self.vote)
+
+
+def _card_crop(fixture: str) -> Image.Image:
+    with Image.open(FIXTURES / fixture) as capture:
+        rgb = capture.convert("RGB")
+    found = ocr_module.crop_card(rgb, Point(x=rgb.width // 2, y=rgb.height // 2))
+    assert found is not None
+    return found[0]
+
+
+def _title_engine(reader) -> OCREngine:
+    engine = OCREngine()
+    engine.debug_mode = False
+    engine.capture_library = False
+    engine.reader = reader
+    return engine
+
+
+def test_title_cache_hit_skips_the_read_and_restores_the_tier_vote():
+    vote = TierVote("IV", 0.8, "4 strokes")
+    reader = _CountingReader("ANVIL IV", vote)
+    engine = _title_engine(reader)
+    card = _card_crop("anvil_iv_loadout_capture.png")
+
+    assert engine._read_title(card, card_found=True) == "ANVIL IV"  # noqa: SLF001
+    assert not engine.last_read_cached
+    engine.last_tier_vote = None  # the next locate clears it
+    assert engine._read_title(card, card_found=True) == "ANVIL IV"  # noqa: SLF001
+
+    assert reader.reads == 1
+    assert engine.last_read_cached
+    assert engine.last_tier_vote == vote
+
+
+def test_title_cache_miss_reads_the_card():
+    reader = _CountingReader("SOMETHING")
+    engine = _title_engine(reader)
+    engine._read_title(_card_crop("anvil_iv_loadout_capture.png"), card_found=True)  # noqa: SLF001
+    engine._read_title(_card_crop("garnet_stencil_capture_a.png"), card_found=True)  # noqa: SLF001
+    assert reader.reads == 2
+    assert not engine.last_read_cached
+
+
+def test_a_read_of_other_lines_than_the_look_is_not_remembered():
+    # The read must cover exactly the title rows the look covers
+    reader = _CountingReader("ANVIL IV", boxes=[(0, 0, 10, 10)])
+    engine = _title_engine(reader)
+    card = _card_crop("anvil_iv_loadout_capture.png")
+    engine._read_title(card, card_found=True)  # noqa: SLF001
+    engine._read_title(card, card_found=True)  # noqa: SLF001
+    assert reader.reads == 2
+
+
+def test_no_read_is_not_remembered():
+    reader = _CountingReader(None)
+    engine = _title_engine(reader)
+    card = _card_crop("anvil_iv_loadout_capture.png")
+    engine._read_title(card, card_found=True)  # noqa: SLF001
+    engine._read_title(card, card_found=True)  # noqa: SLF001
+    assert reader.reads == 2
+
+
+@pytest.mark.skipif(shutil.which("tesseract") is None, reason="needs tesseract")
+def test_cached_title_resolves_to_the_same_tier(tmp_path):
+    path = tmp_path / "anvil.db"
+    db = Database(db_path=path)
+    db.clear()
+    with db._get_connection() as conn:  # noqa: SLF001 - test seam
+        conn.executemany(
+            "INSERT INTO items (name, action) VALUES (?, ?)",
+            [(f"Anvil {t}", "Keep") for t in ("I", "II", "III", "IV")],
+        )
+        conn.commit()
+    db = Database(db_path=path)  # the tier index is built on open
+    engine = _title_engine(TesseractTitleReader())
+    card = _card_crop("anvil_iv_loadout_capture.png")
+
+    read = engine._read_title(card, card_found=True)  # noqa: SLF001
+    first = db.lookup(read, tier_vote=engine.last_tier_vote)
+    engine.last_tier_vote = None  # the next locate clears it
+    cached = engine._read_title(card, card_found=True)  # noqa: SLF001
+
+    assert engine.last_read_cached
+    assert engine.last_tier_vote is not None
+    assert cached == read
+    assert db.lookup(cached, tier_vote=engine.last_tier_vote).name == first.name
+    assert first.name == "Anvil IV"

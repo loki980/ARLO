@@ -16,9 +16,11 @@ confidence and, when the name ends in a tier-like token, the stroke-count
 vote on that token.
 """
 
+import hashlib
 import re
 import string
 import time
+from collections import OrderedDict
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import NamedTuple
@@ -282,7 +284,14 @@ def binarize_card(img_array: np.ndarray, *, stages: bool = False) -> BinaryCard:
 
 def _inner_card(rgb: np.ndarray) -> Box | None:
     """The cream card inside a crop, without the margin around it."""
-    cream = np.all((rgb >= CREAM_LOWER) & (rgb <= CREAM_UPPER), axis=2)
+    if rgb.dtype == np.uint8:
+        cream = cv2.inRange(
+            np.ascontiguousarray(rgb),
+            tuple(int(v) for v in CREAM_LOWER),
+            tuple(int(v) for v in CREAM_UPPER),
+        ).astype(bool)
+    else:
+        cream = np.all((rgb >= CREAM_LOWER) & (rgb <= CREAM_UPPER), axis=2)
     rows = np.flatnonzero(cream.mean(axis=1) > 0.5)
     cols = np.flatnonzero(cream.mean(axis=0) > 0.5)
     if rows.size == 0 or cols.size == 0:
@@ -321,7 +330,9 @@ def find_title_lines(card_rgb: np.ndarray) -> list[Box]:
     sentence-case description, light grey included. Returns [] when there is no tag row, which
     is the case when the title is cut off above the capture.
     """
-    rgb = np.asarray(card_rgb)[:, :, :3].astype(np.int16)
+    rgb = np.asarray(card_rgb)[:, :, :3]
+    if rgb.dtype != np.uint8:
+        rgb = rgb.astype(np.int16)
     inner = _inner_card(rgb)
     if inner is None:
         return []
@@ -331,16 +342,22 @@ def find_title_lines(card_rgb: np.ndarray) -> list[Box]:
     if height < 20 or width < 20:
         return []
 
-    max_rgb = card.max(axis=2)
-    min_rgb = card.min(axis=2)
+    if card.dtype == np.uint8:
+        red, green, blue = cv2.split(np.ascontiguousarray(card))
+        max_rgb = cv2.max(cv2.max(red, green), blue)
+        min_rgb = cv2.min(cv2.min(red, green), blue)
+    else:
+        max_rgb = card.max(axis=2)
+        min_rgb = card.min(axis=2)
     # Light and unsaturated: the cream card, its row stripes and white text
     background = (max_rgb >= _LIGHT_MAX) & (min_rgb >= _LIGHT_MIN)
-    runs = _longest_runs(~background)
     fill = (~background).mean(axis=1)
     # Chip fill: colored or grey, not the near black ink of text
     chip = (~background & (max_rgb >= _CHIP_MIN)).mean(axis=1)
 
     search = int(height * _TAG_SEARCH)
+    # Only the rows searched for the tag row need their longest run
+    runs = _longest_runs(~background[:search])
     tag_rows = np.flatnonzero(
         (runs[:search] >= _TAG_RUN_MIN * width) & (chip[:search] >= _TAG_FILL_MIN)
     )
@@ -379,6 +396,86 @@ def find_title_lines(card_rgb: np.ndarray) -> list[Box]:
         if len(lines) == _MAX_TITLE_LINES:
             break
     return lines
+
+
+# Title look: each title line's ink, shrunk to LOOK_HEIGHT rows (its width in
+# proportion) and thresholded again, so a card whose title row looks the same
+# as before can skip the read. A look keeps every line's box size in px, so
+# only an exact match of sizes and bits counts as the same title.
+LOOK_HEIGHT = 16
+# Title looks remembered per run, oldest dropped first
+TITLE_CACHE_SIZE = 512
+
+
+class TitleLook(NamedTuple):
+    """The title rows of one card sighting, from find_title_lines.
+
+    boxes are the title line boxes in the crop, bits each line's ink at
+    LOOK_HEIGHT rows, and key a digest of the line sizes and bits. Two
+    sightings with the same key show the same title pixels at that scale.
+    """
+
+    key: bytes
+    boxes: list[Box]
+    bits: list[np.ndarray]
+
+
+def line_look(rgb: np.ndarray, box: Box) -> np.ndarray:
+    """One title line's ink (every channel below _INK_MAX) at LOOK_HEIGHT rows."""
+    left, top, right, bottom = box
+    band = rgb[top:bottom, left:right]
+    ink = (band.max(axis=2) < _INK_MAX).astype(np.uint8) * 255
+    width = max(1, round((right - left) * LOOK_HEIGHT / max(1, bottom - top)))
+    small = cv2.resize(ink, (width, LOOK_HEIGHT), interpolation=cv2.INTER_AREA)
+    return small >= 128
+
+
+def title_look(card_rgb: np.ndarray) -> TitleLook | None:
+    """The look of a card crop's title rows, None when no title line is found."""
+    rgb = np.ascontiguousarray(np.asarray(card_rgb)[:, :, :3], dtype=np.uint8)
+    boxes = find_title_lines(rgb)
+    if not boxes:
+        return None
+    bits = [line_look(rgb, box) for box in boxes]
+    digest = hashlib.blake2b(digest_size=16)
+    for (left, top, right, bottom), line in zip(boxes, bits, strict=True):
+        digest.update(f"{right - left}x{bottom - top};".encode())
+        digest.update(np.packbits(line).tobytes())
+    return TitleLook(digest.digest(), boxes, bits)
+
+
+class CachedTitle(NamedTuple):
+    """A title read remembered for its look: the text and its tier vote."""
+
+    text: str
+    tier_vote: TierVote | None
+
+
+class TitleCache:
+    """Title reads by look, in memory for the run, at most size of them.
+
+    Only an exact look key is a hit. The least recently used look is
+    dropped first.
+    """
+
+    def __init__(self, size: int = TITLE_CACHE_SIZE) -> None:
+        self.size = size
+        self._reads: OrderedDict[bytes, CachedTitle] = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._reads)
+
+    def get(self, key: bytes) -> CachedTitle | None:
+        found = self._reads.get(key)
+        if found is not None:
+            self._reads.move_to_end(key)
+        return found
+
+    def put(self, key: bytes, read: CachedTitle) -> None:
+        self._reads[key] = read
+        self._reads.move_to_end(key)
+        while len(self._reads) > self.size:
+            self._reads.popitem(last=False)
 
 
 def _band_crop(gray: np.ndarray, box: Box) -> tuple[np.ndarray, Box]:

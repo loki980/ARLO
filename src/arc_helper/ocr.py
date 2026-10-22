@@ -34,10 +34,15 @@ from .tiers import tier_key
 from .title_reader import PADDLE_INSTALL
 from .title_reader import TESSERACT
 from .title_reader import TESSERACT_TITLE
+from .title_reader import CachedTitle
 from .title_reader import TextLine
+from .title_reader import TitleCache
+from .title_reader import TitleLook
+from .title_reader import TitleRead
 from .title_reader import TitleReader
 from .title_reader import TitleReaderUnavailableError
 from .title_reader import make_reader
+from .title_reader import title_look
 from .tooltip_layout import RECYCLES_INTO
 from .tooltip_layout import Edges
 from .tooltip_layout import Point as LayoutPoint
@@ -324,6 +329,13 @@ class OCREngine:
 
         # Stroke-count vote on the tier token of the last name read
         self.last_tier_vote: TierVote | None = None
+
+        # Title reads by the look of the card's title rows, so a card seen
+        # before is not read again. None turns the cache off. True when the
+        # last title came from it
+        self.title_cache: TitleCache | None = TitleCache()
+        self.last_read_cached = False
+        self._look: TitleLook | None = None
 
     @staticmethod
     def capture_region(region: RegionMixin) -> Image.Image:
@@ -889,6 +901,7 @@ class OCREngine:
         read_located_card and layout_from_last_capture.
         """
         self.last_tier_vote = None
+        self.last_read_cached = False
         window, cursor = self.capture_search_window()
         self._card_crop = self._locate_card(cursor)
         if self._card_crop is None or self._last_card is None:
@@ -934,8 +947,9 @@ class OCREngine:
         else:
             if item_name:
                 logger.debug(f"Extracted item name: '{item_name}'")
+        source = "the title cache" if self.last_read_cached else self.reader.name
         logger.debug(
-            f"Title read by {self.reader.name} done in "
+            f"Title read by {source} done in "
             f"{1000 * (time.perf_counter() - start):.0f} ms"
         )
 
@@ -1056,6 +1070,8 @@ class OCREngine:
         """
         self.last_tier_vote = None
         self._last_lines = None
+        self.last_read_cached = False
+        self._look = None
         if self.reader.name == TESSERACT:
             processed = self.preprocess_tooltip(image)
             if self.debug_mode:
@@ -1064,7 +1080,12 @@ class OCREngine:
         if not card_found:
             return None
 
-        read = self.reader.read(np.array(image.convert("RGB")))
+        rgb = np.array(image.convert("RGB"))
+        cached = self._cached_title(rgb)
+        if cached is not None:
+            return cached
+        read = self.reader.read(rgb)
+        self._remember_title(read)
         self.last_tier_vote = read.tier_vote
         if read.lines is not None:
             dx, dy = self._crop_to_card
@@ -1074,6 +1095,38 @@ class OCREngine:
                 for left, top, right, bottom in [line.box]
             ]
         return read.text
+
+    def _cached_title(self, rgb: np.ndarray) -> str | None:
+        """The remembered title for this card's title look, None on a miss.
+
+        A hit restores the tier vote of the read that was remembered. The
+        look is kept for _remember_title on a miss.
+        """
+        if self.title_cache is None:
+            return None
+        self._look = title_look(rgb)
+        if self._look is None:
+            return None
+        found = self.title_cache.get(self._look.key)
+        if found is None:
+            return None
+        self.last_tier_vote = found.tier_vote
+        self.last_read_cached = True
+        return found.text
+
+    def _remember_title(self, read: TitleRead) -> None:
+        """Remember a read for the look _cached_title computed.
+
+        Only a read of exactly the title lines the look covers, and with no
+        lines for the layout, is remembered, so a hit gives what the read
+        gave and leaves the layout as the read would.
+        """
+        look = self._look
+        if self.title_cache is None or look is None or not read.text:
+            return
+        if read.lines is not None or list(read.line_boxes) != look.boxes:
+            return
+        self.title_cache.put(look.key, CachedTitle(read.text, read.tier_vote))
 
     def _read_item_name(self, processed: Image.Image) -> str | None:
         """Read the item name from a preprocessed tooltip via two OCR passes.

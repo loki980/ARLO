@@ -11,13 +11,16 @@ from PIL import Image
 
 from arc_helper.ocr import OCREngine
 from arc_helper.ocr import crop_card
+from arc_helper.title_reader import CachedTitle
 from arc_helper.title_reader import TesseractReader
 from arc_helper.title_reader import TesseractTitleReader
+from arc_helper.title_reader import TitleCache
 from arc_helper.title_reader import TitleReaderUnavailableError
 from arc_helper.title_reader import binarize_card
 from arc_helper.title_reader import find_title_lines
 from arc_helper.title_reader import fix_trailing_token
 from arc_helper.title_reader import make_reader
+from arc_helper.title_reader import title_look
 from arc_helper.tooltip_layout import Point
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -142,3 +145,52 @@ def test_bakeoff_counts_covered_rows_apart_from_scored():
     assert [r["file"] for r in scored] == ["a.png"]
     assert [r["file"] for r in unreadable] == ["c.png"]
     assert [r["file"] for r in covered] == ["b.png"]
+
+
+# Card crops from the labelled capture library (capture-labels), the closest
+# titles in it: one stroke more or less in the tier numeral
+NEAR_TITLES = {
+    "TORRENTE I": "title_torrente_i_card.png",
+    "TORRENTE II": "title_torrente_ii_card.png",
+    "STILETTO I": "title_stiletto_i_card.png",
+    "STILETTO IV": "title_stiletto_iv_card.png",
+}
+
+
+def _crop(fixture: str) -> np.ndarray:
+    with Image.open(FIXTURES / fixture) as image:
+        return np.array(image.convert("RGB"))
+
+
+def test_title_look_is_stable_for_the_same_card_crop():
+    card = np.array(_card("anvil_iv_loadout_capture.png"))
+    first = title_look(card)
+    assert first is not None
+    assert title_look(card.copy()).key == first.key
+    # Only the title rows count: pixels below them leave the look alone
+    changed = card.copy()
+    changed[-40:] = 0
+    assert title_look(changed).key == first.key
+
+
+def test_title_look_differs_for_different_titles():
+    looks = {title: title_look(_crop(name)) for title, name in NEAR_TITLES.items()}
+    assert all(look is not None for look in looks.values())
+    assert len({look.key for look in looks.values()}) == len(NEAR_TITLES)
+    assert looks["TORRENTE I"].key != looks["TORRENTE II"].key
+    assert looks["STILETTO I"].key != looks["STILETTO IV"].key
+
+
+def test_title_look_is_none_without_title_lines():
+    assert title_look(np.full((300, 400, 3), 245, np.uint8)) is None
+
+
+def test_title_cache_drops_the_least_recently_used():
+    cache = TitleCache(size=2)
+    cache.put(b"a", CachedTitle("A", None))
+    cache.put(b"b", CachedTitle("B", None))
+    assert cache.get(b"a").text == "A"
+    cache.put(b"c", CachedTitle("C", None))
+    assert cache.get(b"b") is None
+    assert cache.get(b"a").text == "A"
+    assert len(cache) == 2
