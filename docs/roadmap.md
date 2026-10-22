@@ -657,10 +657,9 @@ Will contain:
 - Done 21 Oct: the ruff baseline is cleared except config.py (unformatted)
   and overlay.py (4 findings), left while other work touches them.
 - 158 items have no rarity because the API gives none.
-- The capture library should record the cursor position with each image
-  (sidecar or file name) so the evaluation script picks the same card the
-  live scanner did now that captures are full screen. Added 12 Oct.
-  Underway 21 Oct.
+- Done 21 Oct: every capture saves a JSON sidecar with the cursor position
+  and the image's screen origin, and the evaluation script uses it and
+  skips unreadable files.
 - Done 18 Oct: the README, `docs/CONFIGURATION.md` and the `TOOLTIP_CHIPS`
   description describe the current overlay (no price chip, status window
   off by default, how to quit, how to fill the stash map), and the design
